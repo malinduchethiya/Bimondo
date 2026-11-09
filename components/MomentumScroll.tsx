@@ -73,14 +73,17 @@ export default function MomentumScroll() {
     };
   }, []);
 
-  // Reset scroll position smoothly when navigating between routes
+  // Reset scroll position non-blockingly when navigating between routes
   useEffect(() => {
     if (lenisRef.current) {
       lenisRef.current.scrollTo(0, { immediate: true });
-      ScrollTrigger.refresh();
     } else {
       window.scrollTo(0, 0);
     }
+    const rafId = window.requestAnimationFrame(() => {
+      ScrollTrigger.refresh();
+    });
+    return () => window.cancelAnimationFrame(rafId);
   }, [pathname]);
 
   return null;
