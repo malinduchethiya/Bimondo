@@ -223,60 +223,60 @@ header.site-header.is-hidden {
 
 .navlinks a:not(.pill) {
   color: #f0faff;
-  padding: 13px 12px;
-  min-height: 46px;
-  border-radius: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-shadow: none !important;
+  padding: 8px 12px;
+  min-height: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  background: none !important;
+  background-color: transparent !important;
   box-shadow: none !important;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  text-shadow: none !important;
+  filter: none !important;
+  outline: none !important;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  text-decoration: none !important;
+  transition: color 0.18s ease;
 }
 
 .navlinks a[aria-current="page"],
 .navlinks a.active {
   color: #a7eff4;
-  background: rgba(167, 239, 244, 0.14);
+  background: none !important;
+  background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
 
-/* Header nav links and items: No hover shadow, no hover background capsule */
+/* Header nav links: Plain unformatted text links with clean color transition */
 header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:hover,
 header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:focus,
 header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:active,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:nth-of-type(1):hover,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:nth-of-type(1):focus,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) > a:nth-of-type(1):active,
 header nav#navlinks a:not(.pill):hover,
 header nav#navlinks a:not(.pill):focus,
 header nav#navlinks a:not(.pill):active,
 .navlinks a:not(.pill):hover,
 .navlinks a:not(.pill):focus,
 .navlinks a:not(.pill):active {
-  background: transparent !important;
+  color: #a7eff4;
+  background: none !important;
   background-color: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
   box-shadow: none !important;
   text-shadow: none !important;
   filter: none !important;
   outline: none !important;
+  text-decoration: none !important;
 }
 
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) a:hover,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) a:focus,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) a:active,
 header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) .pill:hover,
 header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) .pill:focus,
-header:nth-of-type(1) > div:nth-of-type(1) > nav#navlinks:nth-of-type(1) *:hover,
-header nav#navlinks a:hover,
-header nav#navlinks a:focus,
-header nav#navlinks a:active,
 header nav#navlinks .pill:hover,
 header nav#navlinks .pill:focus,
-header nav#navlinks *:hover,
-.navlinks a:hover,
-.navlinks a:focus,
-.navlinks a:active,
 .navlinks .pill:hover,
 .navlinks .pill:focus,
 header .desktop-nav-cta:hover,
@@ -2448,24 +2448,32 @@ footer {
   }
 
   .navlinks a:not(.pill) {
-    padding: 10px 14px;
+    padding: 8px 12px;
     min-height: 0;
-    border-radius: 999px;
-    border-bottom: 0;
-    text-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: none !important;
+    background-color: transparent !important;
     box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    outline: none !important;
+    font-weight: 500;
   }
 
   .navlinks a:not(.pill):hover,
   .navlinks a:not(.pill):focus,
   .navlinks a:not(.pill):active {
     color: #a7eff4;
-    background: transparent !important;
+    background: none !important;
     background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     text-shadow: none !important;
     filter: none !important;
     outline: none !important;
+    text-decoration: none !important;
   }
 
   .hero {
