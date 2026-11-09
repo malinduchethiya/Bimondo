@@ -18,8 +18,10 @@ export default function SiteGsapAnimations() {
     let ctx: gsap.Context | null = null;
 
     const timer = window.setTimeout(() => {
-      const isMobile = window.innerWidth < 821;
-      const moveY = isMobile ? 22 : 36;
+      const width = window.innerWidth;
+      const isMobile = width < 768;
+      const isTablet = width >= 768 && width <= 1080;
+      const moveY = isMobile ? 20 : isTablet ? 26 : 36;
 
       ctx = gsap.context(() => {
         // 1. HERO SECTION & PAGE BANNERS
@@ -248,8 +250,8 @@ export default function SiteGsapAnimations() {
                   filter: 'brightness(1)',
                 },
                 {
-                  y: isMobile ? 56 : 120,
-                  scale: isMobile ? 0.955 : 0.935,
+                  y: isMobile ? 56 : isTablet ? 84 : 120,
+                  scale: isMobile ? 0.955 : isTablet ? 0.945 : 0.935,
                   filter: 'brightness(0.85)',
                   transformOrigin: 'center bottom',
                   ease: 'none',
@@ -265,8 +267,8 @@ export default function SiteGsapAnimations() {
               gsap.fromTo(
                 nextSec,
                 {
-                  y: isMobile ? 42 : 76,
-                  scale: isMobile ? 0.98 : 0.968,
+                  y: isMobile ? 42 : isTablet ? 60 : 76,
+                  scale: isMobile ? 0.98 : isTablet ? 0.974 : 0.968,
                 },
                 {
                   y: 0,
