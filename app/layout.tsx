@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { DM_Sans, DM_Serif_Display } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
@@ -20,10 +20,13 @@ const dmSerifDisplay = DM_Serif_Display({
   display: 'swap',
 });
 
+export const viewport: Viewport = {
+  themeColor: '#eaf3f6',
+};
+
 export const metadata: Metadata = {
   title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
   description: 'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
-  themeColor: '#eaf3f6',
   openGraph: {
     title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
     description: 'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
