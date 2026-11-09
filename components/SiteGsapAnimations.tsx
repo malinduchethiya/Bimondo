@@ -18,6 +18,9 @@ export default function SiteGsapAnimations() {
     let ctx: gsap.Context | null = null;
 
     const timer = window.setTimeout(() => {
+      const isMobile = window.innerWidth < 821;
+      const moveY = isMobile ? 22 : 36;
+
       ctx = gsap.context(() => {
         // 1. HERO SECTION & PAGE BANNERS
         const heroCopy = document.querySelector('.hero .hero-copy');
@@ -34,32 +37,32 @@ export default function SiteGsapAnimations() {
           if (eyebrow) {
             heroTl.fromTo(
               eyebrow,
-              { y: 24, opacity: 0 },
-              { y: 0, opacity: 1, duration: 0.7 }
+              { y: 18, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.65 }
             );
           }
           if (heading) {
             heroTl.fromTo(
               heading,
-              { y: 44, opacity: 0 },
-              { y: 0, opacity: 1, duration: 0.9 },
-              '-=0.45'
+              { y: moveY, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.85 },
+              '-=0.42'
             );
           }
           if (desc) {
             heroTl.fromTo(
               desc,
-              { y: 28, opacity: 0 },
-              { y: 0, opacity: 1, duration: 0.75 },
-              '-=0.55'
+              { y: 20, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.7 },
+              '-=0.5'
             );
           }
           if (actions.length > 0) {
             heroTl.fromTo(
               actions,
-              { y: 22, opacity: 0 },
-              { y: 0, opacity: 1, duration: 0.65, stagger: 0.1 },
-              '-=0.5'
+              { y: 18, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.6, stagger: 0.08 },
+              '-=0.45'
             );
           }
         }
@@ -68,10 +71,10 @@ export default function SiteGsapAnimations() {
         if (heroPhoto) {
           gsap.fromTo(
             heroPhoto,
-            { scale: 1.06, yPercent: 0 },
+            { scale: 1.05, yPercent: 0 },
             {
               scale: 1,
-              yPercent: 12,
+              yPercent: isMobile ? 8 : 12,
               ease: 'none',
               scrollTrigger: {
                 trigger: '.hero',
@@ -89,12 +92,12 @@ export default function SiteGsapAnimations() {
           if (bannerEls.length > 0) {
             gsap.fromTo(
               bannerEls,
-              { y: 36, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.85,
-                stagger: 0.12,
+                duration: 0.8,
+                stagger: 0.1,
                 ease: 'power3.out',
               }
             );
@@ -109,15 +112,15 @@ export default function SiteGsapAnimations() {
           const cards = transitionSection.querySelectorAll('.transition-card');
           gsap.fromTo(
             transitionSection,
-            { y: 36, opacity: 0 },
+            { y: 24, opacity: 0 },
             {
               y: 0,
               opacity: 1,
-              duration: 0.8,
+              duration: 0.75,
               ease: 'power3.out',
               scrollTrigger: {
                 trigger: transitionSection,
-                start: 'top 92%',
+                start: 'top 94%',
                 toggleActions: 'play none none reverse',
               },
             }
@@ -126,16 +129,16 @@ export default function SiteGsapAnimations() {
           if (cards.length > 0) {
             gsap.fromTo(
               cards,
-              { y: 24, opacity: 0 },
+              { y: 18, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.7,
-                stagger: 0.12,
+                duration: 0.65,
+                stagger: 0.1,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: transitionSection,
-                  start: 'top 90%',
+                  start: 'top 92%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -155,17 +158,17 @@ export default function SiteGsapAnimations() {
           if (mainImg) {
             gsap.fromTo(
               mainImg,
-              { x: -42, y: 28, scale: 0.94, opacity: 0 },
+              { x: isMobile ? -20 : -40, y: 22, scale: 0.95, opacity: 0 },
               {
                 x: 0,
                 y: 0,
                 scale: 1,
                 opacity: 1,
-                duration: 0.95,
+                duration: 0.9,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: storySection,
-                  start: 'top 82%',
+                  start: 'top 85%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -175,18 +178,18 @@ export default function SiteGsapAnimations() {
           if (smallImg) {
             gsap.fromTo(
               smallImg,
-              { x: 36, y: 40, scale: 0.9, opacity: 0 },
+              { x: isMobile ? 18 : 34, y: 28, scale: 0.92, opacity: 0 },
               {
                 x: 0,
                 y: 0,
                 scale: 1,
                 opacity: 1,
-                duration: 0.95,
-                delay: 0.14,
+                duration: 0.9,
+                delay: 0.12,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: storySection,
-                  start: 'top 80%',
+                  start: 'top 83%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -196,16 +199,16 @@ export default function SiteGsapAnimations() {
           if (storyCopyEls.length > 0) {
             gsap.fromTo(
               storyCopyEls,
-              { y: 32, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.1,
+                duration: 0.75,
+                stagger: 0.09,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: storySection,
-                  start: 'top 78%',
+                  start: 'top 80%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -214,7 +217,6 @@ export default function SiteGsapAnimations() {
         }
 
         // 4. FLYOVER SCROLL STACK FOR ALL SECTIONS AFTER #story
-        // ("after Come as a traveller. Leave as a friend. section make all the other sections are flyover when scroll to the bottom")
         if (storySection && storySection.parentElement) {
           const allSections = Array.from(
             storySection.parentElement.querySelectorAll(':scope > section')
@@ -234,12 +236,10 @@ export default function SiteGsapAnimations() {
               }
             });
 
-            // Animate each subsequent section flying up & over the previous section as the user scrolls down
             for (let i = 0; i < chainSections.length - 1; i++) {
               const prevSec = chainSections[i];
               const nextSec = chainSections[i + 1];
 
-              // Outgoing (underneath) section recedes downward and scales down as nextSec flies over it
               gsap.fromTo(
                 prevSec,
                 {
@@ -248,26 +248,25 @@ export default function SiteGsapAnimations() {
                   filter: 'brightness(1)',
                 },
                 {
-                  y: 125,
-                  scale: 0.935,
-                  filter: 'brightness(0.84)',
+                  y: isMobile ? 56 : 120,
+                  scale: isMobile ? 0.955 : 0.935,
+                  filter: 'brightness(0.85)',
                   transformOrigin: 'center bottom',
                   ease: 'none',
                   scrollTrigger: {
                     trigger: nextSec,
                     start: 'top 95%',
-                    end: 'top 12%',
-                    scrub: 0.55,
+                    end: 'top 14%',
+                    scrub: 0.5,
                   },
                 }
               );
 
-              // Incoming flyover section glides up from a subtle 3D scale/offset to cover the section below
               gsap.fromTo(
                 nextSec,
                 {
-                  y: 80,
-                  scale: 0.968,
+                  y: isMobile ? 42 : 76,
+                  scale: isMobile ? 0.98 : 0.968,
                 },
                 {
                   y: 0,
@@ -278,7 +277,7 @@ export default function SiteGsapAnimations() {
                     trigger: nextSec,
                     start: 'top 98%',
                     end: 'top 22%',
-                    scrub: 0.5,
+                    scrub: 0.45,
                   },
                 }
               );
@@ -298,16 +297,16 @@ export default function SiteGsapAnimations() {
           if (leftCopyEls.length > 0) {
             gsap.fromTo(
               leftCopyEls,
-              { y: 34, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.1,
+                duration: 0.75,
+                stagger: 0.09,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: discoverSection,
-                  start: 'top 78%',
+                  start: 'top 82%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -317,16 +316,16 @@ export default function SiteGsapAnimations() {
           if (expPhoto) {
             gsap.fromTo(
               expPhoto,
-              { y: 45, scale: 0.92, opacity: 0 },
+              { y: 30, scale: 0.94, opacity: 0 },
               {
                 y: 0,
                 scale: 1,
                 opacity: 1,
-                duration: 0.95,
+                duration: 0.85,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: discoverSection,
-                  start: 'top 76%',
+                  start: 'top 80%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -336,16 +335,16 @@ export default function SiteGsapAnimations() {
           if (expCards.length > 0) {
             gsap.fromTo(
               expCards,
-              { y: 38, opacity: 0 },
+              { y: 26, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.75,
-                stagger: 0.1,
+                duration: 0.7,
+                stagger: 0.08,
                 ease: 'back.out(1.2)',
                 scrollTrigger: {
                   trigger: '.experiences',
-                  start: 'top 86%',
+                  start: 'top 88%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -364,16 +363,16 @@ export default function SiteGsapAnimations() {
           if (headEls.length > 0) {
             gsap.fromTo(
               headEls,
-              { y: 32, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.1,
+                duration: 0.75,
+                stagger: 0.09,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: placesSection,
-                  start: 'top 80%',
+                  start: 'top 84%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -383,17 +382,17 @@ export default function SiteGsapAnimations() {
           if (placeCards.length > 0) {
             gsap.fromTo(
               placeCards,
-              { y: 56, scale: 0.93, opacity: 0 },
+              { y: 38, scale: 0.95, opacity: 0 },
               {
                 y: 0,
                 scale: 1,
                 opacity: 1,
-                duration: 0.9,
-                stagger: 0.14,
+                duration: 0.85,
+                stagger: 0.12,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: '.places',
-                  start: 'top 82%',
+                  start: 'top 85%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -412,16 +411,16 @@ export default function SiteGsapAnimations() {
           if (headEls.length > 0) {
             gsap.fromTo(
               headEls,
-              { y: 32, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.1,
+                duration: 0.75,
+                stagger: 0.09,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: whySection,
-                  start: 'top 80%',
+                  start: 'top 84%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -431,16 +430,16 @@ export default function SiteGsapAnimations() {
           if (valueCards.length > 0) {
             gsap.fromTo(
               valueCards,
-              { y: 42, opacity: 0 },
+              { y: 32, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.85,
-                stagger: 0.14,
+                duration: 0.8,
+                stagger: 0.12,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: whySection.querySelector('.values-grid') || whySection,
-                  start: 'top 84%',
+                  start: 'top 86%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -463,17 +462,16 @@ export default function SiteGsapAnimations() {
           if (introEls.length > 0) {
             gsap.fromTo(
               introEls,
-              { x: -28, y: 24, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
-                x: 0,
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.09,
+                duration: 0.75,
+                stagger: 0.08,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: planningSection,
-                  start: 'top 80%',
+                  start: 'top 84%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -483,16 +481,15 @@ export default function SiteGsapAnimations() {
           if (reviewsWidget) {
             gsap.fromTo(
               reviewsWidget,
-              { x: 34, y: 24, opacity: 0 },
+              { y: 28, opacity: 0 },
               {
-                x: 0,
                 y: 0,
                 opacity: 1,
-                duration: 0.9,
+                duration: 0.82,
                 ease: 'power3.out',
                 scrollTrigger: {
-                  trigger: planningSection,
-                  start: 'top 78%',
+                  trigger: reviewsWidget,
+                  start: 'top 86%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -502,15 +499,15 @@ export default function SiteGsapAnimations() {
           if (faqBlock) {
             gsap.fromTo(
               faqBlock,
-              { y: 40, opacity: 0 },
+              { y: 30, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.85,
+                duration: 0.8,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: faqBlock,
-                  start: 'top 86%',
+                  start: 'top 88%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -520,16 +517,16 @@ export default function SiteGsapAnimations() {
           if (faqRows.length > 0) {
             gsap.fromTo(
               faqRows,
-              { y: 18, opacity: 0 },
+              { y: 14, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.6,
-                stagger: 0.045,
+                duration: 0.55,
+                stagger: 0.04,
                 ease: 'power2.out',
                 scrollTrigger: {
                   trigger: faqBlock || planningSection,
-                  start: 'top 82%',
+                  start: 'top 85%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -550,16 +547,16 @@ export default function SiteGsapAnimations() {
           if (leftEls.length > 0) {
             gsap.fromTo(
               leftEls,
-              { y: 32, opacity: 0 },
+              { y: moveY, opacity: 0 },
               {
                 y: 0,
                 opacity: 1,
-                duration: 0.8,
-                stagger: 0.1,
+                duration: 0.75,
+                stagger: 0.09,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: contactSection,
-                  start: 'top 82%',
+                  start: 'top 85%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -573,16 +570,16 @@ export default function SiteGsapAnimations() {
           ) {
             gsap.fromTo(
               enquiryForm,
-              { y: 44, scale: 0.96, opacity: 0 },
+              { y: 32, scale: 0.97, opacity: 0 },
               {
                 y: 0,
                 scale: 1,
                 opacity: 1,
-                duration: 0.9,
+                duration: 0.85,
                 ease: 'power3.out',
                 scrollTrigger: {
-                  trigger: contactSection,
-                  start: 'top 78%',
+                  trigger: enquiryForm,
+                  start: 'top 86%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -590,23 +587,23 @@ export default function SiteGsapAnimations() {
           }
         }
 
-        // 10. SUBPAGE GRIDS & CARDS (/destinations, /packages, /gallery, /our-story, /journeys)
+        // 10. SUBPAGE GRIDS & CARDS
         const subpageCards = document.querySelectorAll(
           '.destination-detail-card, .package-card, .gallery-item, .tour-card, .founder-quote-card, .dest-custom-cta-box'
         );
         subpageCards.forEach((card, i) => {
           gsap.fromTo(
             card,
-            { y: 38, opacity: 0 },
+            { y: 30, opacity: 0 },
             {
               y: 0,
               opacity: 1,
-              duration: 0.78,
-              delay: (i % 3) * 0.08,
+              duration: 0.72,
+              delay: isMobile ? 0 : (i % 3) * 0.07,
               ease: 'power3.out',
               scrollTrigger: {
                 trigger: card,
-                start: 'top 88%',
+                start: 'top 90%',
                 toggleActions: 'play none none reverse',
               },
             }

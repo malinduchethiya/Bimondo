@@ -16,17 +16,20 @@ export default function MomentumScroll() {
 
   useEffect(() => {
     const lenis = new Lenis({
-      lerp: 0.085,
-      duration: 1.25,
+      duration: 1.35,
+      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      lerp: 0.08,
       smoothWheel: true,
+      syncTouch: true,
+      syncTouchLerp: 0.085,
       wheelMultiplier: 1.0,
-      touchMultiplier: 1.4,
+      touchMultiplier: 1.35,
       infinite: false,
     });
 
     lenisRef.current = lenis;
 
-    // Synchronize Lenis momentum scroll with GSAP ScrollTrigger
+    // Synchronize Lenis smooth scroll with GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update);
 
     const updateTicker = (time: number) => {
@@ -58,7 +61,11 @@ export default function MomentumScroll() {
         const targetEl = document.querySelector(hashPart) as HTMLElement | null;
         if (targetEl) {
           e.preventDefault();
-          lenis.scrollTo(targetEl, { offset: -72, duration: 1.35 });
+          lenis.scrollTo(targetEl, {
+            offset: -72,
+            duration: 1.4,
+            easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+          });
         }
       }
     };
