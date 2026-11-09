@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 import MomentumScroll from '@/components/MomentumScroll';
+import SiteGsapAnimations from '@/components/SiteGsapAnimations';
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -49,6 +50,7 @@ export default function RootLayout({
     <html lang="en" className={`${dmSans.variable} ${dmSerifDisplay.variable}`}>
       <body suppressHydrationWarning>
         <MomentumScroll />
+        <SiteGsapAnimations />
         <Header />
         {children}
         <Footer />

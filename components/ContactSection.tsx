@@ -19,7 +19,8 @@ export default function ContactSection() {
     >
   ) => {
     const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    const key = id === 'tripStyle' ? 'style' : id;
+    setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -138,9 +139,9 @@ export default function ContactSection() {
           </div>
 
           <div className="field">
-            <label htmlFor="style">What excites you?</label>
+            <label htmlFor="tripStyle">What excites you?</label>
             <select
-              id="style"
+              id="tripStyle"
               value={formData.style}
               onChange={handleChange}
             >

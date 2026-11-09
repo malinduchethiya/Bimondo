@@ -27,7 +27,7 @@ export default function PlacesSection() {
   ];
 
   return (
-    <section className="section wrap">
+    <section className="section wrap" id="places">
       <div className="section-head">
         <div>
           <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
