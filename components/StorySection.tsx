@@ -9,11 +9,12 @@ export default function StorySection() {
         <div className="main" style={{ position: 'relative' }}>
           <Image
             alt="Traditional Kandyan Ves dancer welcoming travellers to Sri Lanka"
-            src="/images/sri-lankan-dancer-welcome.jpg"
+            src="/images/kandyan-ves-dancer.jpg"
             fill
             sizes="(max-width: 720px) 100vw, 50vw"
             className="object-cover"
             referrerPolicy="no-referrer"
+            priority
           />
         </div>
         <div className="small">

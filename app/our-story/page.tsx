@@ -73,19 +73,7 @@ export default function OurStoryPage() {
         </div>
 
         {/* Founder Quote Card */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '20px',
-            padding: '44px',
-            border: '1px solid rgba(21, 60, 80, 0.1)',
-            boxShadow: '0 12px 35px rgba(21, 60, 80, 0.05)',
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 0.8fr',
-            gap: '40px',
-            alignItems: 'center',
-          }}
-        >
+        <div className="founder-quote-card">
           <div>
             <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
               A MESSAGE FROM OUR FOUNDER
@@ -93,7 +81,7 @@ export default function OurStoryPage() {
             <blockquote
               className="serif"
               style={{
-                fontSize: 'clamp(24px, 2.5vw, 32px)',
+                fontSize: 'clamp(22px, 2.5vw, 32px)',
                 lineHeight: 1.35,
                 color: 'var(--ink)',
                 margin: '16px 0 20px',
@@ -111,14 +99,7 @@ export default function OurStoryPage() {
               PLAN YOUR JOURNEY WITH US ↗
             </Link>
           </div>
-          <div
-            style={{
-              background: '#f4f9fb',
-              borderRadius: '14px',
-              padding: '30px',
-              borderLeft: '4px solid #328eae',
-            }}
-          >
+          <div className="founder-glance-box">
             <h4 className="serif" style={{ fontSize: '22px', margin: '0 0 12px', color: 'var(--ink)' }}>
               Bimondo At a Glance
             </h4>

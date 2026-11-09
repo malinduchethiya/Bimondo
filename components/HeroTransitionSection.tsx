@@ -6,7 +6,7 @@ export default function HeroTransitionSection() {
       num: '01',
       badge: 'BESPOKE PACE',
       title: 'Private by Nature',
-      desc: 'Your own private vehicle and dedicated English-speaking chauffeur-guide moving entirely to your personal rhythm.',
+      desc: 'Your own private vehicle and dedicated English-speaking chauffeur-guide moving to your personal rhythm.',
     },
     {
       num: '02',
@@ -23,11 +23,11 @@ export default function HeroTransitionSection() {
   ];
 
   return (
-    <div
+    <section
       className="hero-transition-section"
       aria-label="Bimondo Signature Pillars"
     >
-      <div className="wrap hero-transition-container">
+      <div className="hero-transition-container">
         <div className="hero-transition-grid">
           {features.map((f, idx) => (
             <div
@@ -46,6 +46,6 @@ export default function HeroTransitionSection() {
           ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

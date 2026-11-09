@@ -7,7 +7,7 @@ const YOUTUBE_VIDEO_ID = 'BQsLMt-7VJM';
 
 export default function HeroSection() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const [videoVisible, setVideoVisible] = useState(false);
+  const [videoVisible, setVideoVisible] = useState(true);
 
   useEffect(() => {
     const sendPlayerCommand = (func: string, args: unknown[] = []) => {
@@ -23,10 +23,10 @@ export default function HeroSection() {
       );
     };
 
-    const activate720pAutoplay = () => {
+    const activate1080pAutoplay = () => {
       sendPlayerCommand('mute');
-      sendPlayerCommand('setPlaybackQuality', ['hd720']);
-      sendPlayerCommand('setPlaybackQualityRange', ['hd720', 'hd720']);
+      sendPlayerCommand('setPlaybackQuality', ['hd1080']);
+      sendPlayerCommand('setPlaybackQualityRange', ['hd1080', 'hd1080']);
       sendPlayerCommand('playVideo');
     };
 
@@ -45,7 +45,7 @@ export default function HeroSection() {
         if (!data) return;
 
         if (data.event === 'onReady') {
-          activate720pAutoplay();
+          activate1080pAutoplay();
         }
 
         if (
@@ -55,7 +55,8 @@ export default function HeroSection() {
         ) {
           // 1 = PLAYING, 0 = ENDED
           if (data.info.playerState === 1) {
-            sendPlayerCommand('setPlaybackQuality', ['hd720']);
+            sendPlayerCommand('setPlaybackQuality', ['hd1080']);
+            sendPlayerCommand('setPlaybackQualityRange', ['hd1080', 'hd1080']);
             setVideoVisible(true);
           } else if (data.info.playerState === 0) {
             sendPlayerCommand('seekTo', [0, true]);
@@ -70,12 +71,12 @@ export default function HeroSection() {
     window.addEventListener('message', handleMessage);
 
     const revealTimer = window.setTimeout(() => {
-      activate720pAutoplay();
+      activate1080pAutoplay();
       setVideoVisible(true);
     }, 650);
 
     const qualityInterval = window.setInterval(() => {
-      activate720pAutoplay();
+      activate1080pAutoplay();
     }, 2500);
 
     return () => {
@@ -97,7 +98,15 @@ export default function HeroSection() {
         JSON.stringify({
           event: 'command',
           func: 'setPlaybackQuality',
-          args: ['hd720'],
+          args: ['hd1080'],
+        }),
+        '*'
+      );
+      win.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func: 'setPlaybackQualityRange',
+          args: ['hd1080', 'hd1080'],
         }),
         '*'
       );
@@ -106,9 +115,7 @@ export default function HeroSection() {
         '*'
       );
     }
-    window.setTimeout(() => {
-      setVideoVisible(true);
-    }, 350);
+    setVideoVisible(true);
   };
 
   return (
@@ -123,9 +130,10 @@ export default function HeroSection() {
             ref={iframeRef}
             id="bimondo-hero-yt"
             onLoad={handleIframeLoad}
-            src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&loop=1&playlist=${YOUTUBE_VIDEO_ID}&modestbranding=1&playsinline=1&rel=0&showinfo=0&vq=hd720&enablejsapi=1`}
-            title="Sri Lanka Private Journeys Video"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&loop=1&playlist=${YOUTUBE_VIDEO_ID}&modestbranding=1&playsinline=1&rel=0&showinfo=0&vq=hd1080&enablejsapi=1`}
+            title="Sigiriya Sri Lanka 4K Drone Video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
             tabIndex={-1}
           />
         </div>

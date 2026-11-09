@@ -75,9 +75,16 @@ export default function Header() {
           >
             Our story
           </Link>
+          <Link
+            className="pill dark mobile-nav-cta"
+            href="/contact"
+            onClick={closeMenu}
+          >
+            PLAN YOUR JOURNEY ↗
+          </Link>
         </nav>
 
-        <Link className="pill dark" href="/contact">
+        <Link className="pill dark desktop-nav-cta" href="/contact">
           PLAN YOUR JOURNEY ↗
         </Link>
 

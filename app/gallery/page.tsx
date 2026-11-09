@@ -26,7 +26,7 @@ export default function GalleryPage() {
       location: 'Kandy & Central Province',
       category: 'culture',
       categoryLabel: 'Culture & Heritage',
-      image: '/images/sri-lankan-dancer-welcome.jpg',
+      image: '/images/kandyan-ves-dancer.jpg',
       description:
         'A traditional Sri Lankan Kandyan dancer in sacred regalia offering the reverent hands-together Ayubowan greeting.',
     },
