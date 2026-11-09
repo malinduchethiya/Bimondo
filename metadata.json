@@ -1,0 +1,6 @@
+{
+  "name": "Bimondo Travels",
+  "description": "Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
