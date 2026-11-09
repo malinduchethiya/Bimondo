@@ -150,13 +150,14 @@ export default function DestinationsPage() {
 
         {/* Destinations Grid */}
         <div className="destinations-detail-grid">
-          {filtered.map((dest) => (
+          {filtered.map((dest, i) => (
             <article key={dest.id} className="destination-detail-card">
               <div className="dest-img-wrap">
                 <Image
                   src={dest.image}
                   alt={dest.name}
                   fill
+                  priority={i < 2}
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover"
                   referrerPolicy="no-referrer"

@@ -16,8 +16,9 @@ export default function SiteGsapAnimations() {
     if (typeof window === 'undefined') return;
 
     let ctx: gsap.Context | null = null;
+    let rafId: number | null = null;
 
-    const timer = window.setTimeout(() => {
+    rafId = window.requestAnimationFrame(() => {
       const width = window.innerWidth;
       const isMobile = width < 768;
       const isTablet = width >= 768 && width <= 1080;
@@ -614,10 +615,12 @@ export default function SiteGsapAnimations() {
       });
 
       ScrollTrigger.refresh();
-    }, 60);
+    });
 
     return () => {
-      window.clearTimeout(timer);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
       if (ctx) {
         ctx.revert();
         ctx = null;

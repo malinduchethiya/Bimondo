@@ -172,7 +172,7 @@ export default function GalleryPage() {
 
         {/* Gallery Grid */}
         <div className="gallery-grid">
-          {filtered.map((photo) => (
+          {filtered.map((photo, i) => (
             <div
               key={photo.id}
               className="gallery-item"
@@ -182,6 +182,7 @@ export default function GalleryPage() {
                 src={photo.image}
                 alt={photo.title}
                 fill
+                priority={i < 2}
                 sizes="(max-width: 768px) 100vw, 33vw"
                 className="object-cover"
                 referrerPolicy="no-referrer"

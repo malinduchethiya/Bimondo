@@ -66,13 +66,14 @@ export default function PackagesPage() {
 
         {/* Packages Grid */}
         <div className="packages-grid">
-          {filtered.map((tour) => (
+          {filtered.map((tour, i) => (
             <article key={tour.id} className="package-card">
               <div className="package-img-wrap">
                 <Image
                   src={tour.image}
                   alt={tour.name}
                   fill
+                  priority={i < 2}
                   sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover"
                   referrerPolicy="no-referrer"
