@@ -1,15 +1,27 @@
+'use client';
+
 import React from 'react';
+import Link from 'next/link';
+import { navigateToRoute } from '@/components/InstantRouteManager';
 
 export default function FloatingWhatsApp() {
+  const handleBookingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    navigateToRoute('/booking');
+  };
+
   return (
-    <a
-      className="floating"
-      href="https://wa.me/94762232054?text=Hello%20Bimondo%2C%20I%27d%20love%20to%20plan%20a%20Sri%20Lanka%20trip."
-      rel="noopener noreferrer"
-      target="_blank"
-      aria-label="Chat with Bimondo Travels on WhatsApp"
-    >
-      ✆ &nbsp;CHAT WITH US
-    </a>
+    <div className="floating-action-dock" role="region" aria-label="Quick Actions">
+      <Link
+        href="/booking"
+        prefetch={false}
+        className="floating floating-booking-btn"
+        onClick={handleBookingClick}
+        aria-label="Go to online booking page"
+      >
+        <span>BOOK NOW</span>
+        <span aria-hidden="true">↗</span>
+      </Link>
+    </div>
   );
 }

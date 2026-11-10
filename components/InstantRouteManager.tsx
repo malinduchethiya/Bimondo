@@ -11,6 +11,7 @@ import StaysPage from '@/app/stays/page';
 import GalleryPage from '@/app/gallery/page';
 import OurStoryPage from '@/app/our-story/page';
 import ContactPage from '@/app/contact/page';
+import BookingPage from '@/app/booking/page';
 import BookingConfirmationPage from '@/app/booking/confirmation/page';
 import AdminBookingSettingsPage from '@/app/admin/booking/page';
 
@@ -26,6 +27,7 @@ const VALID_PATHS = new Set([
   '/gallery',
   '/our-story',
   '/contact',
+  '/booking',
   '/booking/confirmation',
   '/admin/booking',
 ]);
@@ -200,6 +202,8 @@ export default function InstantRouteManager({
       return <OurStoryPage key="route-our-story" />;
     case '/contact':
       return <ContactPage key="route-contact" />;
+    case '/booking':
+      return <BookingPage key="route-booking" />;
     case '/booking/confirmation':
       return <BookingConfirmationPage key="route-booking-confirmation" />;
     case '/admin/booking':

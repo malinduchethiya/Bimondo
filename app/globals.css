@@ -3430,6 +3430,83 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
 /* ==========================================================================
    TOUR & ACCOMMODATION BOOKING SYSTEM (NightsBridge · Bókun · Viator)
    ========================================================================== */
+.floating-action-dock {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.floating-action-dock .floating,
+.floating-booking-btn {
+  position: static !important;
+  background: var(--green);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 13px 20px;
+  min-height: 46px;
+  border-radius: 100px;
+  box-shadow: 0 10px 28px rgba(6, 28, 40, 0.32);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.floating-booking-btn:hover {
+  background: #0f4659;
+  transform: translateY(-2px);
+}
+
+.booking-page-selector-card {
+  background: var(--paper);
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  border-radius: 18px;
+  padding: 22px 18px;
+  box-shadow: 0 14px 36px rgba(12, 45, 62, 0.06);
+}
+
+.booking-page-item-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(21, 91, 114, 0.12);
+}
+
+.booking-page-quick-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.booking-page-quick-links .pill {
+  padding: 9px 14px;
+  min-height: 38px;
+  font-size: 10.5px;
+}
+
+@media (max-width: 767px) {
+  .floating-action-dock {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .floating-booking-btn {
+    padding: 11px 16px;
+    min-height: 42px;
+    font-size: 11px;
+  }
+}
+
 .homepage-booking-section {
   padding-top: 20px;
   padding-bottom: 24px;
