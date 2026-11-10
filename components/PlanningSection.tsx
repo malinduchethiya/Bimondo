@@ -10,15 +10,6 @@ interface FAQItem {
   a: string;
 }
 
-interface ReviewItem {
-  name: string;
-  location: string;
-  rating: number;
-  tour: string;
-  date: string;
-  quote: string;
-}
-
 const FAQ_CATEGORIES = [
   { id: 'all', label: 'All Questions' },
   { id: 'private', label: 'Private Journeys' },
@@ -89,49 +80,9 @@ const FAQS: FAQItem[] = [
   },
 ];
 
-const REVIEWS: ReviewItem[] = [
-  {
-    name: 'Elena & Marcus Weber',
-    location: 'Munich, Germany',
-    rating: 5,
-    tour: '14-Day Ceylon Grand Circuit',
-    date: 'Visited February 2026',
-    quote:
-      '“Our chauffeur-guide Nimal felt like family from day one. No tour bus crowds, gorgeous boutique tea villas in Ella, and spontaneous stops for fresh king coconuts. Bimondo made Sri Lanka truly unforgettable.”',
-  },
-  {
-    name: 'The Jenkins Family (4 guests)',
-    location: 'Melbourne, Australia',
-    rating: 5,
-    tour: '10-Day Family Island Discovery',
-    date: 'Visited December 2025',
-    quote:
-      '“Travelling with two kids aged 8 and 11 can be daunting, but Bimondo took care of every single detail. Watching hundreds of wild elephants gather at Minneriya was a lifelong memory for our boys.”',
-  },
-  {
-    name: 'Claire & Antoine Dupont',
-    location: 'Paris, France',
-    rating: 5,
-    tour: '8-Day Southern Shores in Luxury',
-    date: 'Visited January 2026',
-    quote:
-      '“From watching sunrise over Pidurangala to quiet sunset walks along Galle Fort ramparts. The 24/7 WhatsApp concierge was always reassuring. An authentic, private experience we will cherish.”',
-  },
-  {
-    name: 'Liam & Sophie Campbell',
-    location: 'Edinburgh, UK',
-    rating: 5,
-    tour: '8-Day The Pekoe Trail Walk',
-    date: 'Visited March 2026',
-    quote:
-      '“Incredible walks through emerald tea valleys with our naturalist guide. Every hotel had character and warmth. You truly come as a traveller and leave as a lifelong friend.”',
-  },
-];
-
 export default function PlanningSection() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [activeReviewIdx, setActiveReviewIdx] = useState<number>(0);
 
   const filteredFaqs =
     activeCategory === 'all'
@@ -142,19 +93,8 @@ export default function PlanningSection() {
     setOpenId((prev) => (prev === id ? null : id));
   };
 
-  const nextReview = () => {
-    setActiveReviewIdx((prev) => (prev + 1) % REVIEWS.length);
-  };
-
-  const prevReview = () => {
-    setActiveReviewIdx((prev) => (prev - 1 + REVIEWS.length) % REVIEWS.length);
-  };
-
-  const currentReview = REVIEWS[activeReviewIdx];
-
   return (
     <section className="section wrap planning-faq-wrapper" id="planning-faq">
-      {/* Top Row: "Your dream trip. Our local know-how." + Tourist Reviews next to it */}
       <div className="planning-top-split">
         <div className="planning-intro-col">
           <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
@@ -166,72 +106,12 @@ export default function PlanningSection() {
             <em style={{ color: 'var(--terracotta)' }}>Our local know-how.</em>
           </h2>
           <p className="planning-intro-lead">
-            Real local care, honest advice, and transparent planning — backed by
-            the heartfelt stories of travellers who explored Sri Lanka with us.
+            Real local care, honest advice, and transparent planning — from your
+            first message to your flight home.
           </p>
-          <Link className="pill dark" href="/contact">
+          <Link className="pill dark" href="/contact" prefetch={false}>
             LET&apos;S START PLANNING ↗
           </Link>
-        </div>
-
-        {/* Tourist Reviews Showcase next to Heading */}
-        <div className="tourist-reviews-widget">
-          <div className="reviews-widget-header">
-            <div>
-              <span className="eyebrow reviews-eyebrow">
-                ★ 4.98 / 5.0 · TRAVELLER REVIEWS
-              </span>
-              <h3 className="serif reviews-heading">Stories from our guests</h3>
-            </div>
-            <div className="reviews-nav-arrows">
-              <button
-                type="button"
-                className="review-arrow-btn"
-                onClick={prevReview}
-                aria-label="Previous review"
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="review-arrow-btn"
-                onClick={nextReview}
-                aria-label="Next review"
-              >
-                →
-              </button>
-            </div>
-          </div>
-
-          <div className="review-quote-box">
-            <div className="stars-row">
-              {Array.from({ length: currentReview.rating }).map((_, i) => (
-                <span key={i} className="star">
-                  ★
-                </span>
-              ))}
-            </div>
-            <p className="review-quote-text">{currentReview.quote}</p>
-            <div className="review-author-meta">
-              <strong>{currentReview.name}</strong>
-              <div className="review-submeta">
-                <span>{currentReview.location}</span> ·{' '}
-                <em>{currentReview.tour}</em>
-              </div>
-            </div>
-          </div>
-
-          <div className="review-dots">
-            {REVIEWS.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`review-dot ${activeReviewIdx === i ? 'active' : ''}`}
-                onClick={() => setActiveReviewIdx(i)}
-                aria-label={`Go to review ${i + 1}`}
-              />
-            ))}
-          </div>
         </div>
       </div>
 
@@ -257,7 +137,7 @@ export default function PlanningSection() {
         </div>
 
         {/* Clean Horizontal Hairline Accordion List */}
-        <div className="minimal-faq-list">
+        <div className="minimal-faq-list" data-lenis-prevent>
           {filteredFaqs.map((item) => {
             const isOpen = openId === item.id;
             return (

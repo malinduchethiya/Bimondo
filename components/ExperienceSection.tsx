@@ -44,7 +44,7 @@ export default function ExperienceSection() {
               Watch the sun dip behind a palm-fringed coast. We make room for the
               unexpected moments that become your favourite memories.
             </p>
-            <Link className="pill dark" href="/contact">
+            <Link className="pill dark" href="/contact" prefetch={false}>
               CREATE MY OWN JOURNEY ↗
             </Link>
           </div>

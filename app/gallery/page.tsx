@@ -212,7 +212,7 @@ export default function GalleryPage() {
               landscapes with your own private driver-guide.
             </p>
           </div>
-          <Link href="/contact" className="pill light">
+          <Link href="/contact" prefetch={false} className="pill light">
             START YOUR JOURNEY ↗
           </Link>
         </div>
@@ -231,12 +231,12 @@ export default function GalleryPage() {
             style={{ maxWidth: '850px', padding: '0', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ position: 'relative', height: '420px', width: '100%' }}>
+            <div style={{ position: 'relative', height: 'clamp(220px, 42vh, 420px)', width: '100%' }}>
               <Image
                 src={selectedPhoto.image}
                 alt={selectedPhoto.title}
                 fill
-                sizes="850px"
+                sizes="(max-width: 768px) 100vw, 850px"
                 className="object-cover"
                 referrerPolicy="no-referrer"
               />
@@ -259,19 +259,20 @@ export default function GalleryPage() {
                 ×
               </button>
             </div>
-            <div style={{ padding: '28px 32px' }}>
+            <div style={{ padding: 'clamp(18px, 4vw, 28px) clamp(16px, 4vw, 32px)' }}>
               <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
                 {selectedPhoto.categoryLabel} · {selectedPhoto.location}
               </span>
-              <h2 className="serif" style={{ fontSize: '32px', margin: '8px 0 12px' }}>
+              <h2 className="serif" style={{ fontSize: 'clamp(24px, 6vw, 32px)', margin: '8px 0 12px' }}>
                 {selectedPhoto.title}
               </h2>
-              <p style={{ lineHeight: 1.8, color: '#536f7e', margin: 0 }}>
+              <p style={{ lineHeight: 1.75, color: '#536f7e', margin: 0, fontSize: '14px' }}>
                 {selectedPhoto.description}
               </p>
-              <div style={{ display: 'flex', gap: '14px', marginTop: '24px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '20px' }}>
                 <Link
                   href="/contact"
+                  prefetch={false}
                   className="pill dark"
                   onClick={() => setSelectedPhoto(null)}
                 >

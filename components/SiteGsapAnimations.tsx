@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -11,6 +11,27 @@ if (typeof window !== 'undefined') {
 
 export default function SiteGsapAnimations() {
   const pathname = usePathname();
+  const [clientPath, setClientPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setClientPath(customEvent.detail);
+      }
+    };
+    const onPopState = () => {
+      setClientPath(window.location.pathname);
+    };
+    window.addEventListener('bimondo:navigate', onNavigate);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('bimondo:navigate', onNavigate);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, []);
+
+  const activeRoute = clientPath ?? pathname;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -289,7 +310,7 @@ export default function SiteGsapAnimations() {
           }
         }
 
-        // 4B. Horizontal Scroll (Right-to-Left) for #discover and all sections beyond it
+        // 4B. Alternating Horizontal Scroll Sequence (Right -> Left -> Right -> Left)
         const horizontalWrap = document.getElementById(
           'horizontal-scroll-wrap'
         ) as HTMLElement | null;
@@ -297,36 +318,132 @@ export default function SiteGsapAnimations() {
           'horizontal-scroll-track'
         ) as HTMLElement | null;
 
-        let horizontalTween: gsap.core.Tween | null = null;
-
         if (horizontalWrap && horizontalTrack) {
           const panels = Array.from(
             horizontalTrack.querySelectorAll(':scope > section')
           ) as HTMLElement[];
 
-          panels.forEach((sec) => {
+          panels.forEach((sec, idx) => {
             sec.classList.remove('flyover-panel', 'flyover-anchor-section');
             sec.classList.add('horizontal-panel-section');
-            sec.style.zIndex = '';
+            sec.style.zIndex = String(10 + idx);
           });
 
           if (panels.length > 1) {
-            const getScrollDistance = () =>
-              Math.max(0, horizontalTrack.scrollWidth - window.innerWidth);
+            // Set initial positions:
+            // idx 0 (#discover): centered at xPercent: 0
+            // idx 1 (#places): starts on RIGHT (+100%) -> slides to 0
+            // idx 2 (#why): starts on LEFT (-100%) -> slides to 0
+            // idx 3 (#planning-faq): starts on RIGHT (+100%) -> slides to 0
+            // idx 4 (#contact): starts on LEFT (-100%) -> slides to 0
+            gsap.set(panels[0], { xPercent: 0 });
+            for (let i = 1; i < panels.length; i++) {
+              const comesFromRight = i % 2 === 1;
+              gsap.set(panels[i], { xPercent: comesFromRight ? 100 : -100 });
+            }
 
-            horizontalTween = gsap.to(horizontalTrack, {
-              x: () => -getScrollDistance(),
-              ease: 'none',
+            const holdDuration = 0.48;
+            const slideDuration = 1;
+            const getPanelHoldDistance = () =>
+              Math.round(window.innerHeight * 0.55);
+            const getTransitionDistance = () =>
+              (panels.length - 1) * window.innerWidth;
+
+            const horizTl = gsap.timeline({
               scrollTrigger: {
                 trigger: horizontalWrap,
                 pin: true,
+                pinSpacing: true,
                 start: 'top top',
-                end: () => `+=${getScrollDistance()}`,
-                scrub: 0.6,
+                end: () =>
+                  `+=${
+                    panels.length * getPanelHoldDistance() +
+                    getTransitionDistance()
+                  }`,
+                scrub: 0.3,
                 invalidateOnRefresh: true,
                 anticipatePin: 1,
               },
             });
+
+            // 1. Initial full-screen hold on #discover before sliding to #places (and when scrolling back up)
+            horizTl.to(panels[0], {
+              xPercent: 0,
+              ease: 'none',
+              duration: holdDuration,
+            });
+
+            // 2. Alternating horizontal transitions + full-screen hold on each page upon arrival
+            for (let i = 0; i < panels.length - 1; i++) {
+              const currentPanel = panels[i];
+              const nextPanel = panels[i + 1];
+              const nextIndex = i + 1;
+              // Odd nextIndex (1=#places, 3=#planning-faq) comes from RIGHT (+100 -> 0) while current exits LEFT (0 -> -100)
+              // Even nextIndex (2=#why, 4=#contact) comes from LEFT (-100 -> 0) while current exits RIGHT (0 -> +100)
+              const nextComesFromRight = nextIndex % 2 === 1;
+              const stepLabel = `panelStep_${nextIndex}`;
+
+              horizTl.addLabel(stepLabel);
+
+              horizTl.fromTo(
+                currentPanel,
+                { xPercent: 0 },
+                {
+                  xPercent: nextComesFromRight ? -100 : 100,
+                  ease: 'none',
+                  duration: slideDuration,
+                  immediateRender: false,
+                },
+                stepLabel
+              );
+
+              horizTl.fromTo(
+                nextPanel,
+                { xPercent: nextComesFromRight ? 100 : -100 },
+                {
+                  xPercent: 0,
+                  ease: 'none',
+                  duration: slideDuration,
+                  immediateRender: false,
+                },
+                stepLabel
+              );
+
+              // Subtle internal element reveal synced with the panel's arrival
+              const innerEls = nextPanel.querySelectorAll(
+                '.section-head > *, .place, .value, .planning-intro-col > *, .tourist-reviews-widget, .minimal-faq-block'
+              );
+              if (innerEls.length > 0) {
+                horizTl.fromTo(
+                  innerEls,
+                  {
+                    x: nextComesFromRight ? 20 : -20,
+                    opacity: 0.35,
+                  },
+                  {
+                    x: 0,
+                    opacity: 1,
+                    duration: 0.65,
+                    stagger: 0.02,
+                    ease: 'power2.out',
+                    immediateRender: false,
+                  },
+                  `${stepLabel}+=0.1`
+                );
+              }
+
+              // Hold the newly arrived page at full screen (xPercent: 0) for extra mouse scroll before moving left or right
+              horizTl.to(
+                nextPanel,
+                {
+                  xPercent: 0,
+                  ease: 'none',
+                  duration: holdDuration,
+                  immediateRender: false,
+                },
+                `${stepLabel}+=${slideDuration}`
+              );
+            }
           }
         }
 
@@ -397,309 +514,58 @@ export default function SiteGsapAnimations() {
           }
         }
 
-        // 6. PLACES SECTION (#places) INTERNAL ANIMATIONS
-        const placesSection = document.querySelector('#places');
-        if (placesSection) {
-          const headEls = placesSection.querySelectorAll(
-            '.section-head .eyebrow, .section-head h2, .section-head p'
-          );
-          const placeCards = placesSection.querySelectorAll('.places .place');
-
-          if (headEls.length > 0) {
-            gsap.fromTo(
-              headEls,
-              { y: moveY, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.75,
-                stagger: 0.09,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: placesSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 82%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: placesSection,
-                      start: 'top 84%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
+        // 6–9. STANDALONE SUBPAGE ANIMATIONS (When not inside horizontal-scroll-track, e.g. on /contact)
+        if (!horizontalTrack) {
+          const contactSection = document.querySelector('#contact');
+          if (contactSection) {
+            const leftEls = contactSection.querySelectorAll(
+              '.contact-grid > div:first-child > *'
             );
-          }
+            const enquiryForm = contactSection.querySelector(
+              '#enquiry'
+            ) as HTMLElement | null;
 
-          if (placeCards.length > 0) {
-            gsap.fromTo(
-              placeCards,
-              { y: 38, scale: 0.95, opacity: 0 },
-              {
-                y: 0,
-                scale: 1,
-                opacity: 1,
-                duration: 0.85,
-                stagger: 0.12,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: placesSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 78%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: '.places',
-                      start: 'top 85%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-        }
+            if (leftEls.length > 0) {
+              gsap.fromTo(
+                leftEls,
+                { y: moveY, opacity: 0 },
+                {
+                  y: 0,
+                  opacity: 1,
+                  duration: 0.75,
+                  stagger: 0.09,
+                  ease: 'power3.out',
+                  scrollTrigger: {
+                    trigger: contactSection,
+                    start: 'top 85%',
+                    toggleActions: 'play none none reverse',
+                  },
+                }
+              );
+            }
 
-        // 7. VALUES SECTION (#why) INTERNAL ANIMATIONS
-        const whySection = document.querySelector('#why');
-        if (whySection) {
-          const headEls = whySection.querySelectorAll(
-            '.section-head .eyebrow, .section-head h2, .section-head p'
-          );
-          const valueCards = whySection.querySelectorAll('.values-grid .value');
-
-          if (headEls.length > 0) {
-            gsap.fromTo(
-              headEls,
-              { y: moveY, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.75,
-                stagger: 0.09,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: whySection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 82%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: whySection,
-                      start: 'top 84%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-
-          if (valueCards.length > 0) {
-            gsap.fromTo(
-              valueCards,
-              { y: 32, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.8,
-                stagger: 0.12,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: whySection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 78%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger:
-                        whySection.querySelector('.values-grid') || whySection,
-                      start: 'top 86%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-        }
-
-        // 8. PLANNING & FAQ SECTION (#planning-faq) INTERNAL ANIMATIONS
-        const planningSection = document.querySelector('#planning-faq');
-        if (planningSection) {
-          const introEls = planningSection.querySelectorAll(
-            '.planning-intro-col > *'
-          );
-          const reviewsWidget = planningSection.querySelector(
-            '.tourist-reviews-widget'
-          );
-          const faqBlock = planningSection.querySelector('.minimal-faq-block');
-          const faqRows = planningSection.querySelectorAll('.minimal-faq-row');
-
-          if (introEls.length > 0) {
-            gsap.fromTo(
-              introEls,
-              { y: moveY, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.75,
-                stagger: 0.08,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: planningSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 82%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: planningSection,
-                      start: 'top 84%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-
-          if (reviewsWidget) {
-            gsap.fromTo(
-              reviewsWidget,
-              { y: 28, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.82,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: planningSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 78%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: reviewsWidget,
-                      start: 'top 86%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-
-          if (faqBlock) {
-            gsap.fromTo(
-              faqBlock,
-              { y: 30, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.8,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: planningSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 74%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: faqBlock,
-                      start: 'top 88%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-
-          if (faqRows.length > 0) {
-            gsap.fromTo(
-              faqRows,
-              { y: 14, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.55,
-                stagger: 0.04,
-                ease: 'power2.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: planningSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 72%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: faqBlock || planningSection,
-                      start: 'top 85%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-        }
-
-        // 9. CONTACT SECTION (#contact) INTERNAL ANIMATIONS
-        const contactSection = document.querySelector('#contact');
-        if (contactSection) {
-          const leftEls = contactSection.querySelectorAll(
-            '.contact-grid > div:first-child > *'
-          );
-          const enquiryForm = contactSection.querySelector(
-            '#enquiry'
-          ) as HTMLElement | null;
-
-          if (leftEls.length > 0) {
-            gsap.fromTo(
-              leftEls,
-              { y: moveY, opacity: 0 },
-              {
-                y: 0,
-                opacity: 1,
-                duration: 0.75,
-                stagger: 0.09,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: contactSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 82%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: contactSection,
-                      start: 'top 85%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
-          }
-
-          if (
-            enquiryForm &&
-            enquiryForm.style &&
-            typeof enquiryForm.style.removeProperty === 'function'
-          ) {
-            gsap.fromTo(
-              enquiryForm,
-              { y: 32, scale: 0.97, opacity: 0 },
-              {
-                y: 0,
-                scale: 1,
-                opacity: 1,
-                duration: 0.85,
-                ease: 'power3.out',
-                scrollTrigger: horizontalTween
-                  ? {
-                      trigger: contactSection,
-                      containerAnimation: horizontalTween,
-                      start: 'left 76%',
-                      toggleActions: 'play none none reverse',
-                    }
-                  : {
-                      trigger: enquiryForm,
-                      start: 'top 86%',
-                      toggleActions: 'play none none reverse',
-                    },
-              }
-            );
+            if (
+              enquiryForm &&
+              enquiryForm.style &&
+              typeof enquiryForm.style.removeProperty === 'function'
+            ) {
+              gsap.fromTo(
+                enquiryForm,
+                { y: 32, scale: 0.97, opacity: 0 },
+                {
+                  y: 0,
+                  scale: 1,
+                  opacity: 1,
+                  duration: 0.85,
+                  ease: 'power3.out',
+                  scrollTrigger: {
+                    trigger: enquiryForm,
+                    start: 'top 86%',
+                    toggleActions: 'play none none reverse',
+                  },
+                }
+              );
+            }
           }
         }
 
@@ -739,7 +605,7 @@ export default function SiteGsapAnimations() {
         ctx = null;
       }
     };
-  }, [pathname]);
+  }, [activeRoute]);
 
   return null;
 }

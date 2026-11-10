@@ -1,14 +1,36 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tour } from '@/lib/tours';
+import BookingPanel from '@/components/booking/BookingPanel';
 
 interface TourModalProps {
   tour: Tour | null;
+  initialTab?: 'itinerary' | 'booking';
   onClose: () => void;
 }
 
-export default function TourModal({ tour, onClose }: TourModalProps) {
+export default function TourModal({
+  tour,
+  initialTab = 'booking',
+  onClose,
+}: TourModalProps) {
+  const contextKey = `${tour?.id || 'none'}-${initialTab}`;
+  const [tabState, setTabState] = useState<{
+    key: string;
+    tab: 'itinerary' | 'booking';
+  }>({
+    key: contextKey,
+    tab: initialTab,
+  });
+
+  const activeTab =
+    tabState.key === contextKey ? tabState.tab : initialTab;
+
+  const setActiveTab = (nextTab: 'itinerary' | 'booking') => {
+    setTabState({ key: contextKey, tab: nextTab });
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -45,7 +67,7 @@ export default function TourModal({ tour, onClose }: TourModalProps) {
       aria-modal="true"
       aria-labelledby="modalTitle"
     >
-      <div className="modal-card">
+      <div className="modal-card booking-modal-wide">
         <button
           type="button"
           aria-label="Close"
@@ -56,38 +78,71 @@ export default function TourModal({ tour, onClose }: TourModalProps) {
         </button>
 
         <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-          BIMONDO SIGNATURE JOURNEY
+          BIMONDO SIGNATURE JOURNEY · {tour.days} DAYS
         </div>
 
         <h2 id="modalTitle">{tour.name}</h2>
 
-        <p style={{ fontWeight: 700 }}>
-          {tour.days} days · {tour.route}
-        </p>
-
-        <p>{tour.description}</p>
-
-        <p>
-          <strong>Highlights:</strong> {tour.highlights}
-        </p>
-
-        <p style={{ fontSize: '12px', marginTop: '16px', color: 'var(--muted)' }}>
-          This is a sample itinerary. Final arrangements, price and availability are confirmed by the Bimondo team.
-        </p>
-
-        <div className="modal-cta">
-          <a
-            className="pill dark"
-            href={whatsAppUrl}
-            rel="noopener noreferrer"
-            target="_blank"
+        <div
+          className="filter"
+          style={{ marginTop: '12px', marginBottom: '20px' }}
+        >
+          <button
+            type="button"
+            className={activeTab === 'booking' ? 'active' : ''}
+            onClick={() => setActiveTab('booking')}
           >
-            ENQUIRE ABOUT THIS TOUR ↗
-          </a>
-          <button type="button" className="pill" onClick={onClose}>
-            CLOSE
+            Availability &amp; Online Booking
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'itinerary' ? 'active' : ''}
+            onClick={() => setActiveTab('itinerary')}
+          >
+            Route &amp; Highlights
           </button>
         </div>
+
+        {activeTab === 'itinerary' ? (
+          <div>
+            <p style={{ fontWeight: 700, color: 'var(--ink)' }}>
+              {tour.days} days · {tour.route}
+            </p>
+
+            <p>{tour.description}</p>
+
+            <p>
+              <strong>Highlights:</strong> {tour.highlights}
+            </p>
+
+            <div className="modal-cta">
+              <button
+                type="button"
+                className="pill dark"
+                onClick={() => setActiveTab('booking')}
+              >
+                CHECK AVAILABILITY &amp; BOOK ↗
+              </button>
+              <a
+                className="pill"
+                href={whatsAppUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                WHATSAPP CONCIERGE ↗
+              </a>
+              <button type="button" className="pill" onClick={onClose}>
+                CLOSE
+              </button>
+            </div>
+          </div>
+        ) : (
+          <BookingPanel
+            itemId={tour.id}
+            itemName={`${tour.name} (${tour.days} Days)`}
+            itemType="tour"
+          />
+        )}
       </div>
     </div>
   );

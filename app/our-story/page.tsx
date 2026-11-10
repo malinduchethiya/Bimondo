@@ -1,14 +1,7 @@
 import React from 'react';
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import StorySection from '@/components/StorySection';
-
-export const metadata: Metadata = {
-  title: 'Bimondo Travels — Our Story',
-  description:
-    'Founded in 2022 by Bimsara Illangasinghe. Private bespoke journeys through Sri Lanka. Come as a traveller, leave as a friend.',
-};
 
 export default function OurStoryPage() {
   const pillars = [
@@ -95,7 +88,7 @@ export default function OurStoryPage() {
               <strong>Bimsara Illangasinghe</strong> — Founder, Bimondo Travels
               (Private) Ltd, Colombo, Sri Lanka.
             </p>
-            <Link href="/contact" className="pill dark">
+            <Link href="/contact" prefetch={false} className="pill dark">
               PLAN YOUR JOURNEY WITH US ↗
             </Link>
           </div>

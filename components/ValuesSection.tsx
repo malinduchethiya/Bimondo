@@ -1,54 +1,131 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
+
+interface ReviewItem {
+  name: string;
+  location: string;
+  rating: number;
+  tour: string;
+  date: string;
+  quote: string;
+}
+
+const REVIEWS: ReviewItem[] = [
+  {
+    name: 'Elena & Marcus Weber',
+    location: 'Munich, Germany',
+    rating: 5,
+    tour: '14-Day Ceylon Grand Circuit',
+    date: 'Visited February 2026',
+    quote:
+      '“Our chauffeur-guide Nimal felt like family from day one. No tour bus crowds, gorgeous boutique tea villas in Ella, and spontaneous stops for fresh king coconuts. Bimondo made Sri Lanka truly unforgettable.”',
+  },
+  {
+    name: 'The Jenkins Family (4 guests)',
+    location: 'Melbourne, Australia',
+    rating: 5,
+    tour: '10-Day Family Island Discovery',
+    date: 'Visited December 2025',
+    quote:
+      '“Travelling with two kids aged 8 and 11 can be daunting, but Bimondo took care of every single detail. Watching hundreds of wild elephants gather at Minneriya was a lifelong memory for our boys.”',
+  },
+  {
+    name: 'Claire & Antoine Dupont',
+    location: 'Paris, France',
+    rating: 5,
+    tour: '8-Day Southern Shores in Luxury',
+    date: 'Visited January 2026',
+    quote:
+      '“From watching sunrise over Pidurangala to quiet sunset walks along Galle Fort ramparts. The 24/7 WhatsApp concierge was always reassuring. An authentic, private experience we will cherish.”',
+  },
+  {
+    name: 'Liam & Sophie Campbell',
+    location: 'Edinburgh, UK',
+    rating: 5,
+    tour: '8-Day The Pekoe Trail Walk',
+    date: 'Visited March 2026',
+    quote:
+      '“Incredible walks through emerald tea valleys with our naturalist guide. Every hotel had character and warmth. You truly come as a traveller and leave as a lifelong friend.”',
+  },
+];
 
 export default function ValuesSection() {
-  const values = [
-    {
-      num: '01 / PERSONALLY YOURS',
-      title: 'Private by nature.',
-      desc: 'No fixed crowds or rushed checklists. Your interests, pace and budget shape the route.',
-    },
-    {
-      num: '02 / HERE WHEN YOU NEED US',
-      title: '24-hour support.',
-      desc: 'Our on-call Sri Lankan team is available throughout your journey.',
-    },
-    {
-      num: '03 / CARE FOR OUR HOME',
-      title: 'Travel thoughtfully.',
-      desc: 'We value local partners, cultural respect and responsible wildlife experiences.',
-    },
-  ];
+  const [activeReviewIdx, setActiveReviewIdx] = useState<number>(0);
+
+  const nextReview = () => {
+    setActiveReviewIdx((prev) => (prev + 1) % REVIEWS.length);
+  };
+
+  const prevReview = () => {
+    setActiveReviewIdx((prev) => (prev - 1 + REVIEWS.length) % REVIEWS.length);
+  };
+
+  const currentReview = REVIEWS[activeReviewIdx];
 
   return (
     <section className="section values leaf-green-section" id="why">
       <div className="wrap">
-        <div className="section-head">
-          <div>
-            <div className="eyebrow values-eyebrow">
-              05 / TRAVEL WITH GOOD PEOPLE
+        <div className="tourist-reviews-widget">
+          <div className="reviews-widget-header">
+            <div>
+              <span className="eyebrow reviews-eyebrow">
+                05 / ★ 4.98 / 5.0 · TRAVELLER REVIEWS
+              </span>
+              <h2 className="serif reviews-heading">Stories from our guests</h2>
             </div>
-            <h2 className="serif values-title">
-              The Bimondo
-              <br />
-              <em>difference.</em>
-            </h2>
+            <div className="reviews-nav-arrows">
+              <button
+                type="button"
+                className="review-arrow-btn"
+                onClick={prevReview}
+                aria-label="Previous review"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="review-arrow-btn"
+                onClick={nextReview}
+                aria-label="Next review"
+              >
+                →
+              </button>
+            </div>
           </div>
-          <p className="values-lead">
-            Personal care, honest local knowledge and thoughtful planning — from
-            your first message to your flight home.
-          </p>
-        </div>
 
-        <div className="values-grid">
-          {values.map((v) => (
-            <div key={v.num} className="value">
-              <span className="number values-num">{v.num}</span>
-              <h3 className="values-card-title">{v.title}</h3>
-              <p className="values-card-desc">{v.desc}</p>
+          <div className="review-quote-box">
+            <div className="stars-row">
+              {Array.from({ length: currentReview.rating }).map((_, i) => (
+                <span key={i} className="star">
+                  ★
+                </span>
+              ))}
             </div>
-          ))}
+            <p className="review-quote-text">{currentReview.quote}</p>
+            <div className="review-author-meta">
+              <strong>{currentReview.name}</strong>
+              <div className="review-submeta">
+                <span>{currentReview.location}</span> ·{' '}
+                <em>{currentReview.tour}</em> · <span>{currentReview.date}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="review-dots">
+            {REVIEWS.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                className={`review-dot ${activeReviewIdx === i ? 'active' : ''}`}
+                onClick={() => setActiveReviewIdx(i)}
+                aria-label={`Go to review ${i + 1}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>
   );
 }
+

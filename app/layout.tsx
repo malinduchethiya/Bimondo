@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 import MomentumScroll from '@/components/MomentumScroll';
 import SiteGsapAnimations from '@/components/SiteGsapAnimations';
+import InstantRouteManager from '@/components/InstantRouteManager';
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -52,7 +53,7 @@ export default function RootLayout({
         <MomentumScroll />
         <SiteGsapAnimations />
         <Header />
-        {children}
+        <InstantRouteManager>{children}</InstantRouteManager>
         <Footer />
         <FloatingWhatsApp />
       </body>

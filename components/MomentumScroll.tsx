@@ -82,15 +82,24 @@ export default function MomentumScroll() {
 
   // Reset scroll position non-blockingly when navigating between routes
   useEffect(() => {
-    if (lenisRef.current) {
-      lenisRef.current.scrollTo(0, { immediate: true });
-    } else {
-      window.scrollTo(0, 0);
-    }
-    const rafId = window.requestAnimationFrame(() => {
-      ScrollTrigger.refresh();
-    });
-    return () => window.cancelAnimationFrame(rafId);
+    const resetScroll = () => {
+      if (lenisRef.current) {
+        lenisRef.current.scrollTo(0, { immediate: true });
+      } else {
+        window.scrollTo(0, 0);
+      }
+      window.requestAnimationFrame(() => {
+        ScrollTrigger.refresh();
+      });
+    };
+
+    resetScroll();
+    window.addEventListener('bimondo:navigate', resetScroll);
+    window.addEventListener('popstate', resetScroll);
+    return () => {
+      window.removeEventListener('bimondo:navigate', resetScroll);
+      window.removeEventListener('popstate', resetScroll);
+    };
   }, [pathname]);
 
   return null;

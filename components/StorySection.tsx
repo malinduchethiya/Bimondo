@@ -141,7 +141,7 @@ export default function StorySection() {
         <div className="quote">
           “Not a place you visit, but a feeling you carry home.”
         </div>
-        <Link className="pill" href="/our-story" prefetch={true}>
+        <Link className="pill" href="/our-story" prefetch={false}>
           GET TO KNOW US ↗
         </Link>
       </div>

@@ -28,10 +28,10 @@ export default function HeroSection() {
             its warm people, ancient wonders and unforgettable little moments.
           </p>
           <div className="hero-actions">
-            <Link className="pill dark" href="/packages" prefetch={true}>
+            <Link className="pill dark" href="/packages" prefetch={false}>
               EXPLORE OUR JOURNEYS ↗
             </Link>
-            <Link className="pill" href="/our-story" prefetch={true}>
+            <Link className="pill" href="/our-story" prefetch={false}>
               MEET BIMONDO ↓
             </Link>
           </div>

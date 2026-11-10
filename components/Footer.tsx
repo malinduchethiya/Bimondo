@@ -9,7 +9,7 @@ export default function Footer() {
       <div className="wrap">
         <div className="footer-top">
           <div>
-            <Link className="brand" href="/">
+            <Link className="brand" href="/" prefetch={false}>
               <span className="brand-mark">b</span>bimondo
             </Link>
             <p>Not a place you visit, but a feeling you carry home.</p>
@@ -18,10 +18,18 @@ export default function Footer() {
           <div className="footer-links">
             <div>
               <b>Explore</b>
-              <Link href="/destinations" prefetch={true}>Destinations</Link>
-              <Link href="/packages" prefetch={true}>Packages</Link>
-              <Link href="/gallery" prefetch={true}>Gallery</Link>
-              <Link href="/our-story" prefetch={true}>Our story</Link>
+              <Link href="/destinations" prefetch={false}>Destinations</Link>
+              <Link href="/packages" prefetch={false}>Packages</Link>
+              <Link href="/stays" prefetch={false}>Boutique Stays</Link>
+              <Link href="/gallery" prefetch={false}>Gallery</Link>
+              <Link href="/our-story" prefetch={false}>Our story</Link>
+            </div>
+            <div>
+              <b>Bookings</b>
+              <Link href="/stays" prefetch={false}>NightsBridge Stays</Link>
+              <Link href="/packages" prefetch={false}>Bókun &amp; Viator Tours</Link>
+              <Link href="/booking/confirmation" prefetch={false}>Verify Booking</Link>
+              <Link href="/admin/booking" prefetch={false}>Admin Settings</Link>
             </div>
             <div>
               <b>Get in touch</b>

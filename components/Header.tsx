@@ -2,36 +2,41 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-
-const NAV_ROUTES = [
-  '/',
-  '/destinations',
-  '/packages',
-  '/gallery',
-  '/our-story',
-  '/contact',
-];
+import { usePathname } from 'next/navigation';
+import {
+  navigateToRoute,
+  normalizeRoutePath,
+} from '@/components/InstantRouteManager';
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
-  const [optimisticTarget, setOptimisticTarget] = useState<string | null>(null);
+  const [clientTarget, setClientTarget] = useState<string | null>(null);
   const lastScrollYRef = useRef(0);
   const pathname = usePathname();
-  const router = useRouter();
 
-  // Eagerly prefetch all top header navigation routes on mount so navigation is instantaneous
+  const activePathname = normalizeRoutePath(clientTarget ?? pathname);
+
   useEffect(() => {
-    NAV_ROUTES.forEach((route) => {
-      try {
-        router.prefetch(route);
-      } catch {
-        // ignore prefetch error
+    const onCustomNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setClientTarget(normalizeRoutePath(customEvent.detail));
       }
-    });
-  }, [router]);
+    };
+
+    const onPopState = () => {
+      setClientTarget(normalizeRoutePath(window.location.pathname));
+    };
+
+    window.addEventListener('bimondo:navigate', onCustomNavigate);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('bimondo:navigate', onCustomNavigate);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, []);
 
   useEffect(() => {
     const getHeroThreshold = () => {
@@ -44,6 +49,22 @@ export default function Header() {
       return Math.max(120, window.innerHeight * 0.85);
     };
 
+    const isAtOrBelowDiscoverSection = () => {
+      const horizWrap = document.getElementById('horizontal-scroll-wrap');
+      const discoverEl = document.getElementById('discover');
+      const targetEl = horizWrap || discoverEl;
+      if (!targetEl) return false;
+
+      // Check the pin-spacer if GSAP has wrapped #horizontal-scroll-wrap
+      const containerEl =
+        (targetEl.parentElement?.classList.contains('pin-spacer')
+          ? targetEl.parentElement
+          : targetEl) as HTMLElement;
+
+      const rect = containerEl.getBoundingClientRect();
+      return rect.top <= 4;
+    };
+
     const handleScroll = () => {
       const currentY = Math.max(0, window.scrollY);
       const prevY = lastScrollYRef.current;
@@ -54,6 +75,10 @@ export default function Header() {
 
       if (currentY <= heroThreshold) {
         setIsHidden(false);
+      } else if (isAtOrBelowDiscoverSection()) {
+        // Keep header hidden while in or below #discover, even when scrolling upward
+        setIsHidden(true);
+        setIsOpen(false);
       } else if (delta > 5) {
         setIsHidden(true);
         setIsOpen(false);
@@ -68,18 +93,10 @@ export default function Header() {
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [pathname]);
+  }, [activePathname]);
 
   const toggleMenu = () => {
     setIsOpen((prev) => !prev);
-  };
-
-  const handlePreload = (targetPath: string) => {
-    try {
-      router.prefetch(targetPath);
-    } catch {
-      // ignore
-    }
   };
 
   const handleNavClick = (
@@ -89,25 +106,13 @@ export default function Header() {
     e.preventDefault();
     setIsOpen(false);
     setIsHidden(false);
-
-    if (targetPath === pathname) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    setOptimisticTarget(targetPath);
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-    router.push(targetPath);
+    setClientTarget(normalizeRoutePath(targetPath));
+    navigateToRoute(targetPath);
   };
-
-  const activePathname =
-    optimisticTarget && optimisticTarget !== pathname
-      ? optimisticTarget
-      : pathname;
 
   const isActive = (path: string) => {
     if (path === '/' && activePathname === '/') return true;
-    if (path !== '/' && activePathname?.startsWith(path)) return true;
+    if (path !== '/' && activePathname.startsWith(path)) return true;
     return false;
   };
 
@@ -120,11 +125,9 @@ export default function Header() {
       <div className="wrap nav">
         <Link
           href="/"
-          prefetch={true}
+          prefetch={false}
           className="brand"
           aria-label="Bimondo home"
-          onPointerEnter={() => handlePreload('/')}
-          onFocus={() => handlePreload('/')}
           onClick={(e) => handleNavClick(e, '/')}
         >
           <span className="brand-mark">b</span>
@@ -139,44 +142,45 @@ export default function Header() {
         >
           <Link
             href="/destinations"
-            prefetch={true}
+            prefetch={false}
             className={`nav-item ${isActive('/destinations') ? 'active' : ''}`}
             aria-current={isActive('/destinations') ? 'page' : undefined}
-            onPointerEnter={() => handlePreload('/destinations')}
-            onFocus={() => handlePreload('/destinations')}
             onClick={(e) => handleNavClick(e, '/destinations')}
           >
             Destinations
           </Link>
           <Link
             href="/packages"
-            prefetch={true}
+            prefetch={false}
             className={`nav-item ${isActive('/packages') ? 'active' : ''}`}
             aria-current={isActive('/packages') ? 'page' : undefined}
-            onPointerEnter={() => handlePreload('/packages')}
-            onFocus={() => handlePreload('/packages')}
             onClick={(e) => handleNavClick(e, '/packages')}
           >
             Packages
           </Link>
           <Link
+            href="/stays"
+            prefetch={false}
+            className={`nav-item ${isActive('/stays') ? 'active' : ''}`}
+            aria-current={isActive('/stays') ? 'page' : undefined}
+            onClick={(e) => handleNavClick(e, '/stays')}
+          >
+            Stays
+          </Link>
+          <Link
             href="/gallery"
-            prefetch={true}
+            prefetch={false}
             className={`nav-item ${isActive('/gallery') ? 'active' : ''}`}
             aria-current={isActive('/gallery') ? 'page' : undefined}
-            onPointerEnter={() => handlePreload('/gallery')}
-            onFocus={() => handlePreload('/gallery')}
             onClick={(e) => handleNavClick(e, '/gallery')}
           >
             Gallery
           </Link>
           <Link
             href="/our-story"
-            prefetch={true}
+            prefetch={false}
             className={`nav-item ${isActive('/our-story') ? 'active' : ''}`}
             aria-current={isActive('/our-story') ? 'page' : undefined}
-            onPointerEnter={() => handlePreload('/our-story')}
-            onFocus={() => handlePreload('/our-story')}
             onClick={(e) => handleNavClick(e, '/our-story')}
           >
             Our story
@@ -184,9 +188,7 @@ export default function Header() {
           <Link
             className="pill dark mobile-nav-cta"
             href="/contact"
-            prefetch={true}
-            onPointerEnter={() => handlePreload('/contact')}
-            onFocus={() => handlePreload('/contact')}
+            prefetch={false}
             onClick={(e) => handleNavClick(e, '/contact')}
           >
             PLAN YOUR JOURNEY ↗
@@ -196,9 +198,7 @@ export default function Header() {
         <Link
           className="pill dark desktop-nav-cta"
           href="/contact"
-          prefetch={true}
-          onPointerEnter={() => handlePreload('/contact')}
-          onFocus={() => handlePreload('/contact')}
+          prefetch={false}
           onClick={(e) => handleNavClick(e, '/contact')}
         >
           PLAN YOUR JOURNEY ↗

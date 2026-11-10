@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import BookingPanel from '@/components/booking/BookingPanel';
 
 interface Destination {
   id: string;
@@ -108,6 +109,9 @@ export default function DestinationsPage() {
     { id: 'wildlife', label: 'Wildlife Sanctuaries' },
   ];
 
+  const [activeDestBooking, setActiveDestBooking] =
+    useState<Destination | null>(null);
+
   return (
     <main>
       <PageBanner
@@ -179,13 +183,26 @@ export default function DestinationsPage() {
                     ))}
                   </ul>
                 </div>
-                <div className="dest-card-foot">
+                <div
+                  className="dest-card-foot"
+                  style={{ gap: '8px', flexWrap: 'wrap' }}
+                >
                   <Link
-                    href={`/contact?destination=${dest.id}`}
-                    className="pill dark"
+                    href="/stays"
+                    prefetch={false}
+                    className="pill"
+                    style={{ padding: '9px 14px', fontSize: '10.5px' }}
                   >
-                    PLAN ROUTE HERE ↗
+                    STAYS IN REGION
                   </Link>
+                  <button
+                    type="button"
+                    className="pill dark"
+                    style={{ padding: '9px 16px', fontSize: '10.5px' }}
+                    onClick={() => setActiveDestBooking(dest)}
+                  >
+                    BOOK EXPERIENCE ↗
+                  </button>
                 </div>
               </div>
             </article>
@@ -196,7 +213,7 @@ export default function DestinationsPage() {
         <div className="dest-custom-cta-box">
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              CUSTOM ROUTING
+              CUSTOM ROUTING &amp; STAYS
             </span>
             <h3 className="serif" style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}>
               Want to combine hills, safari &amp; the sea?
@@ -206,11 +223,36 @@ export default function DestinationsPage() {
               without backtracking, matched to your preferred hotels and pace.
             </p>
           </div>
-          <Link href="/contact" className="pill light">
-            DESIGN MY ROUTE WITH A SPECIALIST ↗
-          </Link>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Link href="/stays" prefetch={false} className="pill light">
+              BROWSE BOUTIQUE STAYS ↗
+            </Link>
+            <Link href="/contact" prefetch={false} className="pill dark">
+              DESIGN MY ROUTE ↗
+            </Link>
+          </div>
         </div>
       </section>
+
+      {activeDestBooking && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveDestBooking(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="modal-card booking-modal-wide">
+            <BookingPanel
+              itemId={activeDestBooking.id}
+              itemName={activeDestBooking.name}
+              itemType="experience"
+              onClose={() => setActiveDestBooking(null)}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -73,7 +73,7 @@ export default function FaqSection() {
           </p>
           <div className="faq-cta-box">
             <span>Have a specific question about dates or routes?</span>
-            <Link className="pill dark" href="/contact">
+            <Link className="pill dark" href="/contact" prefetch={false}>
               ASK OUR LOCAL TEAM ↗
             </Link>
           </div>

@@ -8,12 +8,14 @@ import PlacesSection from '@/components/PlacesSection';
 import ValuesSection from '@/components/ValuesSection';
 import PlanningSection from '@/components/PlanningSection';
 import ContactSection from '@/components/ContactSection';
+import HomepageAvailabilityBar from '@/components/booking/HomepageAvailabilityBar';
 
 export default function HomePage() {
   return (
     <main>
       <HeroSection />
       <HeroTransitionSection />
+      <HomepageAvailabilityBar />
       <StorySection />
       <BentoDestinationSlider />
       <div className="horizontal-scroll-pin-wrap" id="horizontal-scroll-wrap">
