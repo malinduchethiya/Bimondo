@@ -11,37 +11,26 @@ const NAV_ROUTES = [
   '/gallery',
   '/our-story',
   '/contact',
-  '/journeys',
 ];
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
-  const [navTarget, setNavTarget] = useState<string | null>(null);
+  const [optimisticTarget, setOptimisticTarget] = useState<string | null>(null);
   const lastScrollYRef = useRef(0);
   const pathname = usePathname();
   const router = useRouter();
 
-  const isNavigating = navTarget !== null && navTarget !== pathname;
-
-  // Eagerly prefetch & warm up all navigation routes in background so clicking redirects instantly
+  // Eagerly prefetch all top header navigation routes on mount so navigation is instantaneous
   useEffect(() => {
-    const warmUp = () => {
-      NAV_ROUTES.forEach((route) => {
-        try {
-          router.prefetch(route);
-          fetch(route, { priority: 'low' }).catch(() => {});
-        } catch {
-          // ignore
-        }
-      });
-    };
-
-    if (typeof window !== 'undefined') {
-      const timer = window.setTimeout(warmUp, 80);
-      return () => window.clearTimeout(timer);
-    }
+    NAV_ROUTES.forEach((route) => {
+      try {
+        router.prefetch(route);
+      } catch {
+        // ignore prefetch error
+      }
+    });
   }, [router]);
 
   useEffect(() => {
@@ -64,14 +53,11 @@ export default function Header() {
       setIsScrolled(currentY > 30);
 
       if (currentY <= heroThreshold) {
-        // Always show header while within the hero section
         setIsHidden(false);
       } else if (delta > 5) {
-        // Scrolling down past the hero section -> hide header and close mobile drawer
         setIsHidden(true);
         setIsOpen(false);
       } else if (delta < -5) {
-        // Scrolling up past the hero section -> reveal header
         setIsHidden(false);
       }
 
@@ -91,7 +77,6 @@ export default function Header() {
   const handlePreload = (targetPath: string) => {
     try {
       router.prefetch(targetPath);
-      fetch(targetPath, { priority: 'high' }).catch(() => {});
     } catch {
       // ignore
     }
@@ -101,22 +86,24 @@ export default function Header() {
     e: React.MouseEvent<HTMLAnchorElement>,
     targetPath: string
   ) => {
-    if (targetPath === pathname) {
-      e.preventDefault();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      setIsOpen(false);
-      return;
-    }
-
-    setNavTarget(targetPath);
+    e.preventDefault();
     setIsOpen(false);
     setIsHidden(false);
 
-    // Instant redirect: immediately navigates to target route without transition stalling
-    window.location.assign(targetPath);
+    if (targetPath === pathname) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setOptimisticTarget(targetPath);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    router.push(targetPath);
   };
 
-  const activePathname = navTarget && navTarget !== pathname ? navTarget : pathname;
+  const activePathname =
+    optimisticTarget && optimisticTarget !== pathname
+      ? optimisticTarget
+      : pathname;
 
   const isActive = (path: string) => {
     if (path === '/' && activePathname === '/') return true;
@@ -125,93 +112,77 @@ export default function Header() {
   };
 
   return (
-    <>
-      {isNavigating && (
-        <div className="top-nav-loader" aria-hidden="true" />
-      )}
-      <header
-        className={`site-header ${isScrolled ? 'is-scrolled' : ''} ${
-          isHidden && !isOpen ? 'is-hidden' : ''
-        }`}
-      >
-        <div className="wrap nav">
+    <header
+      className={`site-header ${isScrolled ? 'is-scrolled' : ''} ${
+        isHidden && !isOpen ? 'is-hidden' : ''
+      }`}
+    >
+      <div className="wrap nav">
+        <Link
+          href="/"
+          prefetch={true}
+          className="brand"
+          aria-label="Bimondo home"
+          onPointerEnter={() => handlePreload('/')}
+          onFocus={() => handlePreload('/')}
+          onClick={(e) => handleNavClick(e, '/')}
+        >
+          <span className="brand-mark">b</span>
+          <span>bimondo</span>
+          <span className="brand-sub">TRAVELS</span>
+        </Link>
+
+        <nav
+          className={`navlinks ${isOpen ? 'open' : ''}`}
+          id="navlinks"
+          aria-label="Primary Navigation"
+        >
           <Link
-            href="/"
+            href="/destinations"
             prefetch={true}
-            className="brand"
-            aria-label="Bimondo home"
-            onPointerEnter={() => handlePreload('/')}
-            onFocus={() => handlePreload('/')}
-            onClick={(e) => handleNavClick(e, '/')}
+            className={`nav-item ${isActive('/destinations') ? 'active' : ''}`}
+            aria-current={isActive('/destinations') ? 'page' : undefined}
+            onPointerEnter={() => handlePreload('/destinations')}
+            onFocus={() => handlePreload('/destinations')}
+            onClick={(e) => handleNavClick(e, '/destinations')}
           >
-            <span className="brand-mark">b</span>
-            <span>bimondo</span>
-            <span className="brand-sub">TRAVELS</span>
+            Destinations
           </Link>
-
-          <nav
-            className={`navlinks ${isOpen ? 'open' : ''}`}
-            id="navlinks"
-            aria-label="Primary Navigation"
-          >
-            <Link
-              href="/destinations"
-              prefetch={true}
-              className={`nav-item ${isActive('/destinations') ? 'active' : ''}`}
-              aria-current={isActive('/destinations') ? 'page' : undefined}
-              onPointerEnter={() => handlePreload('/destinations')}
-              onFocus={() => handlePreload('/destinations')}
-              onClick={(e) => handleNavClick(e, '/destinations')}
-            >
-              Destinations
-            </Link>
-            <Link
-              href="/packages"
-              prefetch={true}
-              className={`nav-item ${isActive('/packages') ? 'active' : ''}`}
-              aria-current={isActive('/packages') ? 'page' : undefined}
-              onPointerEnter={() => handlePreload('/packages')}
-              onFocus={() => handlePreload('/packages')}
-              onClick={(e) => handleNavClick(e, '/packages')}
-            >
-              Packages
-            </Link>
-            <Link
-              href="/gallery"
-              prefetch={true}
-              className={`nav-item ${isActive('/gallery') ? 'active' : ''}`}
-              aria-current={isActive('/gallery') ? 'page' : undefined}
-              onPointerEnter={() => handlePreload('/gallery')}
-              onFocus={() => handlePreload('/gallery')}
-              onClick={(e) => handleNavClick(e, '/gallery')}
-            >
-              Gallery
-            </Link>
-            <Link
-              href="/our-story"
-              prefetch={true}
-              className={`nav-item ${isActive('/our-story') ? 'active' : ''}`}
-              aria-current={isActive('/our-story') ? 'page' : undefined}
-              onPointerEnter={() => handlePreload('/our-story')}
-              onFocus={() => handlePreload('/our-story')}
-              onClick={(e) => handleNavClick(e, '/our-story')}
-            >
-              Our story
-            </Link>
-            <Link
-              className="pill dark mobile-nav-cta"
-              href="/contact"
-              prefetch={true}
-              onPointerEnter={() => handlePreload('/contact')}
-              onFocus={() => handlePreload('/contact')}
-              onClick={(e) => handleNavClick(e, '/contact')}
-            >
-              PLAN YOUR JOURNEY ↗
-            </Link>
-          </nav>
-
           <Link
-            className="pill dark desktop-nav-cta"
+            href="/packages"
+            prefetch={true}
+            className={`nav-item ${isActive('/packages') ? 'active' : ''}`}
+            aria-current={isActive('/packages') ? 'page' : undefined}
+            onPointerEnter={() => handlePreload('/packages')}
+            onFocus={() => handlePreload('/packages')}
+            onClick={(e) => handleNavClick(e, '/packages')}
+          >
+            Packages
+          </Link>
+          <Link
+            href="/gallery"
+            prefetch={true}
+            className={`nav-item ${isActive('/gallery') ? 'active' : ''}`}
+            aria-current={isActive('/gallery') ? 'page' : undefined}
+            onPointerEnter={() => handlePreload('/gallery')}
+            onFocus={() => handlePreload('/gallery')}
+            onClick={(e) => handleNavClick(e, '/gallery')}
+          >
+            Gallery
+          </Link>
+          <Link
+            href="/our-story"
+            prefetch={true}
+            className={`nav-item ${isActive('/our-story') ? 'active' : ''}`}
+            aria-current={isActive('/our-story') ? 'page' : undefined}
+            onPointerEnter={() => handlePreload('/our-story')}
+            onFocus={() => handlePreload('/our-story')}
+            onClick={(e) => handleNavClick(e, '/our-story')}
+          >
+            Our story
+          </Link>
+          <Link
+            className="pill dark mobile-nav-cta"
             href="/contact"
             prefetch={true}
             onPointerEnter={() => handlePreload('/contact')}
@@ -220,19 +191,30 @@ export default function Header() {
           >
             PLAN YOUR JOURNEY ↗
           </Link>
+        </nav>
 
-          <button
-            type="button"
-            aria-expanded={isOpen}
-            aria-label={isOpen ? 'Close menu' : 'Open menu'}
-            className="mobile-toggle"
-            id="menuBtn"
-            onClick={toggleMenu}
-          >
-            {isOpen ? '×' : '☰'}
-          </button>
-        </div>
-      </header>
-    </>
+        <Link
+          className="pill dark desktop-nav-cta"
+          href="/contact"
+          prefetch={true}
+          onPointerEnter={() => handlePreload('/contact')}
+          onFocus={() => handlePreload('/contact')}
+          onClick={(e) => handleNavClick(e, '/contact')}
+        >
+          PLAN YOUR JOURNEY ↗
+        </Link>
+
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          aria-label={isOpen ? 'Close menu' : 'Open menu'}
+          className="mobile-toggle"
+          id="menuBtn"
+          onClick={toggleMenu}
+        >
+          {isOpen ? '×' : '☰'}
+        </button>
+      </div>
+    </header>
   );
 }

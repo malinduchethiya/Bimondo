@@ -25,16 +25,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  async rewrites() {
-    return [
-      { source: '/index.html', destination: '/' },
-      { source: '/our-story.html', destination: '/our-story' },
-      { source: '/journeys.html', destination: '/journeys' },
-      { source: '/discover.html', destination: '/discover' },
-      { source: '/why-bimondo.html', destination: '/why-bimondo' },
-      { source: '/contact.html', destination: '/contact' },
-    ];
-  },
   output: 'standalone',
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {

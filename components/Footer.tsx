@@ -18,9 +18,10 @@ export default function Footer() {
           <div className="footer-links">
             <div>
               <b>Explore</b>
-              <Link href="/our-story">Our story</Link>
-              <Link href="/journeys">Journeys</Link>
-              <Link href="/discover">Discover</Link>
+              <Link href="/destinations" prefetch={true}>Destinations</Link>
+              <Link href="/packages" prefetch={true}>Packages</Link>
+              <Link href="/gallery" prefetch={true}>Gallery</Link>
+              <Link href="/our-story" prefetch={true}>Our story</Link>
             </div>
             <div>
               <b>Get in touch</b>

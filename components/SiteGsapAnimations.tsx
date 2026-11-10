@@ -219,17 +219,18 @@ export default function SiteGsapAnimations() {
           }
         }
 
-        // 4. FLYOVER SCROLL STACK FOR ALL SECTIONS AFTER #story
+        // 4. FLYOVER SCROLL FOR #story -> #destinations-slider, THEN HORIZONTAL SCROLL FOR #discover AND BEYOND
         if (storySection && storySection.parentElement) {
-          const allSections = Array.from(
+          const allDirectSections = Array.from(
             storySection.parentElement.querySelectorAll(':scope > section')
           ) as HTMLElement[];
-          const storyIndex = allSections.indexOf(storySection);
+          const storyIndex = allDirectSections.indexOf(storySection);
 
-          if (storyIndex !== -1 && storyIndex < allSections.length - 1) {
-            const chainSections = allSections.slice(storyIndex);
+          // 4A. Flyover stack ONLY for direct sections from #story up to #destinations-slider
+          if (storyIndex !== -1 && storyIndex < allDirectSections.length - 1) {
+            const flyoverSections = allDirectSections.slice(storyIndex);
 
-            chainSections.forEach((sec, idx) => {
+            flyoverSections.forEach((sec, idx) => {
               if (idx === 0) {
                 sec.classList.add('flyover-anchor-section');
                 sec.style.zIndex = '10';
@@ -239,9 +240,9 @@ export default function SiteGsapAnimations() {
               }
             });
 
-            for (let i = 0; i < chainSections.length - 1; i++) {
-              const prevSec = chainSections[i];
-              const nextSec = chainSections[i + 1];
+            for (let i = 0; i < flyoverSections.length - 1; i++) {
+              const prevSec = flyoverSections[i];
+              const nextSec = flyoverSections[i + 1];
 
               gsap.fromTo(
                 prevSec,
@@ -285,6 +286,47 @@ export default function SiteGsapAnimations() {
                 }
               );
             }
+          }
+        }
+
+        // 4B. Horizontal Scroll (Right-to-Left) for #discover and all sections beyond it
+        const horizontalWrap = document.getElementById(
+          'horizontal-scroll-wrap'
+        ) as HTMLElement | null;
+        const horizontalTrack = document.getElementById(
+          'horizontal-scroll-track'
+        ) as HTMLElement | null;
+
+        let horizontalTween: gsap.core.Tween | null = null;
+
+        if (horizontalWrap && horizontalTrack) {
+          const panels = Array.from(
+            horizontalTrack.querySelectorAll(':scope > section')
+          ) as HTMLElement[];
+
+          panels.forEach((sec) => {
+            sec.classList.remove('flyover-panel', 'flyover-anchor-section');
+            sec.classList.add('horizontal-panel-section');
+            sec.style.zIndex = '';
+          });
+
+          if (panels.length > 1) {
+            const getScrollDistance = () =>
+              Math.max(0, horizontalTrack.scrollWidth - window.innerWidth);
+
+            horizontalTween = gsap.to(horizontalTrack, {
+              x: () => -getScrollDistance(),
+              ease: 'none',
+              scrollTrigger: {
+                trigger: horizontalWrap,
+                pin: true,
+                start: 'top top',
+                end: () => `+=${getScrollDistance()}`,
+                scrub: 0.6,
+                invalidateOnRefresh: true,
+                anticipatePin: 1,
+              },
+            });
           }
         }
 
@@ -346,8 +388,8 @@ export default function SiteGsapAnimations() {
                 stagger: 0.08,
                 ease: 'back.out(1.2)',
                 scrollTrigger: {
-                  trigger: '.experiences',
-                  start: 'top 88%',
+                  trigger: discoverSection,
+                  start: 'top 75%',
                   toggleActions: 'play none none reverse',
                 },
               }
@@ -373,11 +415,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.75,
                 stagger: 0.09,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: placesSection,
-                  start: 'top 84%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: placesSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 82%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: placesSection,
+                      start: 'top 84%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -393,11 +442,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.85,
                 stagger: 0.12,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: '.places',
-                  start: 'top 85%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: placesSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 78%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: '.places',
+                      start: 'top 85%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -421,11 +477,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.75,
                 stagger: 0.09,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: whySection,
-                  start: 'top 84%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: whySection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 82%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: whySection,
+                      start: 'top 84%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -440,11 +503,19 @@ export default function SiteGsapAnimations() {
                 duration: 0.8,
                 stagger: 0.12,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: whySection.querySelector('.values-grid') || whySection,
-                  start: 'top 86%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: whySection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 78%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger:
+                        whySection.querySelector('.values-grid') || whySection,
+                      start: 'top 86%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -472,11 +543,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.75,
                 stagger: 0.08,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: planningSection,
-                  start: 'top 84%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: planningSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 82%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: planningSection,
+                      start: 'top 84%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -490,11 +568,18 @@ export default function SiteGsapAnimations() {
                 opacity: 1,
                 duration: 0.82,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: reviewsWidget,
-                  start: 'top 86%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: planningSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 78%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: reviewsWidget,
+                      start: 'top 86%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -508,11 +593,18 @@ export default function SiteGsapAnimations() {
                 opacity: 1,
                 duration: 0.8,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: faqBlock,
-                  start: 'top 88%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: planningSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 74%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: faqBlock,
+                      start: 'top 88%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -527,11 +619,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.55,
                 stagger: 0.04,
                 ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: faqBlock || planningSection,
-                  start: 'top 85%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: planningSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 72%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: faqBlock || planningSection,
+                      start: 'top 85%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -557,11 +656,18 @@ export default function SiteGsapAnimations() {
                 duration: 0.75,
                 stagger: 0.09,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: contactSection,
-                  start: 'top 85%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: contactSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 82%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: contactSection,
+                      start: 'top 85%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
@@ -580,11 +686,18 @@ export default function SiteGsapAnimations() {
                 opacity: 1,
                 duration: 0.85,
                 ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: enquiryForm,
-                  start: 'top 86%',
-                  toggleActions: 'play none none reverse',
-                },
+                scrollTrigger: horizontalTween
+                  ? {
+                      trigger: contactSection,
+                      containerAnimation: horizontalTween,
+                      start: 'left 76%',
+                      toggleActions: 'play none none reverse',
+                    }
+                  : {
+                      trigger: enquiryForm,
+                      start: 'top 86%',
+                      toggleActions: 'play none none reverse',
+                    },
               }
             );
           }
