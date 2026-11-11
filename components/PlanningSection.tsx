@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 interface FAQItem {
   id: string;
@@ -81,13 +82,15 @@ const FAQS: FAQItem[] = [
 ];
 
 export default function PlanningSection() {
+  const { cms } = useSiteCms();
+  const faqsList = cms.faqs && cms.faqs.length > 0 ? cms.faqs : FAQS;
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const filteredFaqs =
     activeCategory === 'all'
-      ? FAQS
-      : FAQS.filter((item) => item.category === activeCategory);
+      ? faqsList
+      : faqsList.filter((item) => item.category === activeCategory);
 
   const toggleFAQ = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));

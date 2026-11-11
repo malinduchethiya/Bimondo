@@ -4356,6 +4356,206 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   }
 }
 
+/* ==========================================================================
+   FULL SITE ADMIN PANEL (/admin)
+   ========================================================================== */
+.admin-workspace-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  background: #ffffff;
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  border-radius: 16px;
+  padding: 18px 16px;
+  box-shadow: 0 12px 32px rgba(12, 45, 62, 0.05);
+}
+
+.admin-sidebar-header {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(21, 91, 114, 0.12);
+}
+
+.admin-sidebar-header h2 {
+  font-size: 24px;
+  margin: 4px 0 0;
+  color: var(--ink);
+}
+
+.admin-nav-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  background: #f8fbfc;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-nav-btn:hover {
+  border-color: var(--terracotta);
+  background: #edf7fa;
+}
+
+.admin-nav-btn.active {
+  background: var(--green);
+  color: #ffffff;
+  border-color: var(--green);
+}
+
+.admin-nav-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(21, 91, 114, 0.14);
+  color: inherit;
+}
+
+.admin-nav-btn.active .admin-nav-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.admin-sidebar-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(21, 91, 114, 0.12);
+}
+
+.admin-main-panel {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+}
+
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-kpi-card {
+  background: #ffffff;
+  border: 1px solid rgba(21, 91, 114, 0.15);
+  border-radius: 14px;
+  padding: 16px 14px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 8px 24px rgba(12, 45, 62, 0.04);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.admin-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--terracotta);
+}
+
+.admin-kpi-card small {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  color: var(--muted);
+}
+
+.admin-kpi-card strong {
+  font-size: clamp(28px, 4vw, 38px);
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.admin-kpi-card span {
+  font-size: 12px;
+  color: var(--terracotta);
+  font-weight: 600;
+}
+
+.admin-item-editor-card,
+.admin-enquiry-row {
+  background: #f9fcfd;
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.admin-item-editor-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(21, 91, 114, 0.12);
+}
+
+.admin-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.admin-field textarea {
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(21, 91, 114, 0.22);
+  background: #ffffff;
+  font-size: 13px;
+  color: var(--ink);
+  font-family: inherit;
+  resize: vertical;
+}
+
+@media (min-width: 640px) {
+  .admin-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-form-grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-workspace-layout {
+    grid-template-columns: 270px minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .admin-sidebar {
+    position: sticky;
+    top: 96px;
+  }
+
+  .admin-nav-list {
+    flex-direction: column;
+  }
+
+  .admin-nav-btn {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *:before,

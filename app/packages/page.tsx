@@ -7,8 +7,11 @@ import PageBanner from '@/components/PageBanner';
 import { TOURS, Tour } from '@/lib/tours';
 import TourModal from '@/components/TourModal';
 import BookingPanel from '@/components/booking/BookingPanel';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function PackagesPage() {
+  const { cms } = useSiteCms();
+  const toursList = cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [modalTab, setModalTab] = useState<'itinerary' | 'booking'>('booking');
@@ -25,8 +28,8 @@ export default function PackagesPage() {
 
   const filtered =
     activeCategory === 'all'
-      ? TOURS
-      : TOURS.filter((t) => t.category === activeCategory);
+      ? toursList
+      : toursList.filter((t) => t.category === activeCategory);
 
   return (
     <main>

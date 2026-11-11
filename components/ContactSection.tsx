@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function ContactSection() {
+  const { cms } = useSiteCms();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -12,6 +14,7 @@ export default function ContactSection() {
     style: 'A little of everything',
     message: '',
   });
+  const [submittedNotice, setSubmittedNotice] = useState<string>('');
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -23,8 +26,24 @@ export default function ContactSection() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    try {
+      await fetch('/api/admin/cms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit_enquiry',
+          enquiry: formData,
+        }),
+      });
+      setSubmittedNotice(
+        'Enquiry saved to our Colombo concierge desk & opened in WhatsApp.'
+      );
+    } catch {
+      // continue to WhatsApp fallback
+    }
 
     const text = `Hello Bimondo Travels! I'd like to plan a Sri Lanka journey.\n\nName: ${
       formData.name
@@ -34,8 +53,9 @@ export default function ContactSection() {
       formData.duration
     }\nInterests: ${formData.style}\nNotes: ${formData.message || 'None yet'}`;
 
+    const waNumber = cms.general.whatsappNumber || '94762232054';
     window.open(
-      `https://wa.me/94762232054?text=${encodeURIComponent(text)}`,
+      `https://wa.me/${waNumber}?text=${encodeURIComponent(text)}`,
       '_blank',
       'noopener'
     );
@@ -169,9 +189,18 @@ export default function ContactSection() {
             SEND ENQUIRY VIA WHATSAPP ↗
           </button>
 
+          {submittedNotice && (
+            <small
+              className="field wide"
+              style={{ color: 'var(--green)', fontWeight: 700 }}
+            >
+              ✓ {submittedNotice}
+            </small>
+          )}
+
           <small className="field wide" style={{ color: 'var(--muted)' }}>
-            Opens WhatsApp with your details for review. This is an enquiry, not
-            a confirmed booking.
+            Opens WhatsApp with your details and logs your request in our
+            concierge inbox.
           </small>
         </form>
       </div>

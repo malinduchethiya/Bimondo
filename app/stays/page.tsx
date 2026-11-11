@@ -6,8 +6,12 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function StaysPage() {
+  const { cms } = useSiteCms();
+  const staysList =
+    cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [activeStay, setActiveStay] = useState<AccommodationItem>(
     ACCOMMODATIONS[0]
@@ -29,8 +33,8 @@ export default function StaysPage() {
 
   const filtered =
     selectedRegion === 'all'
-      ? ACCOMMODATIONS
-      : ACCOMMODATIONS.filter((s) => s.region === selectedRegion);
+      ? staysList
+      : staysList.filter((s) => s.region === selectedRegion);
 
   return (
     <main>

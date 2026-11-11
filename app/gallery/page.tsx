@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 interface GalleryPhoto {
   id: string;
@@ -16,10 +17,11 @@ interface GalleryPhoto {
 }
 
 export default function GalleryPage() {
+  const { cms } = useSiteCms();
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
 
-  const photos: GalleryPhoto[] = [
+  const defaultPhotos: GalleryPhoto[] = [
     {
       id: 'dancer-welcome',
       title: 'Ayubowan — May You Live Long',
@@ -118,6 +120,9 @@ export default function GalleryPage() {
         'Pristine curving palm bays where tropical turquoise waters meet secluded boutique beach retreats.',
     },
   ];
+
+  const photos: GalleryPhoto[] =
+    cms.gallery && cms.gallery.length > 0 ? cms.gallery : defaultPhotos;
 
   const categories = [
     { id: 'all', label: 'All moments' },

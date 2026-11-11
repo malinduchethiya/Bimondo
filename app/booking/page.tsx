@@ -6,27 +6,33 @@ import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { ACCOMMODATIONS, BookingItemType } from '@/lib/booking-types';
 import { TOURS } from '@/lib/tours';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function BookingPage() {
+  const { cms } = useSiteCms();
+  const toursList = cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
+  const staysList =
+    cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
+
   const [bookingCategory, setBookingCategory] =
     useState<BookingItemType>('tour');
   const [selectedItemId, setSelectedItemId] = useState<string>(
-    TOURS[0]?.id || 'ceylon-grand-circuit'
+    toursList[0]?.id || 'ceylon-grand-circuit'
   );
 
   const handleCategorySwitch = (nextCat: BookingItemType) => {
     setBookingCategory(nextCat);
     if (nextCat === 'accommodation') {
       setSelectedItemId(
-        ACCOMMODATIONS[0]?.id || 'stay-sigiriya-water-gardens'
+        staysList[0]?.id || 'stay-sigiriya-water-gardens'
       );
     } else {
-      setSelectedItemId(TOURS[0]?.id || 'ceylon-grand-circuit');
+      setSelectedItemId(toursList[0]?.id || 'ceylon-grand-circuit');
     }
   };
 
-  const selectedStay = ACCOMMODATIONS.find((s) => s.id === selectedItemId);
-  const selectedTour = TOURS.find((t) => t.id === selectedItemId);
+  const selectedStay = staysList.find((s) => s.id === selectedItemId);
+  const selectedTour = toursList.find((t) => t.id === selectedItemId);
 
   const selectedItemName =
     bookingCategory === 'accommodation'
@@ -95,12 +101,12 @@ export default function BookingPage() {
                 onChange={(e) => setSelectedItemId(e.target.value)}
               >
                 {bookingCategory === 'accommodation'
-                  ? ACCOMMODATIONS.map((stay) => (
+                  ? staysList.map((stay) => (
                       <option key={stay.id} value={stay.id}>
                         {stay.name} — {stay.location}
                       </option>
                     ))
-                  : TOURS.map((tour) => (
+                  : toursList.map((tour) => (
                       <option key={tour.id} value={tour.id}>
                         {tour.name} ({tour.days} Days · {tour.route})
                       </option>

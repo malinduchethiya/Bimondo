@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 interface Destination {
   id: string;
@@ -19,9 +20,10 @@ interface Destination {
 }
 
 export default function DestinationsPage() {
+  const { cms } = useSiteCms();
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
 
-  const destinations: Destination[] = [
+  const defaultDestinations: Destination[] = [
     {
       id: 'sigiriya',
       name: 'Sigiriya & The Cultural Triangle',
@@ -95,6 +97,11 @@ export default function DestinationsPage() {
       image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=85',
     },
   ];
+
+  const destinations: Destination[] =
+    cms.destinations && cms.destinations.length > 0
+      ? cms.destinations
+      : defaultDestinations;
 
   const filtered =
     selectedRegion === 'all'

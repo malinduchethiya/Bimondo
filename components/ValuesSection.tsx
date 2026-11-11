@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 interface ReviewItem {
   name: string;
@@ -51,17 +52,21 @@ const REVIEWS: ReviewItem[] = [
 ];
 
 export default function ValuesSection() {
+  const { cms } = useSiteCms();
+  const reviews = cms.reviews && cms.reviews.length > 0 ? cms.reviews : REVIEWS;
   const [activeReviewIdx, setActiveReviewIdx] = useState<number>(0);
 
+  const safeIdx = activeReviewIdx < reviews.length ? activeReviewIdx : 0;
+
   const nextReview = () => {
-    setActiveReviewIdx((prev) => (prev + 1) % REVIEWS.length);
+    setActiveReviewIdx((prev) => (prev + 1) % reviews.length);
   };
 
   const prevReview = () => {
-    setActiveReviewIdx((prev) => (prev - 1 + REVIEWS.length) % REVIEWS.length);
+    setActiveReviewIdx((prev) => (prev - 1 + reviews.length) % reviews.length);
   };
 
-  const currentReview = REVIEWS[activeReviewIdx];
+  const currentReview = reviews[safeIdx];
 
   return (
     <section className="section values leaf-green-section" id="why">
@@ -113,11 +118,11 @@ export default function ValuesSection() {
           </div>
 
           <div className="review-dots">
-            {REVIEWS.map((_, i) => (
+            {reviews.map((_, i) => (
               <button
                 key={i}
                 type="button"
-                className={`review-dot ${activeReviewIdx === i ? 'active' : ''}`}
+                className={`review-dot ${safeIdx === i ? 'active' : ''}`}
                 onClick={() => setActiveReviewIdx(i)}
                 aria-label={`Go to review ${i + 1}`}
               />

@@ -29,7 +29,7 @@ export default function Footer() {
               <Link href="/stays" prefetch={false}>NightsBridge Stays</Link>
               <Link href="/packages" prefetch={false}>Bókun &amp; Viator Tours</Link>
               <Link href="/booking/confirmation" prefetch={false}>Verify Booking</Link>
-              <Link href="/admin/booking" prefetch={false}>Admin Settings</Link>
+              <Link href="/admin" prefetch={false}>Admin Panel</Link>
             </div>
             <div>
               <b>Get in touch</b>
