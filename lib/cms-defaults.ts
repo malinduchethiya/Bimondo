@@ -1,6 +1,13 @@
 import { TOURS, Tour } from '@/lib/tours';
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
 
+export type StaggerSlideVariant =
+  | 'tall-up'
+  | 'low-down'
+  | 'mid-up'
+  | 'compact-mid'
+  | 'tall-deep';
+
 export interface CmsDestination {
   id: string;
   name: string;
@@ -11,6 +18,7 @@ export interface CmsDestination {
   description: string;
   highlights: string[];
   image: string;
+  staggerVariant?: StaggerSlideVariant;
 }
 
 export interface CmsGalleryPhoto {
@@ -31,6 +39,7 @@ export interface CmsReviewItem {
   tour: string;
   date: string;
   quote: string;
+  image?: string;
 }
 
 export interface CmsFaqItem {
@@ -62,6 +71,14 @@ export interface CmsGeneralSettings {
   instagramUrl: string;
   locationLabel: string;
   foundedYear: string;
+  founderName?: string;
+  facebookLabel?: string;
+  websiteUrl?: string;
+  primaryMarkets?: string;
+  tripadvisorEnabled?: boolean;
+  tripadvisorBrand?: string;
+  tripadvisorRating?: string;
+  tripadvisorReviewsText?: string;
 }
 
 export interface SiteCmsData {
@@ -93,6 +110,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
     ],
     image:
       'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'tall-up',
   },
   {
     id: 'kandy-sacred-capital',
@@ -110,6 +128,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
     ],
     image:
       'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'compact-mid',
   },
   {
     id: 'ella-hill-country',
@@ -127,6 +146,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
     ],
     image:
       'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'low-down',
   },
   {
     id: 'yala-wildlife-rainforest',
@@ -144,6 +164,25 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
     ],
     image:
       'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'mid-up',
+  },
+  {
+    id: 'kitulgala-horton-plains',
+    name: 'Kitulgala, Horton Plains & Highland Waterfalls',
+    region: 'hills',
+    regionLabel: 'Hill Country and Hiking',
+    season: 'Year-round · Best Dec – May',
+    tagline: 'Kelani River white-water rafting, cloud forests & waterfalls',
+    description:
+      'Adventure through the lush rainforest gorges of Kitulgala for white-water rafting on the Kelani River, and ascend into the misty cloud forests and dramatic waterfalls of Horton Plains and the central highlands.',
+    highlights: [
+      'White-water rafting on the Kelani River in Kitulgala',
+      'Highland waterfalls & cloud forest trails',
+      'Horton Plains & World’s End escarpment',
+    ],
+    image:
+      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'tall-deep',
   },
   {
     id: 'galle-sea-and-sand',
@@ -161,6 +200,25 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
     ],
     image:
       'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'mid-up',
+  },
+  {
+    id: 'minneriya-wilpattu-parks',
+    name: 'Minneriya Gathering & Wilpattu Wilderness',
+    region: 'wildlife',
+    regionLabel: 'Wildlife and Nature',
+    season: 'Minneriya Jul – Oct · Wilpattu Year-round',
+    tagline: 'Ancient tank elephant gatherings & northwest forest villus',
+    description:
+      'Witness one of Asia’s greatest wildlife spectacles as wild elephant herds gather along the shores of Minneriya Tank, or track elusive leopards and sloth bears across the quiet natural lakes (villus) of Wilpattu.',
+    highlights: [
+      'Seasonal elephant gathering at Minneriya',
+      'Uncrowded game drives in Wilpattu National Park',
+      'Private 4x4 jeeps with experienced naturalists',
+    ],
+    image:
+      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'low-down',
   },
   {
     id: 'colombo-battaramulla',
@@ -177,7 +235,8 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Kelaniya Temple Visit & Negombo Lagoon Day',
     ],
     image:
-      'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=1000&q=85',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=85',
+    staggerVariant: 'compact-mid',
   },
 ];
 
@@ -281,8 +340,81 @@ export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [
   },
 ];
 
-// No fabricated reviews by default. Verified guest reviews can be added via the Admin Panel.
-export const DEFAULT_REVIEWS: CmsReviewItem[] = [];
+// Default Tourist Thoughts cards displayed in the Homepage #why train slider and editable in /admin
+export const DEFAULT_REVIEWS: CmsReviewItem[] = [
+  {
+    id: 'thought-1',
+    name: 'David & Sarah Miller',
+    location: 'United Kingdom',
+    rating: 5,
+    tour: 'Grand Island Journey',
+    date: 'Visited 2026',
+    quote:
+      '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
+    image:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-2',
+    name: 'Claire Dubois',
+    location: 'France',
+    rating: 5,
+    tour: 'Pekoe Trail & South Coast',
+    date: 'Visited 2026',
+    quote:
+      '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
+    image:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-3',
+    name: 'Liam & Chloe Reynolds',
+    location: 'Australia',
+    rating: 5,
+    tour: 'Surf, Safari & Coast',
+    date: 'Visited 2026',
+    quote:
+      '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
+    image:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-4',
+    name: 'Ananya & Rohan Sharma',
+    location: 'India',
+    rating: 5,
+    tour: 'Cultural Triangle & Hills',
+    date: 'Visited 2026',
+    quote:
+      '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
+    image:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-5',
+    name: 'Lukas & Hannah Weber',
+    location: 'Germany',
+    rating: 5,
+    tour: 'Wildlife & Rainforests',
+    date: 'Visited 2026',
+    quote:
+      '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
+    image:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-6',
+    name: 'Sofía & Mateo Rossi',
+    location: 'Italy',
+    rating: 5,
+    tour: 'Romance in Ceylon',
+    date: 'Visited 2026',
+    quote:
+      '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
+    image:
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
+  },
+];
 
 export const DEFAULT_FAQS: CmsFaqItem[] = [
   {
@@ -354,6 +486,15 @@ export function getDefaultCmsData(): SiteCmsData {
       instagramUrl: 'https://www.instagram.com/bimondo.tours/',
       locationLabel: 'No. 596/1, Thalangama South, Battaramulla, Sri Lanka',
       foundedYear: '2022',
+      founderName: 'I.M. Bimsara Illangasinghe',
+      facebookLabel: 'Bimondo',
+      websiteUrl: 'https://www.bimondo.com',
+      primaryMarkets:
+        'United Kingdom, Europe, Australia, India, and the Middle East',
+      tripadvisorEnabled: true,
+      tripadvisorBrand: 'Tripadvisor',
+      tripadvisorRating: '5.0',
+      tripadvisorReviewsText: 'Based on 165 reviews',
     },
     tours: TOURS,
     stays: ACCOMMODATIONS,

@@ -19,6 +19,7 @@ import {
   CmsGalleryPhoto,
   CmsReviewItem,
   SiteCmsData,
+  StaggerSlideVariant,
 } from '@/lib/cms-defaults';
 import { Tour } from '@/lib/tours';
 import {
@@ -167,6 +168,9 @@ export default function AdminDashboardPage() {
       ),
       gallery: workingCms.gallery.map((g) =>
         g.image === oldCdnUrl ? { ...g, image: newCdnUrl } : g
+      ),
+      reviews: workingCms.reviews.map((r) =>
+        r.image === oldCdnUrl ? { ...r, image: newCdnUrl } : r
       ),
     };
     setCmsDraft(next);
@@ -381,7 +385,7 @@ export default function AdminDashboardPage() {
       id: `dest-${Date.now()}`,
       name: 'New Sri Lanka Region',
       region: 'culture',
-      regionLabel: 'Culture & Heritage',
+      regionLabel: 'Culture and Heritage',
       season: 'Year-round',
       tagline: 'Sacred heritage & untamed island beauty',
       description:
@@ -393,6 +397,7 @@ export default function AdminDashboardPage() {
       ],
       image:
         'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
+      staggerVariant: 'mid-up',
     };
     setCmsDraft({
       ...workingCms,
@@ -463,17 +468,19 @@ export default function AdminDashboardPage() {
     await saveCmsChanges(next, 'Gallery photo & associated R2 image removed.');
   };
 
-  // --- CRUD Helpers for Guest Reviews & FAQs ---
+  // --- CRUD Helpers for Guest Reviews (Tourist Thoughts Train Slider) & FAQs ---
   const addReview = () => {
     const newRev: CmsReviewItem = {
-      id: `rev-${Date.now()}`,
-      name: 'Guest Name',
-      location: 'London, UK',
+      id: `thought-${Date.now()}`,
+      name: 'New Traveller Name',
+      location: 'United Kingdom',
       rating: 5,
-      tour: '14-Day Ceylon Grand Circuit',
-      date: 'Visited April 2026',
+      tour: 'Grand Island Journey',
+      date: 'Visited 2026',
       quote:
         '“An unforgettable private journey through Sri Lanka with warm local care from start to finish.”',
+      image:
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     };
     setCmsDraft({
       ...workingCms,
@@ -490,13 +497,20 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const deleteReview = (id: string) => {
+  const deleteReview = async (id: string) => {
+    const target = workingCms.reviews.find((r) => r.id === id);
+    if (target?.image) {
+      await deleteR2ObjectByUrlIfPossible(target.image);
+    }
     const next = {
       ...workingCms,
       reviews: workingCms.reviews.filter((r) => r.id !== id),
     };
     setCmsDraft(next);
-    saveCmsChanges(next, 'Guest review removed.');
+    await saveCmsChanges(
+      next,
+      'Tourist thought card & associated R2 avatar image removed.'
+    );
   };
 
   const addFaq = () => {
@@ -827,9 +841,9 @@ export default function AdminDashboardPage() {
                     className="admin-kpi-card"
                     onClick={() => setActiveTab('destinations')}
                   >
-                    <small>DESTINATIONS</small>
+                    <small>STAGGERED PLACES SLIDER</small>
                     <strong className="serif">{workingCms.destinations.length}</strong>
-                    <span>Manage regional guides →</span>
+                    <span>#places 2s slider &amp; regions →</span>
                   </button>
 
                   <button
@@ -847,12 +861,12 @@ export default function AdminDashboardPage() {
                     className="admin-kpi-card"
                     onClick={() => setActiveTab('reviews_faqs')}
                   >
-                    <small>REVIEWS &amp; FAQS</small>
+                    <small>TOURIST THOUGHTS &amp; FAQS</small>
                     <strong className="serif">
                       {workingCms.reviews.length + workingCms.faqs.length}
                     </strong>
                     <span>
-                      {workingCms.reviews.length} reviews · {workingCms.faqs.length} FAQs →
+                      {workingCms.reviews.length} train cards · {workingCms.faqs.length} FAQs →
                     </span>
                   </button>
 
@@ -1546,7 +1560,7 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* TAB 5: DESTINATIONS MANAGER */}
+            {/* TAB 5: DESTINATIONS & HOMEPAGE STAGGERED SLIDER MANAGER */}
             {activeTab === 'destinations' && (
               <div className="admin-assignments-card">
                 <div className="section-head" style={{ marginBottom: '20px' }}>
@@ -1555,11 +1569,21 @@ export default function AdminDashboardPage() {
                       className="eyebrow"
                       style={{ color: 'var(--terracotta)' }}
                     >
-                      05 / REGIONAL DESTINATIONS
+                      05 / REGIONAL DESTINATIONS &amp; HOMEPAGE STAGGERED SLIDER (#PLACES)
                     </span>
                     <h3 className="serif" style={{ fontSize: '28px', margin: '4px 0 0' }}>
-                      Manage Sri Lanka Destinations ({workingCms.destinations.length})
+                      Manage Staggered Slider &amp; Destinations ({workingCms.destinations.length})
                     </h3>
+                    <p
+                      style={{
+                        fontSize: '13px',
+                        color: 'var(--muted)',
+                        margin: '6px 0 0',
+                      }}
+                    >
+                      Powers both the <strong>/destinations</strong> page and the{' '}
+                      <strong>Homepage #places 2-second right-to-left staggered vertical image slider</strong>.
+                    </p>
                   </div>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <button
@@ -1567,14 +1591,17 @@ export default function AdminDashboardPage() {
                       className="pill"
                       onClick={addDestination}
                     >
-                      + ADD DESTINATION
+                      + ADD DESTINATION / SLIDE
                     </button>
                     <button
                       type="button"
                       className="pill dark"
                       disabled={saving}
                       onClick={() =>
-                        saveCmsChanges(undefined, 'Destinations published live.')
+                        saveCmsChanges(
+                          undefined,
+                          'Destinations & Homepage #places staggered slider published live.'
+                        )
                       }
                     >
                       {saving ? 'SAVING…' : 'SAVE ALL DESTINATIONS'}
@@ -1588,7 +1615,8 @@ export default function AdminDashboardPage() {
                       <div className="admin-item-editor-top">
                         <div>
                           <span className="admin-type-pill">
-                            {dest.regionLabel} · {dest.season}
+                            {dest.regionLabel} · {dest.season} · SLIDER:{' '}
+                            {(dest.staggerVariant || 'mid-up').toUpperCase()}
                           </span>
                           <h4
                             className="serif"
@@ -1613,7 +1641,7 @@ export default function AdminDashboardPage() {
 
                       <div className="admin-form-grid-2">
                         <div className="admin-field">
-                          <label>DESTINATION NAME</label>
+                          <label>DESTINATION NAME (FIRST SEGMENT SHOWS ON SLIDER CARD)</label>
                           <input
                             type="text"
                             value={dest.name}
@@ -1667,20 +1695,39 @@ export default function AdminDashboardPage() {
                         </div>
 
                         <div className="admin-field">
-                          <label>TAGLINE</label>
-                          <input
-                            type="text"
-                            value={dest.tagline}
-                            onChange={(e) =>
-                              updateDestination(dest.id, {
-                                tagline: e.target.value,
-                              })
-                            }
-                          />
+                          <label>TAGLINE &amp; STAGGERED SLIDER CARD HEIGHT</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type="text"
+                              value={dest.tagline}
+                              onChange={(e) =>
+                                updateDestination(dest.id, {
+                                  tagline: e.target.value,
+                                })
+                              }
+                              style={{ flex: 1 }}
+                            />
+                            <select
+                              value={dest.staggerVariant || 'mid-up'}
+                              onChange={(e) =>
+                                updateDestination(dest.id, {
+                                  staggerVariant: e.target
+                                    .value as StaggerSlideVariant,
+                                })
+                              }
+                              style={{ width: '175px' }}
+                            >
+                              <option value="tall-up">Tall — Shifted Up</option>
+                              <option value="low-down">Medium — Shifted Down</option>
+                              <option value="mid-up">Balanced — Shifted Up</option>
+                              <option value="compact-mid">Compact — Centered</option>
+                              <option value="tall-deep">Extra Tall — Deep</option>
+                            </select>
+                          </div>
                         </div>
 
                         <AdminImageUploadField
-                          label="DESTINATION PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                          label="SLIDER & DESTINATION PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
                           value={dest.image}
                           folder="destinations"
                           onChange={(nextUrl) =>
@@ -1890,10 +1937,10 @@ export default function AdminDashboardPage() {
               />
             )}
 
-            {/* TAB 7: GUEST REVIEWS & FAQS MANAGER */}
+            {/* TAB 7: TOURIST THOUGHTS TRAIN SLIDER & FAQS MANAGER */}
             {activeTab === 'reviews_faqs' && (
               <div style={{ display: 'grid', gap: '28px' }}>
-                {/* Reviews Card */}
+                {/* Tourist Thoughts Train Slider Card */}
                 <div className="admin-assignments-card">
                   <div className="section-head" style={{ marginBottom: '20px' }}>
                     <div>
@@ -1901,18 +1948,29 @@ export default function AdminDashboardPage() {
                         className="eyebrow"
                         style={{ color: 'var(--terracotta)' }}
                       >
-                        07A / TRAVELLER REVIEWS (HOMEPAGE #WHY SECTION)
+                        07A / TOURIST THOUGHTS TRAIN SLIDER (HOMEPAGE #WHY SECTION)
                       </span>
                       <h3
                         className="serif"
                         style={{ fontSize: '28px', margin: '4px 0 0' }}
                       >
-                        Guest Reviews ({workingCms.reviews.length})
+                        Tourist Thought Cards ({workingCms.reviews.length})
                       </h3>
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--muted)',
+                          margin: '6px 0 0',
+                        }}
+                      >
+                        Powers the continuous right-to-left{' '}
+                        <strong>Tourist Thoughts train-carriage slider</strong> in{' '}
+                        <code>#why</code> (3 cards visible at once with circular guest portraits).
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                       <button type="button" className="pill" onClick={addReview}>
-                        + ADD REVIEW
+                        + ADD TOURIST THOUGHT CARD
                       </button>
                       <button
                         type="button"
@@ -1921,11 +1979,11 @@ export default function AdminDashboardPage() {
                         onClick={() =>
                           saveCmsChanges(
                             undefined,
-                            'Reviews and FAQs published live.'
+                            'Tourist Thoughts slider cards and FAQs published live.'
                           )
                         }
                       >
-                        {saving ? 'SAVING…' : 'SAVE REVIEWS & FAQS'}
+                        {saving ? 'SAVING…' : 'SAVE THOUGHTS & FAQS'}
                       </button>
                     </div>
                   </div>
@@ -1934,9 +1992,17 @@ export default function AdminDashboardPage() {
                     {workingCms.reviews.map((rev) => (
                       <div key={rev.id} className="admin-item-editor-card">
                         <div className="admin-item-editor-top">
-                          <strong>
-                            {rev.name} ({rev.location}) — ★ {rev.rating}
-                          </strong>
+                          <div>
+                            <span className="admin-type-pill">
+                              {rev.location} · {rev.tour}
+                            </span>
+                            <h4
+                              className="serif"
+                              style={{ fontSize: '20px', margin: '4px 0 0' }}
+                            >
+                              {rev.name}
+                            </h4>
+                          </div>
                           <button
                             type="button"
                             className="pill"
@@ -1947,7 +2013,7 @@ export default function AdminDashboardPage() {
                             }}
                             onClick={() => deleteReview(rev.id)}
                           >
-                            Remove
+                            Remove Card
                           </button>
                         </div>
 
@@ -1957,6 +2023,7 @@ export default function AdminDashboardPage() {
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <input
                                 type="text"
+                                placeholder="Guest Name"
                                 value={rev.name}
                                 onChange={(e) =>
                                   updateReview(rev.id, { name: e.target.value })
@@ -1965,6 +2032,7 @@ export default function AdminDashboardPage() {
                               />
                               <input
                                 type="text"
+                                placeholder="Country"
                                 value={rev.location}
                                 onChange={(e) =>
                                   updateReview(rev.id, {
@@ -1977,10 +2045,11 @@ export default function AdminDashboardPage() {
                           </div>
 
                           <div className="admin-field">
-                            <label>TOUR TAKEN &amp; VISIT DATE</label>
+                            <label>JOURNEY SUBTITLE &amp; VISIT YEAR</label>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <input
                                 type="text"
+                                placeholder="Tour / Journey Name"
                                 value={rev.tour}
                                 onChange={(e) =>
                                   updateReview(rev.id, { tour: e.target.value })
@@ -1989,18 +2058,33 @@ export default function AdminDashboardPage() {
                               />
                               <input
                                 type="text"
+                                placeholder="Visited 2026"
                                 value={rev.date}
                                 onChange={(e) =>
                                   updateReview(rev.id, { date: e.target.value })
                                 }
-                                style={{ width: '160px' }}
+                                style={{ width: '150px' }}
                               />
                             </div>
                           </div>
                         </div>
 
+                        <AdminImageUploadField
+                          label="CIRCULAR GUEST PORTRAIT PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                          value={rev.image || ''}
+                          folder="general"
+                          onChange={(nextUrl) =>
+                            updateReview(rev.id, { image: nextUrl })
+                          }
+                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Deleted={(_, docId) =>
+                            removeR2MediaFromFirebase(docId)
+                          }
+                          onOpenR2Settings={() => setActiveTab('r2_storage')}
+                        />
+
                         <div className="admin-field" style={{ marginBottom: 0 }}>
-                          <label>REVIEW QUOTE</label>
+                          <label>TOURIST THOUGHT / QUOTE</label>
                           <textarea
                             rows={2}
                             value={rev.quote}
@@ -2679,134 +2763,120 @@ export default function AdminDashboardPage() {
               </form>
             )}
 
-            {/* TAB 9: SITE & CONTACT SETTINGS */}
+            {/* TAB 9: SITE, HERO RATING BADGE & CONTACT SETTINGS */}
             {activeTab === 'settings' && (
-              <div className="admin-assignments-card">
-                <div className="section-head" style={{ marginBottom: '20px' }}>
-                  <div>
-                    <span
-                      className="eyebrow"
-                      style={{ color: 'var(--terracotta)' }}
-                    >
-                      09 / GLOBAL SITE &amp; CONTACT CONFIGURATION
-                    </span>
-                    <h3 className="serif" style={{ fontSize: '28px', margin: '4px 0 0' }}>
-                      Brand Identity &amp; Concierge Details
-                    </h3>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      className="pill"
-                      onClick={handleResetDefaults}
-                    >
-                      RESET TO DEFAULTS
-                    </button>
-                    <button
-                      type="button"
-                      className="pill dark"
-                      disabled={saving}
-                      onClick={() =>
-                        saveCmsChanges(
-                          undefined,
-                          'Global site settings saved and published.'
-                        )
-                      }
-                    >
-                      {saving ? 'SAVING…' : 'SAVE SITE SETTINGS'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="admin-form-grid-2">
-                  <div className="admin-field">
-                    <label>COMPANY / BRAND NAME</label>
-                    <input
-                      type="text"
-                      value={workingCms.general.siteName}
-                      onChange={(e) =>
-                        setCmsDraft({
-                          ...workingCms,
-                          general: {
-                            ...workingCms.general,
-                            siteName: e.target.value,
-                          },
-                        })
-                      }
-                    />
+              <div style={{ display: 'grid', gap: '24px' }}>
+                <div className="admin-assignments-card">
+                  <div className="section-head" style={{ marginBottom: '20px' }}>
+                    <div>
+                      <span
+                        className="eyebrow"
+                        style={{ color: 'var(--terracotta)' }}
+                      >
+                        09A / GLOBAL SITE &amp; COMPANY PROFILE CONFIGURATION
+                      </span>
+                      <h3 className="serif" style={{ fontSize: '28px', margin: '4px 0 0' }}>
+                        Brand Identity, Founder &amp; Concierge Details
+                      </h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="pill"
+                        onClick={handleResetDefaults}
+                      >
+                        RESET TO DEFAULTS
+                      </button>
+                      <button
+                        type="button"
+                        className="pill dark"
+                        disabled={saving}
+                        onClick={() =>
+                          saveCmsChanges(
+                            undefined,
+                            'Global site settings & Hero Tripadvisor badge saved and published.'
+                          )
+                        }
+                      >
+                        {saving ? 'SAVING…' : 'SAVE SITE SETTINGS'}
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="admin-field">
-                    <label>BRAND TAGLINE</label>
-                    <input
-                      type="text"
-                      value={workingCms.general.tagline}
-                      onChange={(e) =>
-                        setCmsDraft({
-                          ...workingCms,
-                          general: {
-                            ...workingCms.general,
-                            tagline: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
+                  <div className="admin-form-grid-2">
+                    <div className="admin-field">
+                      <label>COMPANY / BRAND NAME</label>
+                      <input
+                        type="text"
+                        value={workingCms.general.siteName}
+                        onChange={(e) =>
+                          setCmsDraft({
+                            ...workingCms,
+                            general: {
+                              ...workingCms.general,
+                              siteName: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
 
-                  <div className="admin-field">
-                    <label>WHATSAPP CONCIERGE NUMBER (DIGITS ONLY)</label>
-                    <input
-                      type="text"
-                      value={workingCms.general.whatsappNumber}
-                      onChange={(e) =>
-                        setCmsDraft({
-                          ...workingCms,
-                          general: {
-                            ...workingCms.general,
-                            whatsappNumber: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
+                    <div className="admin-field">
+                      <label>BRAND TAGLINE</label>
+                      <input
+                        type="text"
+                        value={workingCms.general.tagline}
+                        onChange={(e) =>
+                          setCmsDraft({
+                            ...workingCms,
+                            general: {
+                              ...workingCms.general,
+                              tagline: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
 
-                  <div className="admin-field">
-                    <label>CONCIERGE EMAIL ADDRESS</label>
-                    <input
-                      type="email"
-                      value={workingCms.general.contactEmail}
-                      onChange={(e) =>
-                        setCmsDraft({
-                          ...workingCms,
-                          general: {
-                            ...workingCms.general,
-                            contactEmail: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
+                    <div className="admin-field">
+                      <label>FOUNDER NAME &amp; FOUNDED YEAR</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="text"
+                          value={
+                            workingCms.general.founderName ??
+                            'I.M. Bimsara Illangasinghe'
+                          }
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                founderName: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ flex: 1 }}
+                        />
+                        <input
+                          type="text"
+                          value={workingCms.general.foundedYear}
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                foundedYear: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ width: '100px' }}
+                        />
+                      </div>
+                    </div>
 
-                  <div className="admin-field">
-                    <label>INSTAGRAM PROFILE URL</label>
-                    <input
-                      type="url"
-                      value={workingCms.general.instagramUrl}
-                      onChange={(e) =>
-                        setCmsDraft({
-                          ...workingCms,
-                          general: {
-                            ...workingCms.general,
-                            instagramUrl: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="admin-field">
-                    <label>HEADQUARTERS LOCATION &amp; FOUNDED YEAR</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="admin-field">
+                      <label>HEADQUARTERS ADDRESS (BATTARAMULLA)</label>
                       <input
                         type="text"
                         value={workingCms.general.locationLabel}
@@ -2819,22 +2889,223 @@ export default function AdminDashboardPage() {
                             },
                           })
                         }
-                        style={{ flex: 1 }}
                       />
+                    </div>
+
+                    <div className="admin-field">
+                      <label>WHATSAPP CONCIERGE NUMBER (DIGITS ONLY)</label>
                       <input
                         type="text"
-                        value={workingCms.general.foundedYear}
+                        value={workingCms.general.whatsappNumber}
                         onChange={(e) =>
                           setCmsDraft({
                             ...workingCms,
                             general: {
                               ...workingCms.general,
-                              foundedYear: e.target.value,
+                              whatsappNumber: e.target.value,
                             },
                           })
                         }
-                        style={{ width: '100px' }}
                       />
+                    </div>
+
+                    <div className="admin-field">
+                      <label>CONCIERGE EMAIL ADDRESS</label>
+                      <input
+                        type="email"
+                        value={workingCms.general.contactEmail}
+                        onChange={(e) =>
+                          setCmsDraft({
+                            ...workingCms,
+                            general: {
+                              ...workingCms.general,
+                              contactEmail: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="admin-field">
+                      <label>INSTAGRAM PROFILE URL &amp; FACEBOOK PAGE</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="url"
+                          value={workingCms.general.instagramUrl}
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                instagramUrl: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ flex: 1 }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Facebook (Bimondo)"
+                          value={workingCms.general.facebookLabel ?? 'Bimondo'}
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                facebookLabel: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ width: '160px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-field">
+                      <label>OFFICIAL WEBSITE &amp; PRIMARY MARKETS</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="url"
+                          value={
+                            workingCms.general.websiteUrl ??
+                            'https://www.bimondo.com'
+                          }
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                websiteUrl: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ width: '210px' }}
+                        />
+                        <input
+                          type="text"
+                          value={
+                            workingCms.general.primaryMarkets ??
+                            'United Kingdom, Europe, Australia, India, and the Middle East'
+                          }
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                primaryMarkets: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ flex: 1 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* HERO FROSTED TRIPADVISOR RATING CARD SETTINGS */}
+                <div className="admin-assignments-card">
+                  <div className="section-head" style={{ marginBottom: '20px' }}>
+                    <div>
+                      <span
+                        className="eyebrow"
+                        style={{ color: 'var(--terracotta)' }}
+                      >
+                        09B / HERO SECTION FROSTED GLASS TRIPADVISOR CARD (#HOME)
+                      </span>
+                      <h3 className="serif" style={{ fontSize: '26px', margin: '4px 0 0' }}>
+                        Bottom-Right Frosted Rating Badge
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--muted)',
+                          margin: '6px 0 0',
+                        }}
+                      >
+                        Controls the frosted-glass Tripadvisor rating badge displayed in the bottom-right corner of the Homepage Hero section.
+                      </p>
+                    </div>
+                    <label className="booking-private-toggle">
+                      <input
+                        type="checkbox"
+                        checked={workingCms.general.tripadvisorEnabled !== false}
+                        onChange={(e) =>
+                          setCmsDraft({
+                            ...workingCms,
+                            general: {
+                              ...workingCms.general,
+                              tripadvisorEnabled: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      <span>
+                        {workingCms.general.tripadvisorEnabled !== false
+                          ? 'Visible on Hero'
+                          : 'Hidden'}
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="admin-form-grid-2">
+                    <div className="admin-field">
+                      <label>PLATFORM / BRAND TITLE</label>
+                      <input
+                        type="text"
+                        placeholder="Tripadvisor"
+                        value={
+                          workingCms.general.tripadvisorBrand ?? 'Tripadvisor'
+                        }
+                        onChange={(e) =>
+                          setCmsDraft({
+                            ...workingCms,
+                            general: {
+                              ...workingCms.general,
+                              tripadvisorBrand: e.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="admin-field">
+                      <label>RATING SCORE &amp; REVIEWS SUBTITLE</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          type="text"
+                          placeholder="5.0"
+                          value={workingCms.general.tripadvisorRating ?? '5.0'}
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                tripadvisorRating: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ width: '90px' }}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Based on 165 reviews"
+                          value={
+                            workingCms.general.tripadvisorReviewsText ??
+                            'Based on 165 reviews'
+                          }
+                          onChange={(e) =>
+                            setCmsDraft({
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                tripadvisorReviewsText: e.target.value,
+                              },
+                            })
+                          }
+                          style={{ flex: 1 }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

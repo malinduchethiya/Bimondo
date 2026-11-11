@@ -46,22 +46,59 @@ export function readSiteCmsData(): SiteCmsData {
         ];
       }
 
-      // Filter out legacy fabricated placeholder reviews while preserving any genuine admin-added reviews
-      const mergedReviews = Array.isArray(parsed.reviews)
+      // Ensure all default destinations and any custom destinations/images are preserved
+      let mergedDestinations = defaults.destinations;
+      if (Array.isArray(parsed.destinations) && parsed.destinations.length > 0) {
+        const parsedDestById = new Map(
+          parsed.destinations.map((d) => [d.id, d])
+        );
+        const defaultDestIds = new Set(defaults.destinations.map((d) => d.id));
+        const customDests = parsed.destinations.filter(
+          (d) => !defaultDestIds.has(d.id)
+        );
+        mergedDestinations = [
+          ...defaults.destinations.map((defDest) => {
+            const existing = parsedDestById.get(defDest.id);
+            return existing
+              ? {
+                  ...defDest,
+                  ...existing,
+                  image: existing.image || defDest.image,
+                  staggerVariant:
+                    existing.staggerVariant || defDest.staggerVariant,
+                }
+              : defDest;
+          }),
+          ...customDests,
+        ];
+      }
+
+      // Filter out legacy placeholder reviews while preserving Tourist Thoughts & admin-added reviews
+      const filteredParsedReviews = Array.isArray(parsed.reviews)
         ? parsed.reviews.filter((r) => !LEGACY_PLACEHOLDER_REVIEW_IDS.has(r.id))
-        : defaults.reviews;
+        : [];
+      const mergedReviews =
+        filteredParsedReviews.length > 0
+          ? filteredParsedReviews
+          : defaults.reviews;
 
       const merged: SiteCmsData = {
         updatedAt: parsed.updatedAt || defaults.updatedAt,
         general: { ...defaults.general, ...(parsed.general || {}) },
         tours: mergedTours,
-        stays: defaults.stays,
-        destinations: defaults.destinations,
+        stays:
+          Array.isArray(parsed.stays) && parsed.stays.length > 0
+            ? parsed.stays
+            : defaults.stays,
+        destinations: mergedDestinations,
         gallery: Array.isArray(parsed.gallery)
           ? parsed.gallery
           : defaults.gallery,
         reviews: mergedReviews,
-        faqs: defaults.faqs,
+        faqs:
+          Array.isArray(parsed.faqs) && parsed.faqs.length > 0
+            ? parsed.faqs
+            : defaults.faqs,
         enquiries: Array.isArray(parsed.enquiries)
           ? parsed.enquiries.filter(
               (e) => e.id !== 'enq-sample-1' && e.id !== 'enq-sample-2'

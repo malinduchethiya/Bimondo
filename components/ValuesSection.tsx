@@ -70,7 +70,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
   },
 ];
 
-// Train speed in pixels per second moving from right to left
+// Train speed in pixels per second moving from right to left (desktop & tablet)
 const TRAIN_SPEED_PX_PER_SEC = 85;
 
 export default function ValuesSection() {
@@ -84,14 +84,17 @@ export default function ValuesSection() {
           subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
           thought: rev.quote,
           image:
+            rev.image ||
             DEFAULT_TOURIST_THOUGHTS[idx % DEFAULT_TOURIST_THOUGHTS.length]
               .image,
         }))
       : DEFAULT_TOURIST_THOUGHTS;
 
   const totalCards = cards.length;
-  // Duplicate cards 3x so the train track never runs out of carriages during continuous motion or manual nudges
+  // Duplicate cards 3x for desktop/tablet continuous train motion
   const trainCards = [...cards, ...cards, ...cards];
+  // First 4 cards for mobile vertical phone 2x2 square grid gallery
+  const mobileGridCards = cards.slice(0, 4);
 
   const ribbonRef = useRef<HTMLDivElement | null>(null);
   const firstSetWidthRef = useRef<number>(0);
@@ -132,6 +135,12 @@ export default function ValuesSection() {
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
+      // Skip train calculation on vertical phone screens where 4-card static square grid is shown
+      if (typeof window !== 'undefined' && window.innerWidth <= 767) {
+        rafId = window.requestAnimationFrame(animateTrain);
+        return;
+      }
+
       // Smoothly ramp speed down on hover and back up on leave
       const targetVel = isHoveredRef.current ? 0 : 1;
       currentVelocityFactorRef.current +=
@@ -153,7 +162,6 @@ export default function ValuesSection() {
 
       const setWidth = firstSetWidthRef.current;
       if (setWidth > 0) {
-        // Keep offset wrapped seamlessly within [0, setWidth)
         if (currentOffsetRef.current >= setWidth) {
           currentOffsetRef.current -= setWidth;
         } else if (currentOffsetRef.current < 0) {
@@ -200,8 +208,18 @@ export default function ValuesSection() {
   return (
     <section className="section values sliding-cards-section" id="why">
       <div className="wrap sliding-cards-wrap">
+        <div className="thoughts-section-heading-bar">
+          <span className="eyebrow" style={{ color: '#3b71fe' }}>
+            05 / TRAVELLER THOUGHTS
+          </span>
+          <h2 className="serif thoughts-section-title">
+            Stories carried <em style={{ color: '#3b71fe' }}>home.</em>
+          </h2>
+        </div>
+
+        {/* DESKTOP & TABLET FORMAT (>= 768px): Continuous Right-to-Left Train Slider */}
         <div
-          className="tourist-reviews-widget sliding-cards-shell"
+          className="tourist-reviews-widget sliding-cards-shell desktop-train-view"
           onMouseEnter={() => {
             isHoveredRef.current = true;
           }}
@@ -283,6 +301,36 @@ export default function ValuesSection() {
               />
             ))}
           </div>
+        </div>
+
+        {/* MOBILE VERTICAL PHONE FORMAT (<= 767px): 4-Card 2x2 Square Grid Gallery (Non-Touch-Interactive so Normal Downward Scrolling Works) */}
+        <div
+          className="mobile-thoughts-square-grid"
+          aria-label="Tourist thoughts square grid gallery"
+        >
+          {mobileGridCards.map((card) => (
+            <article key={card.id} className="mobile-thought-square-card">
+              <div className="mobile-thought-card-top">
+                <div className="mobile-thought-avatar">
+                  <Image
+                    src={card.image}
+                    alt={card.name}
+                    fill
+                    sizes="56px"
+                    className="object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="mobile-thought-meta">
+                  <h3 className="mobile-thought-name">{card.name}</h3>
+                  {card.subtitle && (
+                    <span className="mobile-thought-sub">{card.subtitle}</span>
+                  )}
+                </div>
+              </div>
+              <p className="mobile-thought-quote">{card.thought}</p>
+            </article>
+          ))}
         </div>
       </div>
     </section>

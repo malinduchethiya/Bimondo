@@ -6,7 +6,8 @@ import {
   ItemBookingAssignment,
   PublicBookingSettings,
 } from '@/lib/booking-types';
-import { TOURS } from '@/lib/tours';
+import { COLOMBO_DAY_EXPERIENCES, TOURS } from '@/lib/tours';
+import { DEFAULT_DESTINATIONS } from '@/lib/cms-defaults';
 
 const SETTINGS_FILE_PATH = path.join(
   process.cwd(),
@@ -44,12 +45,12 @@ function buildDefaultAssignments(): Record<string, ItemBookingAssignment> {
     };
   });
 
-  // Default assignments for Tours -> Bókun (first 6) & Viator (remaining 3)
+  // Default assignments for all 20 Signature Journeys -> Bókun (first 12) & Viator (remaining 8)
   TOURS.forEach((tour, idx) => {
-    const defaultProvider: BookingProviderId = idx < 6 ? 'bokun' : 'viator';
+    const defaultProvider: BookingProviderId = idx < 12 ? 'bokun' : 'viator';
     map[tour.id] = {
       itemId: tour.id,
-      itemName: tour.name,
+      itemName: `${tour.name} (${tour.days} Days)`,
       itemType: 'tour',
       provider: defaultProvider,
       externalId: defaultProvider === 'bokun' ? envBokunExp : '',
@@ -68,17 +69,27 @@ function buildDefaultAssignments(): Record<string, ItemBookingAssignment> {
     };
   });
 
-  // Destinations / Experiences
-  const destinationIds = [
-    { id: 'sigiriya', name: 'Sigiriya & The Cultural Triangle Experience' },
-    { id: 'kandy-hills', name: 'Kandy & Knuckles Guided Experience' },
-    { id: 'ella-nuwara-eliya', name: 'Ella & Tea Country Experience' },
-    { id: 'galle-south-coast', name: 'Galle Fort & Southern Coast Experience' },
-    { id: 'yala-wildlife', name: 'Yala & Udawalawe Private Safari' },
-    { id: 'minneriya', name: 'Minneriya Elephant Gathering Safari' },
-  ];
+  // Default assignments for the 6 Colombo & Battaramulla Day Experiences
+  COLOMBO_DAY_EXPERIENCES.forEach((exp, idx) => {
+    const provider: BookingProviderId = idx % 2 === 0 ? 'bokun' : 'viator';
+    map[exp.id] = {
+      itemId: exp.id,
+      itemName: `${exp.name} (${exp.duration})`,
+      itemType: 'experience',
+      provider,
+      externalId: '',
+      externalUrl: '',
+      embedCode: '',
+      openMode: provider === 'viator' ? 'redirect' : 'modal',
+      buttonLabel:
+        provider === 'viator'
+          ? 'BOOK DAY TRIP ON VIATOR'
+          : 'BOOK DAY TRIP VIA BÓKUN',
+    };
+  });
 
-  destinationIds.forEach((dest, idx) => {
+  // Regional Destinations
+  DEFAULT_DESTINATIONS.forEach((dest, idx) => {
     const provider: BookingProviderId = idx % 2 === 0 ? 'viator' : 'bokun';
     map[dest.id] = {
       itemId: dest.id,

@@ -15,42 +15,42 @@ const GUEST_JOURNEY_STEPS = [
   {
     num: '01',
     title: 'Enquiry',
-    desc: 'Contact through our website, email, or WhatsApp with travel dates or general ideas.',
+    desc: 'Reach us via website, email, or WhatsApp.',
   },
   {
     num: '02',
     title: 'Consultation',
-    desc: 'Discussion of your interests, preferred pace, accommodation style, and budget.',
+    desc: 'Discuss your pace, stays, and interests.',
   },
   {
     num: '03',
     title: 'Itinerary Design',
-    desc: 'Custom day-by-day route designed with suggested hotels and experiences.',
+    desc: 'Custom day-by-day route & hotel curation.',
   },
   {
     num: '04',
-    title: 'Quotation & Confirmation',
-    desc: 'Clear quotation, refinements, booking confirmation, and reservations.',
+    title: 'Confirmation',
+    desc: 'Clear quotation & confirmed reservations.',
   },
   {
     num: '05',
-    title: 'Pre-Arrival Information',
-    desc: 'Practical notes on packing, weather, cultural etiquette, and driver/guide details.',
+    title: 'Pre-Arrival',
+    desc: 'Packing notes, etiquette & guide details.',
   },
   {
     num: '06',
     title: 'Arrival & Journey',
-    desc: 'Airport greeting, private journey across Sri Lanka, and 24-hour on-call support.',
+    desc: 'Airport greeting & 24-hour local support.',
   },
   {
     num: '07',
-    title: 'Departure & Follow-Up',
-    desc: 'Airport transfer on departure and post-journey feedback follow-up.',
+    title: 'Follow-Up',
+    desc: 'Departure transfer & post-trip care.',
   },
 ];
 
 const FAQ_CATEGORIES = [
-  { id: 'all', label: '7-Step Process & All FAQs' },
+  { id: 'all', label: 'All FAQs' },
   { id: 'private', label: 'Private Journeys' },
   { id: 'stays', label: 'Stays & Guides' },
   { id: 'booking', label: 'Seasons & Booking' },
@@ -61,37 +61,37 @@ const FAQS: FAQItem[] = [
     id: 'who-is-bimondo',
     category: 'private',
     q: 'Who is Bimondo Travels and where are you based?',
-    a: 'Bimondo Travels is a Sri Lankan travel company founded in 2022 by I.M. Bimsara Illangasinghe and based at No. 596/1, Thalangama South, Battaramulla, near Colombo. We plan and operate private, tailor-made journeys across Sri Lanka for solo travellers, couples, families, and small private groups.',
+    a: 'Bimondo Travels is a Sri Lankan travel company founded in 2022 by I.M. Bimsara Illangasinghe and based at No. 596/1, Thalangama South, Battaramulla, near Colombo. We plan private, tailor-made journeys across Sri Lanka.',
   },
   {
     id: 'how-journey-works',
     category: 'booking',
-    q: 'How does the 7-step Bimondo guest journey work from enquiry to departure?',
-    a: '(01) Enquiry via website, email, or WhatsApp; (02) Consultation on your interests, pace, accommodation style, and budget; (03) Custom day-by-day Itinerary Design; (04) Clear Quotation and Confirmation; (05) Pre-Arrival Information on packing, weather, cultural etiquette, and driver/guide details; (06) Airport greeting, private journey, and 24-hour on-call support; (07) Departure transfer and post-journey follow-up.',
+    q: 'How does the 7-step guest journey work?',
+    a: '(01) Enquiry; (02) Personal consultation; (03) Custom day-by-day itinerary design; (04) Clear quotation & booking confirmation; (05) Pre-arrival briefing; (06) Airport greeting, private journey & 24-hour support; (07) Departure transfer & follow-up.',
   },
   {
     id: 'accommodation-options',
     category: 'stays',
-    q: 'What types of accommodation do you arrange across Sri Lanka?',
-    a: 'We arrange a curated range of four-star hotels, characterful boutique properties, and five-star luxury resorts. Routes, durations, hotels, and inclusions are selected and confirmed individually at the time of enquiry.',
+    q: 'What types of accommodation do you arrange?',
+    a: 'We arrange curated four-star hotels, characterful boutique properties, and five-star luxury resorts. Hotels and inclusions are confirmed individually at the time of enquiry.',
   },
   {
     id: 'drivers-and-guides',
     category: 'stays',
-    q: 'Who accompanies us during our journey and what support is available?',
-    a: 'We provide private transport with professional drivers and licensed guides, specialist local guides for activities like hiking, birdwatching, and adventure sports, and 24-hour on-call assistance from our team in Battaramulla.',
+    q: 'Who accompanies us during our journey?',
+    a: 'Private transport with professional drivers and licensed guides, specialist local guides for hiking, birdwatching, and adventure sports, plus 24-hour on-call support from Battaramulla.',
   },
   {
     id: 'wildlife-and-nature',
     category: 'private',
     q: 'How do you handle wildlife safaris and adventure safety?',
-    a: 'We partner with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and with vetted, safety-checked operators for adventure activities. Wildlife sightings, sea conditions, and adventure activities depend on nature and are never guaranteed.',
+    a: 'We partner with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and vetted adventure operators. Sightings and sea conditions depend on nature.',
   },
   {
     id: 'best-seasons',
     category: 'booking',
-    q: 'How do Sri Lanka’s coastal seasons work when planning our route?',
-    a: 'Sri Lanka is a year-round destination with two distinct coastal seasons: Weligama and the South/West Coast are best from November to April, while Arugam Bay and the East Coast are best from May to October.',
+    q: 'How do Sri Lanka’s two coastal seasons work?',
+    a: 'Weligama and the South/West Coast are best from November to April, while Arugam Bay and the East Coast are best from May to October.',
   },
 ];
 
@@ -101,10 +101,11 @@ export default function PlanningSection() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const filteredFaqs =
+  const filteredFaqs = (
     activeCategory === 'all'
       ? faqsList
-      : faqsList.filter((item) => item.category === activeCategory);
+      : faqsList.filter((item) => item.category === activeCategory)
+  ).slice(0, 5);
 
   const toggleFAQ = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
@@ -128,56 +129,29 @@ export default function PlanningSection() {
             24-hour local support.
           </p>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
-              gap: '10px',
-              margin: '14px 0 18px',
-            }}
-          >
+          <div className="planning-steps-compact-grid">
             {GUEST_JOURNEY_STEPS.map((step) => (
-              <div
-                key={step.num}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: '12px',
-                  border: '1px solid var(--line)',
-                  background: 'rgba(255, 255, 255, 0.55)',
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: '0.68rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.12em',
-                    color: 'var(--terracotta)',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Step {step.num} · {step.title}
+              <div key={step.num} className="planning-step-chip">
+                <div className="planning-step-chip-head">
+                  <span className="planning-step-num">{step.num}</span>
+                  <strong className="planning-step-title">{step.title}</strong>
                 </div>
-                <div
-                  style={{
-                    fontSize: '0.76rem',
-                    lineHeight: 1.38,
-                    color: 'var(--muted)',
-                    marginTop: '3px',
-                  }}
-                >
-                  {step.desc}
-                </div>
+                <p className="planning-step-desc">{step.desc}</p>
               </div>
             ))}
+            <Link
+              className="planning-step-cta-card"
+              href="/contact"
+              prefetch={false}
+            >
+              <span>START YOUR JOURNEY</span>
+              <strong>Step 01 — Enquire ↗</strong>
+            </Link>
           </div>
-
-          <Link className="pill dark" href="/contact" prefetch={false}>
-            START WITH STEP 01 — ENQUIRE ↗
-          </Link>
         </div>
       </div>
 
-      {/* Minimalist Pill-Filtered Hairline FAQ Block */}
+      {/* Minimalist Pill-Filtered Hairline FAQ Block (No internal scroll capture so horizontal scroll is seamless) */}
       <div className="minimal-faq-block" id="faq">
         <div
           className="minimal-faq-pills"
@@ -201,7 +175,7 @@ export default function PlanningSection() {
           })}
         </div>
 
-        <div className="minimal-faq-list" data-lenis-prevent>
+        <div className="minimal-faq-list">
           {filteredFaqs.map((item) => {
             const isOpen = openId === item.id;
             return (
@@ -223,7 +197,7 @@ export default function PlanningSection() {
                 <div
                   className="minimal-faq-panel"
                   style={{
-                    maxHeight: isOpen ? '260px' : '0px',
+                    maxHeight: isOpen ? '160px' : '0px',
                     opacity: isOpen ? 1 : 0,
                   }}
                 >

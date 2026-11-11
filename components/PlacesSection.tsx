@@ -4,16 +4,29 @@ import React, { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useSiteCms } from '@/hooks/useSiteCms';
+import { StaggerSlideVariant } from '@/lib/cms-defaults';
 
 interface StaggeredPlaceSlide {
   id: string;
   name: string;
   subtitle: string;
   image: string;
-  variant: 'tall-up' | 'low-down' | 'mid-up' | 'compact-mid' | 'tall-deep';
+  variant: StaggerSlideVariant;
 }
 
-const PLACE_SLIDES: StaggeredPlaceSlide[] = [
+const DEFAULT_VARIANTS: StaggerSlideVariant[] = [
+  'tall-up',
+  'low-down',
+  'mid-up',
+  'compact-mid',
+  'mid-up',
+  'tall-deep',
+  'low-down',
+  'compact-mid',
+];
+
+const FALLBACK_PLACE_SLIDES: StaggeredPlaceSlide[] = [
   {
     id: 'sigiriya',
     name: 'Sigiriya',
@@ -83,9 +96,24 @@ const PLACE_SLIDES: StaggeredPlaceSlide[] = [
 const AUTO_STEP_INTERVAL_MS = 2000;
 
 export default function PlacesSection() {
-  const totalSlides = PLACE_SLIDES.length;
+  const { cms } = useSiteCms();
+
+  const slides: StaggeredPlaceSlide[] =
+    Array.isArray(cms.destinations) && cms.destinations.length > 0
+      ? cms.destinations.map((dest, idx) => ({
+          id: dest.id,
+          name: dest.name.split(',')[0].trim(),
+          subtitle: dest.regionLabel,
+          image: dest.image,
+          variant:
+            dest.staggerVariant ||
+            DEFAULT_VARIANTS[idx % DEFAULT_VARIANTS.length],
+        }))
+      : FALLBACK_PLACE_SLIDES;
+
+  const totalSlides = slides.length;
   // Triple the array for seamless infinite loop in both directions
-  const infiniteSlides = [...PLACE_SLIDES, ...PLACE_SLIDES, ...PLACE_SLIDES];
+  const infiniteSlides = [...slides, ...slides, ...slides];
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const singleSetWidthRef = useRef<number>(0);
