@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
@@ -91,19 +91,21 @@ export default function ValuesSection() {
       : DEFAULT_TOURIST_THOUGHTS;
 
   const totalCards = cards.length;
-  // Duplicate cards 3x for desktop/tablet continuous train motion
-  const trainCards = [...cards, ...cards, ...cards];
+  // Duplicate cards 2x for seamless continuous train motion with minimal DOM nodes
+  const trainCards = [...cards, ...cards];
   // First 4 cards for mobile vertical phone 2x2 square grid gallery
   const mobileGridCards = cards.slice(0, 4);
 
+  const sectionRef = useRef<HTMLElement | null>(null);
   const ribbonRef = useRef<HTMLDivElement | null>(null);
+  const dotsRef = useRef<HTMLDivElement | null>(null);
   const firstSetWidthRef = useRef<number>(0);
   const singleCardStepRef = useRef<number>(330);
   const currentOffsetRef = useRef<number>(0);
   const targetNudgeRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
   const currentVelocityFactorRef = useRef<number>(1);
-  const [activeDot, setActiveDot] = useState<number>(0);
+  const isVisibleRef = useRef<boolean>(false);
 
   useEffect(() => {
     const measureTrack = () => {
@@ -122,24 +124,39 @@ export default function ValuesSection() {
     };
 
     measureTrack();
-    window.addEventListener('resize', measureTrack);
+    window.addEventListener('resize', measureTrack, { passive: true });
     return () => window.removeEventListener('resize', measureTrack);
   }, [totalCards]);
 
   useEffect(() => {
-    let rafId: number;
+    let rafId: number | null = null;
     let lastTime = performance.now();
     let lastReportedDot = 0;
 
-    const animateTrain = (now: number) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.1);
-      lastTime = now;
+    const updateDotDom = (activeIdx: number) => {
+      const container = dotsRef.current;
+      if (!container) return;
+      const buttons = container.children;
+      for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i] as HTMLElement;
+        const isActive = i === activeIdx;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      }
+    };
 
-      // Skip train calculation on vertical phone screens where 4-card static square grid is shown
-      if (typeof window !== 'undefined' && window.innerWidth <= 767) {
-        rafId = window.requestAnimationFrame(animateTrain);
+    const animateTrain = (now: number) => {
+      if (
+        !isVisibleRef.current ||
+        document.hidden ||
+        window.innerWidth <= 767
+      ) {
+        rafId = null;
         return;
       }
+
+      const dt = Math.min((now - lastTime) / 1000, 0.06);
+      lastTime = now;
 
       // Smoothly ramp speed down on hover and back up on leave
       const targetVel = isHoveredRef.current ? 0 : 1;
@@ -174,21 +191,69 @@ export default function ValuesSection() {
           totalCards;
         if (currentDot !== lastReportedDot) {
           lastReportedDot = currentDot;
-          setActiveDot(currentDot);
+          updateDotDom(currentDot);
         }
       }
 
       if (ribbonRef.current) {
         ribbonRef.current.style.transform = `translate3d(-${currentOffsetRef.current.toFixed(
-          2
+          1
         )}px, 0, 0)`;
       }
 
       rafId = window.requestAnimationFrame(animateTrain);
     };
 
-    rafId = window.requestAnimationFrame(animateTrain);
-    return () => window.cancelAnimationFrame(rafId);
+    const startLoopIfNeeded = () => {
+      if (
+        rafId === null &&
+        isVisibleRef.current &&
+        !document.hidden &&
+        window.innerWidth > 767
+      ) {
+        lastTime = performance.now();
+        rafId = window.requestAnimationFrame(animateTrain);
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        isVisibleRef.current = Boolean(entry?.isIntersecting);
+        if (isVisibleRef.current) {
+          startLoopIfNeeded();
+        } else if (rafId !== null) {
+          window.cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      },
+      { threshold: 0.05 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden && rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      } else {
+        startLoopIfNeeded();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('resize', startLoopIfNeeded, { passive: true });
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('resize', startLoopIfNeeded);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
   }, [totalCards]);
 
   const handlePrev = () => {
@@ -206,7 +271,11 @@ export default function ValuesSection() {
   };
 
   return (
-    <section className="section values sliding-cards-section" id="why">
+    <section
+      ref={sectionRef}
+      className="section values sliding-cards-section"
+      id="why"
+    >
       <div className="wrap sliding-cards-wrap">
         <div className="thoughts-section-heading-bar">
           <span className="eyebrow" style={{ color: '#3b71fe' }}>
@@ -283,6 +352,7 @@ export default function ValuesSection() {
           </div>
 
           <div
+            ref={dotsRef}
             className="sliding-cards-dots"
             role="tablist"
             aria-label="Tourist thoughts pagination"
@@ -292,10 +362,8 @@ export default function ValuesSection() {
                 key={card.id}
                 type="button"
                 role="tab"
-                aria-selected={activeDot === i}
-                className={`sliding-cards-dot ${
-                  activeDot === i ? 'active' : ''
-                }`}
+                aria-selected={i === 0}
+                className={`sliding-cards-dot ${i === 0 ? 'active' : ''}`}
                 onClick={() => handleDotClick(i)}
                 aria-label={`Jump to tourist thought ${i + 1}`}
               />

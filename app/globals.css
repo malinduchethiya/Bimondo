@@ -1844,7 +1844,7 @@ footer {
 .flyover-anchor-section {
   position: relative;
   z-index: 10;
-  will-change: transform, filter;
+  will-change: transform;
 }
 
 .flyover-panel {
@@ -1852,7 +1852,7 @@ footer {
   margin-top: -24px;
   border-radius: 22px 22px 0 0;
   box-shadow: 0 -18px 42px rgba(5, 22, 34, 0.2);
-  will-change: transform, filter;
+  will-change: transform;
   overflow: hidden;
 }
 

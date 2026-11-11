@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -112,15 +112,62 @@ export default function PlacesSection() {
       : FALLBACK_PLACE_SLIDES;
 
   const totalSlides = slides.length;
-  // Triple the array for seamless infinite loop in both directions
-  const infiniteSlides = [...slides, ...slides, ...slides];
+  // Duplicate 2x for seamless infinite loop with fewer DOM nodes
+  const infiniteSlides = [...slides, ...slides];
 
+  const sectionRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const singleSetWidthRef = useRef<number>(0);
   const stepWidthRef = useRef<number>(224);
   const currentXRef = useRef<number>(0);
   const targetXRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
+  const isVisibleRef = useRef<boolean>(false);
+  const rafIdRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
+
+  const startAnimationTick = useCallback(() => {
+    if (rafIdRef.current !== null) return;
+    lastTimeRef.current = performance.now();
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.06);
+      lastTimeRef.current = now;
+
+      const diff = targetXRef.current - currentXRef.current;
+      if (Math.abs(diff) > 0.25) {
+        currentXRef.current += diff * Math.min(1, dt * 8.5);
+      } else {
+        currentXRef.current = targetXRef.current;
+      }
+
+      const setWidth = singleSetWidthRef.current;
+      if (setWidth > 0) {
+        if (currentXRef.current >= setWidth) {
+          currentXRef.current -= setWidth;
+          targetXRef.current -= setWidth;
+        } else if (currentXRef.current < 0) {
+          currentXRef.current += setWidth;
+          targetXRef.current += setWidth;
+        }
+      }
+
+      if (trackRef.current) {
+        trackRef.current.style.transform = `translate3d(-${currentXRef.current.toFixed(
+          1
+        )}px, 0, 0)`;
+      }
+
+      // Stop RAF loop once target is reached so 0% CPU is used while resting between 2s steps
+      if (Math.abs(targetXRef.current - currentXRef.current) > 0.25) {
+        rafIdRef.current = window.requestAnimationFrame(tick);
+      } else {
+        rafIdRef.current = null;
+      }
+    };
+
+    rafIdRef.current = window.requestAnimationFrame(tick);
+  }, []);
 
   useEffect(() => {
     const measure = () => {
@@ -132,86 +179,66 @@ export default function PlacesSection() {
         const secondSetEl = items[totalSlides] as HTMLElement;
         const setWidth = secondSetEl.offsetLeft - firstEl.offsetLeft;
         if (setWidth > 0) {
-          const prevSetWidth = singleSetWidthRef.current;
           singleSetWidthRef.current = setWidth;
           stepWidthRef.current = setWidth / totalSlides;
-          if (prevSetWidth === 0) {
-            // Start at the middle set so both left and right arrows have infinite room
-            currentXRef.current = setWidth;
-            targetXRef.current = setWidth;
-          }
         }
       }
     };
 
     measure();
-    window.addEventListener('resize', measure);
+    window.addEventListener('resize', measure, { passive: true });
     return () => window.removeEventListener('resize', measure);
   }, [totalSlides]);
 
-  // Step forward 1 image from right to left every 2 seconds
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisibleRef.current = Boolean(entries[0]?.isIntersecting);
+      },
+      { threshold: 0.05 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
     const interval = window.setInterval(() => {
-      if (!isHoveredRef.current) {
+      if (
+        isVisibleRef.current &&
+        !isHoveredRef.current &&
+        !document.hidden
+      ) {
         targetXRef.current += stepWidthRef.current;
+        startAnimationTick();
       }
     }, AUTO_STEP_INTERVAL_MS);
 
-    return () => window.clearInterval(interval);
-  }, []);
-
-  // 60fps smooth interpolation & seamless infinite wrapping
-  useEffect(() => {
-    let rafId: number;
-    let lastTime = performance.now();
-
-    const tick = (now: number) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.1);
-      lastTime = now;
-
-      // Smooth ease toward targetXRef
-      const diff = targetXRef.current - currentXRef.current;
-      if (Math.abs(diff) > 0.2) {
-        currentXRef.current += diff * Math.min(1, dt * 8.5);
-      } else {
-        currentXRef.current = targetXRef.current;
+    return () => {
+      observer.disconnect();
+      window.clearInterval(interval);
+      if (rafIdRef.current !== null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
       }
-
-      const setWidth = singleSetWidthRef.current;
-      if (setWidth > 0) {
-        // Keep within the middle set [setWidth * 0.5, setWidth * 1.5)
-        if (currentXRef.current >= setWidth * 2) {
-          currentXRef.current -= setWidth;
-          targetXRef.current -= setWidth;
-        } else if (currentXRef.current < setWidth * 0.5) {
-          currentXRef.current += setWidth;
-          targetXRef.current += setWidth;
-        }
-      }
-
-      if (trackRef.current) {
-        trackRef.current.style.transform = `translate3d(-${currentXRef.current.toFixed(
-          2
-        )}px, 0, 0)`;
-      }
-
-      rafId = window.requestAnimationFrame(tick);
     };
-
-    rafId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(rafId);
-  }, []);
+  }, [startAnimationTick]);
 
   const handlePrev = () => {
     targetXRef.current -= stepWidthRef.current;
+    startAnimationTick();
   };
 
   const handleNext = () => {
     targetXRef.current += stepWidthRef.current;
+    startAnimationTick();
   };
 
   return (
-    <section className="section wrap places-staggered-section" id="places">
+    <section
+      ref={sectionRef}
+      className="section wrap places-staggered-section"
+      id="places"
+    >
       <div className="section-head">
         <div>
           <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>

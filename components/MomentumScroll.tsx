@@ -16,14 +16,11 @@ export default function MomentumScroll() {
 
   useEffect(() => {
     const lenis = new Lenis({
-      duration: 1.35,
-      easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      lerp: 0.08,
+      lerp: 0.13,
       smoothWheel: true,
-      syncTouch: true,
-      syncTouchLerp: 0.085,
+      syncTouch: false,
       wheelMultiplier: 1.0,
-      touchMultiplier: 1.35,
+      touchMultiplier: 1.0,
       infinite: false,
     });
 
@@ -63,7 +60,7 @@ export default function MomentumScroll() {
           e.preventDefault();
           lenis.scrollTo(targetEl, {
             offset: -72,
-            duration: 1.4,
+            duration: 1.1,
             easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
           });
         }

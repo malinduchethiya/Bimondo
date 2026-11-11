@@ -37,131 +37,172 @@ export interface R2MediaFirestoreRecord {
   uploadedBy: string;
 }
 
-export function useSiteCms() {
-  const [cms, setCms] = useState<SiteCmsData>(() => getDefaultCmsData());
-  const [loading, setLoading] = useState<boolean>(true);
-  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState<boolean>(false);
+// ============================================================================
+// Shared Module-Level Singleton Store
+// Prevents 8+ components on the same page from creating duplicate Firestore
+// listeners, auth listeners, and /api/admin/cms HTTP requests.
+// ============================================================================
+let sharedCmsState: SiteCmsData = getDefaultCmsData();
+let sharedLoadingState = true;
+let sharedFirebaseUser: User | null = null;
+let sharedAuthReady = false;
+let storeInitialized = false;
 
-  const fetchServerFallback = useCallback(async () => {
-    try {
-      const res = await fetch('/api/admin/cms', { cache: 'no-store' });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return (data?.cms as SiteCmsData) || null;
-    } catch {
-      return null;
+type StoreListener = () => void;
+const listeners = new Set<StoreListener>();
+
+function notifyListeners() {
+  listeners.forEach((fn) => fn());
+}
+
+async function fetchServerFallbackOnce(): Promise<SiteCmsData | null> {
+  try {
+    const res = await fetch('/api/admin/cms', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data?.cms as SiteCmsData) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function refreshSharedStore() {
+  try {
+    const snap = await getDoc(doc(db, 'site_cms', 'main'));
+    if (snap.exists()) {
+      const d = snap.data();
+      const fallback = await fetchServerFallbackOnce();
+      sharedCmsState = {
+        ...sharedCmsState,
+        updatedAt:
+          typeof d.updatedAt?.toDate === 'function'
+            ? d.updatedAt.toDate().toISOString()
+            : sharedCmsState.updatedAt,
+        general: d.general || sharedCmsState.general,
+        tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
+        stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
+        destinations: Array.isArray(d.destinations)
+          ? d.destinations
+          : sharedCmsState.destinations,
+        gallery: Array.isArray(d.gallery) ? d.gallery : sharedCmsState.gallery,
+        reviews: Array.isArray(d.reviews) ? d.reviews : sharedCmsState.reviews,
+        faqs: Array.isArray(d.faqs) ? d.faqs : sharedCmsState.faqs,
+        enquiries: fallback?.enquiries || sharedCmsState.enquiries,
+      };
+      sharedLoadingState = false;
+      notifyListeners();
+      return;
     }
-  }, []);
+  } catch {
+    // Fallback to server API if Firestore doc not yet initialized
+  }
 
-  const refresh = useCallback(async () => {
-    try {
-      const snap = await getDoc(doc(db, 'site_cms', 'main'));
+  const fallback = await fetchServerFallbackOnce();
+  if (fallback) {
+    sharedCmsState = fallback;
+  }
+  sharedLoadingState = false;
+  notifyListeners();
+}
+
+function initSharedCmsStore() {
+  if (storeInitialized || typeof window === 'undefined') return;
+  storeInitialized = true;
+
+  validateFirestoreConnection();
+
+  onAuthStateChanged(auth, (u) => {
+    sharedFirebaseUser = u;
+    sharedAuthReady = true;
+    notifyListeners();
+  });
+
+  // Initial server fallback fetch once for enquiries / local data
+  fetchServerFallbackOnce().then((fallback) => {
+    if (fallback) {
+      sharedCmsState = {
+        ...sharedCmsState,
+        ...fallback,
+      };
+      sharedLoadingState = false;
+      notifyListeners();
+    }
+  });
+
+  const cmsRef = doc(db, 'site_cms', 'main');
+  onSnapshot(
+    cmsRef,
+    (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        const fallback = await fetchServerFallback();
-        setCms((prev) => ({
-          ...prev,
+        sharedCmsState = {
+          ...sharedCmsState,
           updatedAt:
             typeof d.updatedAt?.toDate === 'function'
               ? d.updatedAt.toDate().toISOString()
-              : prev.updatedAt,
-          general: d.general || prev.general,
-          tours: Array.isArray(d.tours) ? d.tours : prev.tours,
-          stays: Array.isArray(d.stays) ? d.stays : prev.stays,
+              : sharedCmsState.updatedAt,
+          general: d.general || sharedCmsState.general,
+          tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
+          stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
           destinations: Array.isArray(d.destinations)
             ? d.destinations
-            : prev.destinations,
-          gallery: Array.isArray(d.gallery) ? d.gallery : prev.gallery,
-          reviews: Array.isArray(d.reviews) ? d.reviews : prev.reviews,
-          faqs: Array.isArray(d.faqs) ? d.faqs : prev.faqs,
-          enquiries: fallback?.enquiries || prev.enquiries,
-        }));
-        setLoading(false);
-        return;
+            : sharedCmsState.destinations,
+          gallery: Array.isArray(d.gallery)
+            ? d.gallery
+            : sharedCmsState.gallery,
+          reviews: Array.isArray(d.reviews)
+            ? d.reviews
+            : sharedCmsState.reviews,
+          faqs: Array.isArray(d.faqs) ? d.faqs : sharedCmsState.faqs,
+        };
+        sharedLoadingState = false;
+        notifyListeners();
+      } else {
+        sharedLoadingState = false;
+        notifyListeners();
       }
-    } catch {
-      // Fallback to server API if Firestore doc not yet initialized
+    },
+    (error) => {
+      if (
+        error instanceof Error &&
+        error.message.includes('Missing or insufficient permissions')
+      ) {
+        handleFirestoreError(error, OperationType.GET, 'site_cms/main');
+      }
+      sharedLoadingState = false;
+      notifyListeners();
     }
+  );
 
-    const fallback = await fetchServerFallback();
-    if (fallback) {
-      setCms(fallback);
-    }
-    setLoading(false);
-  }, [fetchServerFallback]);
+  window.addEventListener('bimondo:cms-updated', () => {
+    refreshSharedStore();
+  });
+}
+
+export function useSiteCms() {
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    validateFirestoreConnection();
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setFirebaseUser(u);
-      setAuthReady(true);
-    });
-    return () => unsubAuth();
+    initSharedCmsStore();
+    const listener = () => setTick((t) => t + 1);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
   }, []);
 
-  useEffect(() => {
-    let active = true;
+  const setCms = useCallback(
+    (updater: SiteCmsData | ((prev: SiteCmsData) => SiteCmsData)) => {
+      sharedCmsState =
+        typeof updater === 'function' ? updater(sharedCmsState) : updater;
+      notifyListeners();
+    },
+    []
+  );
 
-    // Subscribe to public /site_cms/main document in Firestore (which holds R2 CDN URLs + metadata, never raw images)
-    const cmsRef = doc(db, 'site_cms', 'main');
-    const unsubSnapshot = onSnapshot(
-      cmsRef,
-      async (snap) => {
-        if (!active) return;
-        if (snap.exists()) {
-          const d = snap.data();
-          const fallback = await fetchServerFallback();
-          if (!active) return;
-          setCms((prev) => ({
-            ...prev,
-            updatedAt:
-              typeof d.updatedAt?.toDate === 'function'
-                ? d.updatedAt.toDate().toISOString()
-                : prev.updatedAt,
-            general: d.general || prev.general,
-            tours: Array.isArray(d.tours) ? d.tours : prev.tours,
-            stays: Array.isArray(d.stays) ? d.stays : prev.stays,
-            destinations: Array.isArray(d.destinations)
-              ? d.destinations
-              : prev.destinations,
-            gallery: Array.isArray(d.gallery) ? d.gallery : prev.gallery,
-            reviews: Array.isArray(d.reviews) ? d.reviews : prev.reviews,
-            faqs: Array.isArray(d.faqs) ? d.faqs : prev.faqs,
-            enquiries: fallback?.enquiries || prev.enquiries,
-          }));
-          setLoading(false);
-        } else {
-          const fallback = await fetchServerFallback();
-          if (active && fallback) {
-            setCms(fallback);
-          }
-          if (active) setLoading(false);
-        }
-      },
-      (error) => {
-        // If permission error on site_cms/main, report via handleFirestoreError
-        if (
-          error instanceof Error &&
-          error.message.includes('Missing or insufficient permissions')
-        ) {
-          handleFirestoreError(error, OperationType.GET, 'site_cms/main');
-        }
-        if (active) setLoading(false);
-      }
-    );
-
-    const onCustomUpdate = () => {
-      refresh();
-    };
-    window.addEventListener('bimondo:cms-updated', onCustomUpdate);
-
-    return () => {
-      active = false;
-      unsubSnapshot();
-      window.removeEventListener('bimondo:cms-updated', onCustomUpdate);
-    };
-  }, [fetchServerFallback, refresh]);
+  const refresh = useCallback(async () => {
+    await refreshSharedStore();
+  }, []);
 
   /**
    * Saves CMS metadata & Cloudflare R2 CDN links to both Firebase Firestore
@@ -220,7 +261,8 @@ export function useSiteCms() {
         }
       }
 
-      setCms(apiData.cms);
+      sharedCmsState = apiData.cms;
+      notifyListeners();
       window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
       return apiData.cms;
     },
@@ -229,7 +271,6 @@ export function useSiteCms() {
 
   /**
    * Registers or updates a Cloudflare R2 bucket object's CDN link in Firebase Firestore (/r2_media/{id}).
-   * Only the R2 CDN URL and metadata are stored in Firestore—never the image binary.
    */
   const registerR2MediaInFirebase = useCallback(
     async (item: {
@@ -284,8 +325,7 @@ export function useSiteCms() {
   );
 
   /**
-   * Removes an R2 media catalog entry from Firebase Firestore (/r2_media/{id})
-   * after the image object is deleted from the Cloudflare R2 bucket.
+   * Removes an R2 media catalog entry from Firebase Firestore (/r2_media/{id}).
    */
   const removeR2MediaFromFirebase = useCallback(async (mediaId: string) => {
     if (!auth.currentUser || !mediaId) return;
@@ -344,10 +384,10 @@ export function useSiteCms() {
   );
 
   return {
-    cms,
-    loading,
-    authReady,
-    firebaseUser,
+    cms: sharedCmsState,
+    loading: sharedLoadingState,
+    authReady: sharedAuthReady,
+    firebaseUser: sharedFirebaseUser,
     refresh,
     setCms,
     saveCmsToFirebase,
