@@ -6,102 +6,21 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { useSiteCms } from '@/hooks/useSiteCms';
-
-interface Destination {
-  id: string;
-  name: string;
-  region: 'culture' | 'hills' | 'coast' | 'wildlife';
-  regionLabel: string;
-  season: string;
-  tagline: string;
-  description: string;
-  highlights: string[];
-  image: string;
-}
+import { DEFAULT_DESTINATIONS, CmsDestination } from '@/lib/cms-defaults';
+import { COLOMBO_DAY_EXPERIENCES, ColomboDayExperience } from '@/lib/tours';
 
 export default function DestinationsPage() {
   const { cms } = useSiteCms();
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
+  const [activeDestBooking, setActiveDestBooking] =
+    useState<CmsDestination | null>(null);
+  const [activeDayBooking, setActiveDayBooking] =
+    useState<ColomboDayExperience | null>(null);
 
-  const defaultDestinations: Destination[] = [
-    {
-      id: 'sigiriya',
-      name: 'Sigiriya & The Cultural Triangle',
-      region: 'culture',
-      regionLabel: 'Culture & Heritage',
-      season: 'Best Nov – Sep',
-      tagline: 'Ancient sky fortress & sacred ruins',
-      description:
-        'Climb the 5th-century rock fortress of King Kashyapa, explore the ancient capitals of Anuradhapura and Polonnaruwa, and marvel at the cave temples of Dambulla.',
-      highlights: ['Sigiriya Lion Rock climb', 'Pidurangala sunrise panorama', 'Dambulla Golden Cave Temples'],
-      image: 'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
-    },
-    {
-      id: 'kandy-hills',
-      name: 'Kandy & Knuckles Mountain Range',
-      region: 'hills',
-      regionLabel: 'Central Highlands',
-      season: 'Year-round · Cooler Dec – Mar',
-      tagline: 'Sacred relic, lake breeze & cloud forests',
-      description:
-        'Sri Lanka’s cultural crown surrounded by mist-draped peaks. Home to the Temple of the Sacred Tooth Relic, vibrant Kandyan dance rituals, and pristine hiking.',
-      highlights: ['Temple of the Tooth Relic', 'Kandy Lake evening walks', 'Knuckles UNESCO wilderness hike'],
-      image: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
-    },
-    {
-      id: 'ella-nuwara-eliya',
-      name: 'Ella, Nuwara Eliya & Tea Country',
-      region: 'hills',
-      regionLabel: 'Central Highlands',
-      season: 'Best Jan – May',
-      tagline: 'Misty tea estates, waterfalls & slow trains',
-      description:
-        'Cool mountain air, endless emerald hills, and colonial heritage. Take the iconic blue train through pine forests, hike Little Adam’s Peak, and sip single-origin Ceylon tea.',
-      highlights: ['Nine Arch Bridge train crossing', 'Tea factory tasting & picking', 'Little Adam’s Peak trek'],
-      image: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
-    },
-    {
-      id: 'galle-south-coast',
-      name: 'Galle Fort & The Southern Riviera',
-      region: 'coast',
-      regionLabel: 'Coast & Beaches',
-      season: 'Best Nov – Apr',
-      tagline: 'Dutch ramparts, surf bays & slow living',
-      description:
-        'Wander cobblestone lanes lined with 17th-century colonial villas, watch local stilt fishermen at golden hour, and relax along golden palm-fringed beaches.',
-      highlights: ['UNESCO Galle Fort walking tour', 'Mirissa blue whale watching', 'Weligama gentle surf lessons'],
-      image: 'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
-    },
-    {
-      id: 'yala-wildlife',
-      name: 'Yala & Udawalawe National Parks',
-      region: 'wildlife',
-      regionLabel: 'Wildlife & Nature',
-      season: 'Best Feb – Oct',
-      tagline: 'Leopard prowls, elephant herds & wild lagoons',
-      description:
-        'Sri Lanka boasts one of the highest densities of wild leopards on earth. Ride open-top 4x4 jeeps across scrub jungle, waterholes, and coastal lagoons.',
-      highlights: ['Guided leopard tracking safaris', 'Udawalawe elephant transit home', 'Crocodiles & exotic birdlife'],
-      image: 'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1000&q=85',
-    },
-    {
-      id: 'minneriya',
-      name: 'Minneriya & Kaudulla Gathering',
-      region: 'wildlife',
-      regionLabel: 'Wildlife & Nature',
-      season: 'Peak Jul – Oct',
-      tagline: 'The largest Asian elephant gathering',
-      description:
-        'During the dry season, up to 300 wild elephants congregate around ancient 3rd-century irrigation reservoirs. A breathtaking natural spectacle unique to Sri Lanka.',
-      highlights: ['The Great Elephant Gathering', 'Ancient lake ecosystems', 'Sunset open-air jeep drives'],
-      image: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=85',
-    },
-  ];
-
-  const destinations: Destination[] =
+  const destinations: CmsDestination[] =
     cms.destinations && cms.destinations.length > 0
       ? cms.destinations
-      : defaultDestinations;
+      : DEFAULT_DESTINATIONS;
 
   const filtered =
     selectedRegion === 'all'
@@ -109,39 +28,38 @@ export default function DestinationsPage() {
       : destinations.filter((d) => d.region === selectedRegion);
 
   const regionTabs = [
-    { id: 'all', label: 'All destinations' },
+    { id: 'all', label: 'All Regions' },
     { id: 'culture', label: 'Culture & Heritage' },
-    { id: 'hills', label: 'Central Highlands' },
-    { id: 'coast', label: 'Coast & Oceans' },
-    { id: 'wildlife', label: 'Wildlife Sanctuaries' },
+    { id: 'hills', label: 'Hill Country & Hiking' },
+    { id: 'wildlife', label: 'Wildlife & Nature' },
+    { id: 'coast', label: 'Sea & Sand' },
+    { id: 'colombo', label: 'Colombo & Battaramulla' },
   ];
-
-  const [activeDestBooking, setActiveDestBooking] =
-    useState<Destination | null>(null);
 
   return (
     <main>
       <PageBanner
         eyebrow="BIMONDO DESTINATIONS  /  SRI LANKA"
-        title="One island. A thousand worlds to uncover."
+        title="From ancient kingdoms and tea hills to wild parks and coasts."
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              EXPLORE BY REGION
+              DESTINATIONS BY REGION
             </div>
             <h2 className="serif">
-              Handpicked places
+              Five regions across
               <br />
-              with a <em style={{ color: 'var(--terracotta)' }}>local heartbeat.</em>
+              our <em style={{ color: 'var(--terracotta)' }}>island home.</em>
             </h2>
           </div>
           <p>
-            Whether you dream of misty tea trails, ancient UNESCO kingdoms, or
-            slow beach hideaways, every destination is connected by your private
-            chauffeur.
+            Every itinerary connects Sri Lanka&apos;s Cultural Triangle, Hill
+            Country, National Parks, Southern and Eastern Coasts, and our
+            Colombo &amp; Battaramulla home base with private transport and
+            licensed local guides.
           </p>
         </div>
 
@@ -176,17 +94,20 @@ export default function DestinationsPage() {
                 <span className="dest-season-badge">{dest.season}</span>
               </div>
               <div className="dest-content">
-                <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                <span
+                  className="eyebrow"
+                  style={{ color: 'var(--terracotta)' }}
+                >
                   {dest.regionLabel}
                 </span>
                 <h3 className="serif dest-name">{dest.name}</h3>
                 <p className="dest-tagline">{dest.tagline}</p>
                 <p className="dest-desc">{dest.description}</p>
                 <div className="dest-highlights">
-                  <strong>Key highlights:</strong>
+                  <strong>Documented places &amp; experiences:</strong>
                   <ul>
-                    {dest.highlights.map((h, i) => (
-                      <li key={i}>✳ {h}</li>
+                    {dest.highlights.map((h, idx) => (
+                      <li key={idx}>✳ {h}</li>
                     ))}
                   </ul>
                 </div>
@@ -195,12 +116,12 @@ export default function DestinationsPage() {
                   style={{ gap: '8px', flexWrap: 'wrap' }}
                 >
                   <Link
-                    href="/stays"
+                    href="/packages"
                     prefetch={false}
                     className="pill"
                     style={{ padding: '9px 14px', fontSize: '10.5px' }}
                   >
-                    STAYS IN REGION
+                    TOURS IN REGION
                   </Link>
                   <button
                     type="button"
@@ -208,7 +129,7 @@ export default function DestinationsPage() {
                     style={{ padding: '9px 16px', fontSize: '10.5px' }}
                     onClick={() => setActiveDestBooking(dest)}
                   >
-                    BOOK EXPERIENCE ↗
+                    BOOK / ENQUIRE ↗
                   </button>
                 </div>
               </div>
@@ -216,23 +137,125 @@ export default function DestinationsPage() {
           ))}
         </div>
 
+        {/* Section 10: Colombo & Battaramulla Day Experiences */}
+        <div style={{ marginTop: '64px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 10 · COLOMBO &amp; BATTARAMULLA DAY EXPERIENCES
+              </div>
+              <h2 className="serif">
+                Six short experiences from{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  our Battaramulla base.
+                </em>
+              </h2>
+            </div>
+            <p>
+              Because our office is located at No. 596/1, Thalangama South,
+              Battaramulla, we offer half-day and full-day experiences around
+              Colombo, Kotte, Kelaniya, Thalangama Wetland, and Negombo Lagoon.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {COLOMBO_DAY_EXPERIENCES.map((exp, idx) => (
+              <div
+                key={exp.id}
+                className="value"
+                style={{
+                  borderTopColor: '#c8dbe2',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <span
+                    className="number"
+                    style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                  >
+                    0{idx + 1} · {exp.duration.toUpperCase()} · {exp.location}
+                  </span>
+                  <h3
+                    className="serif"
+                    style={{
+                      color: 'var(--ink)',
+                      fontSize: '25px',
+                      margin: '10px 0 8px',
+                    }}
+                  >
+                    {exp.name}
+                  </h3>
+                  <p
+                    style={{
+                      color: '#557180',
+                      lineHeight: 1.75,
+                      marginBottom: '12px',
+                    }}
+                  >
+                    {exp.description}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--muted)',
+                      marginBottom: '16px',
+                    }}
+                  >
+                    <strong>Highlights:</strong> {exp.highlights}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="pill dark"
+                    style={{ padding: '9px 14px', fontSize: '10.5px' }}
+                    onClick={() => setActiveDayBooking(exp)}
+                  >
+                    BOOK EXPERIENCE ↗
+                  </button>
+                  <Link
+                    href="/contact"
+                    prefetch={false}
+                    className="pill"
+                    style={{ padding: '9px 14px', fontSize: '10.5px' }}
+                  >
+                    ENQUIRE
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Tailor-Made Route Box */}
-        <div className="dest-custom-cta-box">
+        <div className="dest-custom-cta-box" style={{ marginTop: '56px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              CUSTOM ROUTING &amp; STAYS
+              CUSTOM ROUTING &amp; ACCOMMODATION
             </span>
-            <h3 className="serif" style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}>
-              Want to combine hills, safari &amp; the sea?
+            <h3
+              className="serif"
+              style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}
+            >
+              Want to combine culture, tea hills, wildlife &amp; the sea?
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '520px', lineHeight: 1.8 }}>
-              Our Sri Lankan trip curators craft multi-region routes that flow naturally
-              without backtracking, matched to your preferred hotels and pace.
+              Our team in Battaramulla designs private day-by-day itineraries
+              matched to the season, your preferred travel pace, and four-star,
+              boutique, or five-star accommodation.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <Link href="/stays" prefetch={false} className="pill light">
-              BROWSE BOUTIQUE STAYS ↗
+            <Link href="/packages" prefetch={false} className="pill light">
+              VIEW 20 SIGNATURE TOURS ↗
             </Link>
             <Link href="/contact" prefetch={false} className="pill dark">
               DESIGN MY ROUTE ↗
@@ -256,6 +279,26 @@ export default function DestinationsPage() {
               itemName={activeDestBooking.name}
               itemType="experience"
               onClose={() => setActiveDestBooking(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {activeDayBooking && (
+        <div
+          className="modal-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveDayBooking(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="modal-card booking-modal-wide">
+            <BookingPanel
+              itemId={activeDayBooking.id}
+              itemName={`${activeDayBooking.name} (${activeDayBooking.duration})`}
+              itemType="experience"
+              onClose={() => setActiveDayBooking(null)}
             />
           </div>
         </div>

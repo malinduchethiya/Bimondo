@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Tour } from '@/lib/tours';
+import { Tour, TOUR_QUALIFICATION_NOTICE } from '@/lib/tours';
 import BookingPanel from '@/components/booking/BookingPanel';
 
 interface TourModalProps {
@@ -53,8 +53,9 @@ export default function TourModal({
 
   if (!tour) return null;
 
+  const durationText = tour.durationLabel || `${tour.days} Days`;
   const whatsAppUrl = `https://wa.me/94762232054?text=${encodeURIComponent(
-    `Hello Bimondo, I'd like to enquire about the ${tour.name} (${tour.days} days).`
+    `Hello Bimondo Travels, I'd like to enquire about the ${tour.name} (${durationText}).`
   )}`;
 
   return (
@@ -78,7 +79,7 @@ export default function TourModal({
         </button>
 
         <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-          BIMONDO SIGNATURE JOURNEY · {tour.days} DAYS
+          BIMONDO SIGNATURE JOURNEY · {durationText.toUpperCase()}
         </div>
 
         <h2 id="modalTitle">{tour.name}</h2>
@@ -106,13 +107,27 @@ export default function TourModal({
         {activeTab === 'itinerary' ? (
           <div>
             <p style={{ fontWeight: 700, color: 'var(--ink)' }}>
-              {tour.days} days · {tour.route}
+              {durationText} · {tour.route}
             </p>
 
             <p>{tour.description}</p>
 
             <p>
               <strong>Highlights:</strong> {tour.highlights}
+            </p>
+
+            <p
+              style={{
+                fontSize: '12px',
+                lineHeight: 1.55,
+                color: 'var(--muted)',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: '1px solid var(--line)',
+                background: 'rgba(255,255,255,0.6)',
+              }}
+            >
+              <strong>Note:</strong> {TOUR_QUALIFICATION_NOTICE}
             </p>
 
             <div className="modal-cta">
@@ -129,7 +144,7 @@ export default function TourModal({
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                WHATSAPP CONCIERGE ↗
+                WHATSAPP ENQUIRY (+94 76 223 2054) ↗
               </a>
               <button type="button" className="pill" onClick={onClose}>
                 CLOSE
@@ -139,7 +154,7 @@ export default function TourModal({
         ) : (
           <BookingPanel
             itemId={tour.id}
-            itemName={`${tour.name} (${tour.days} Days)`}
+            itemName={`${tour.name} (${durationText})`}
             itemType="tour"
           />
         )}

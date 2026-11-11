@@ -4,14 +4,14 @@ import React, { useState } from 'react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function ContactSection() {
-  const { cms } = useSiteCms();
+  const { cms, submitCustomerEnquiryToFirebase } = useSiteCms();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     arrival: '',
     guests: '2 travellers',
     duration: '7–10 days',
-    style: 'A little of everything',
+    style: 'Balanced island discovery',
     message: '',
   });
   const [submittedNotice, setSubmittedNotice] = useState<string>('');
@@ -30,22 +30,15 @@ export default function ContactSection() {
     e.preventDefault();
 
     try {
-      await fetch('/api/admin/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_enquiry',
-          enquiry: formData,
-        }),
-      });
+      await submitCustomerEnquiryToFirebase(formData);
       setSubmittedNotice(
-        'Enquiry saved to our Colombo concierge desk & opened in WhatsApp.'
+        'Enquiry saved to our Battaramulla office desk & opened in WhatsApp.'
       );
     } catch {
       // continue to WhatsApp fallback
     }
 
-    const text = `Hello Bimondo Travels! I'd like to plan a Sri Lanka journey.\n\nName: ${
+    const text = `Hello Bimondo Travels! I'd like to enquire about a private Sri Lanka journey.\n\nName: ${
       formData.name
     }\nEmail: ${formData.email}\nArrival: ${
       formData.arrival || 'Flexible'
@@ -65,33 +58,84 @@ export default function ContactSection() {
     <section className="contact" id="contact">
       <div className="wrap contact-grid">
         <div>
-          <div className="eyebrow">07 / SAY AYUBOWAN</div>
+          <div className="eyebrow">07 / CONTACT &amp; COMPANY DETAILS</div>
           <h2>
-            Let&apos;s make
+            Plan your
             <br />
-            something
+            Sri Lanka
             <br />
-            <em>unforgettable.</em>
+            <em>journey.</em>
           </h2>
           <p>
-            Tell us a little about your trip. We&apos;ll help shape a Sri Lankan
-            journey that feels like yours.
+            Share your travel dates or ideas. Our team in Thalangama South,
+            Battaramulla will design a custom day-by-day route around your
+            interests, pace, and budget.
           </p>
-          <p>
-            <strong>WhatsApp</strong>
-            <br />
-            <a
-              href="https://wa.me/94762232054"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              +94 76 223 2054 ↗
-            </a>
-            <br />
-            <strong>Email</strong>
-            <br />
-            <a href="mailto:tours@bimondo.com">tours@bimondo.com</a>
-          </p>
+          <div
+            style={{
+              fontSize: '0.92rem',
+              lineHeight: 1.75,
+              color: '#f4fbff',
+              marginTop: '16px',
+            }}
+          >
+            <div style={{ color: '#f4fbff' }}>
+              <strong style={{ color: '#ffffff' }}>Office Address:</strong> No.
+              596/1, Thalangama South, Battaramulla, Sri Lanka
+            </div>
+            <div style={{ color: '#f4fbff' }}>
+              <strong style={{ color: '#ffffff' }}>Phone / WhatsApp:</strong>{' '}
+              <a
+                href="https://wa.me/94762232054"
+                rel="noopener noreferrer"
+                target="_blank"
+                style={{
+                  color: '#a5eff4',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  fontWeight: 600,
+                }}
+              >
+                +94 76 223 2054 ↗
+              </a>
+            </div>
+            <div style={{ color: '#f4fbff' }}>
+              <strong style={{ color: '#ffffff' }}>Email:</strong>{' '}
+              <a
+                href="mailto:tours@bimondo.com"
+                style={{
+                  color: '#a5eff4',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  fontWeight: 600,
+                }}
+              >
+                tours@bimondo.com
+              </a>
+            </div>
+            <div style={{ color: '#f4fbff' }}>
+              <strong style={{ color: '#ffffff' }}>Website:</strong>{' '}
+              www.bimondotours.com
+            </div>
+            <div style={{ color: '#f4fbff' }}>
+              <strong style={{ color: '#ffffff' }}>Instagram:</strong>{' '}
+              <a
+                href="https://www.instagram.com/bimondo.tours/"
+                rel="noopener noreferrer"
+                target="_blank"
+                style={{
+                  color: '#a5eff4',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  fontWeight: 600,
+                }}
+              >
+                @Bimondo.tours
+              </a>{' '}
+              · <strong style={{ color: '#ffffff' }}>Facebook:</strong> Bimondo
+              tours
+            </div>
+          </div>
         </div>
 
         <form id="enquiry" onSubmit={handleSubmit}>
@@ -135,10 +179,10 @@ export default function ContactSection() {
               value={formData.guests}
               onChange={handleChange}
             >
-              <option>1 traveller</option>
-              <option>2 travellers</option>
-              <option>3–4 travellers</option>
-              <option>5–8 travellers</option>
+              <option>1 traveller (Solo)</option>
+              <option>2 travellers (Couple / Friends)</option>
+              <option>3–4 travellers (Family / Small Group)</option>
+              <option>5–8 travellers (Private Group)</option>
               <option>9+ travellers</option>
             </select>
           </div>
@@ -150,35 +194,37 @@ export default function ContactSection() {
               value={formData.duration}
               onChange={handleChange}
             >
-              <option>Not sure yet</option>
-              <option>4–6 days</option>
-              <option>7–10 days</option>
-              <option>11–16 days</option>
-              <option>17+ days</option>
+              <option>Half-day / Full-day Colombo experience</option>
+              <option>5–6 days</option>
+              <option>7–8 days</option>
+              <option>9–10 days</option>
+              <option>12–14 days</option>
+              <option>15+ days</option>
             </select>
           </div>
 
           <div className="field">
-            <label htmlFor="tripStyle">What excites you?</label>
+            <label htmlFor="tripStyle">Primary interest</label>
             <select
               id="tripStyle"
               value={formData.style}
               onChange={handleChange}
             >
-              <option>A little of everything</option>
-              <option>Culture &amp; heritage</option>
-              <option>Wildlife &amp; nature</option>
-              <option>Beaches &amp; relaxation</option>
-              <option>Adventure</option>
-              <option>Family journey</option>
+              <option>Balanced island discovery</option>
+              <option>Culture &amp; Heritage Tours</option>
+              <option>Hiking &amp; Wildlife</option>
+              <option>Adventure Tours (Surf, Rafting, Diving, Kite)</option>
+              <option>Sea &amp; Sand Escapes</option>
+              <option>Luxury &amp; Honeymoon</option>
+              <option>Family Journey</option>
             </select>
           </div>
 
           <div className="field wide">
-            <label htmlFor="message">Tell us about your dream trip</label>
+            <label htmlFor="message">Tell us about your plans</label>
             <textarea
               id="message"
-              placeholder="Places, interests, hotel preferences, budget or special requests..."
+              placeholder="Preferred tours or destinations, accommodation style (4-star, boutique, or 5-star luxury), pace, or questions..."
               rows={3}
               value={formData.message}
               onChange={handleChange}
@@ -199,8 +245,8 @@ export default function ContactSection() {
           )}
 
           <small className="field wide" style={{ color: 'var(--muted)' }}>
-            Opens WhatsApp with your details and logs your request in our
-            concierge inbox.
+            Opens WhatsApp (+94 76 223 2054) with your details and logs your
+            enquiry for our Battaramulla team.
           </small>
         </form>
       </div>

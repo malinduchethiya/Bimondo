@@ -7,38 +7,38 @@ import Image from 'next/image';
 const MAIN_SLIDES = [
   {
     src: '/images/kandyan-ves-dancer.jpg',
-    alt: 'Traditional Kandyan Ves dancer welcoming travellers to Sri Lanka',
+    alt: 'Traditional Kandyan cultural heritage in Sri Lanka',
   },
   {
     src: 'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
-    alt: 'Sunrise over Sigiriya Lion Rock fortress in Sri Lanka',
+    alt: 'Sunrise over Sigiriya Rock Fortress in the Cultural Triangle',
   },
   {
     src: 'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
-    alt: 'Nine Arch Bridge and misty tea hills in Ella, Sri Lanka',
+    alt: 'Hill country railway and tea hills in Ella, Sri Lanka',
   },
   {
     src: 'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
-    alt: 'Historic Galle Fort lighthouse and southern coastline',
+    alt: 'Historic Galle Fort ramparts and southern coastline',
   },
 ];
 
 const SMALL_SLIDES = [
   {
     src: '/images/sri-lankan-dancer-matching.jpg',
-    alt: 'Joyful Sri Lankan cultural dancers in traditional attire',
+    alt: 'Living cultural traditions of Sri Lanka',
   },
   {
     src: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=900&q=85',
-    alt: 'Emerald Ceylon tea terraces in the Central Highlands',
+    alt: 'Tea estates along The Pekoe Trail in the Central Highlands',
   },
   {
     src: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=900&q=85',
-    alt: 'Wild elephant gathering by an ancient reservoir in Sri Lanka',
+    alt: 'Wild elephant herds at Minneriya National Park',
   },
   {
     src: '/images/sri-lankan-dancer-welcome.jpg',
-    alt: 'Warm Ayubowan traditional welcome in Sri Lanka',
+    alt: 'Warm Sri Lankan hospitality',
   },
 ];
 
@@ -49,7 +49,6 @@ export default function StorySection() {
   const [smallFading, setSmallFading] = useState(false);
 
   useEffect(() => {
-    // Preload all slideshow images so transitions are instant
     [...MAIN_SLIDES, ...SMALL_SLIDES].forEach((slide) => {
       const preloadImg = new window.Image();
       preloadImg.src = slide.src;
@@ -123,26 +122,34 @@ export default function StorySection() {
 
       <div>
         <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-          01 / THE BIMONDO STORY
+          01 / OUR STORY · EST. 2022 IN BATTARAMULLA
         </div>
         <h2 className="big-heading serif">
-          Come as a
+          Through the people
           <br />
-          traveller.
+          who call this
           <br />
-          <em style={{ color: 'var(--terracotta)' }}>Leave as a friend.</em>
+          <em style={{ color: 'var(--terracotta)' }}>island home.</em>
         </h2>
         <p>
-          Bimondo began in 2022 with a simple idea: the best way to experience Sri
-          Lanka is through the people who call it home. Founded by Bimsara
-          Illangasinghe, we create private journeys that move to your rhythm, not
-          somebody else&apos;s schedule.
+          In the quiet suburb of Thalangama South in Battaramulla, where the
+          morning mist rises off the wetland and the green edge of the
+          countryside meets the energy of Colombo, Bimondo Travels was founded in
+          2022 by I.M. Bimsara Illangasinghe on a simple belief: the best way to
+          experience Sri Lanka is not through a window on a rushed bus tour, but
+          through the people who call this island home.
+        </p>
+        <p style={{ marginTop: '12px' }}>
+          Instead of selling one-size-fits-all packages, we plan journeys around
+          the traveller—whether you want to surf warm southern swells, climb
+          ancient rock fortresses at dawn, walk through misty tea hills, or sit
+          quietly in a jeep watching elephants gather by a lake.
         </p>
         <div className="quote">
           “Not a place you visit, but a feeling you carry home.”
         </div>
         <Link className="pill" href="/our-story" prefetch={false}>
-          GET TO KNOW US ↗
+          READ OUR FULL STORY ↗
         </Link>
       </div>
     </section>

@@ -5,131 +5,24 @@ import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import { useSiteCms } from '@/hooks/useSiteCms';
-
-interface GalleryPhoto {
-  id: string;
-  title: string;
-  location: string;
-  category: 'culture' | 'highlands' | 'wildlife' | 'coast';
-  categoryLabel: string;
-  image: string;
-  description: string;
-}
+import { DEFAULT_GALLERY, CmsGalleryPhoto } from '@/lib/cms-defaults';
 
 export default function GalleryPage() {
   const { cms } = useSiteCms();
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<CmsGalleryPhoto | null>(
+    null
+  );
 
-  const defaultPhotos: GalleryPhoto[] = [
-    {
-      id: 'dancer-welcome',
-      title: 'Ayubowan — May You Live Long',
-      location: 'Kandy & Central Province',
-      category: 'culture',
-      categoryLabel: 'Culture & Heritage',
-      image: '/images/kandyan-ves-dancer.jpg',
-      description:
-        'A traditional Sri Lankan Kandyan dancer in sacred regalia offering the reverent hands-together Ayubowan greeting.',
-    },
-    {
-      id: 'sigiriya-citadel',
-      title: 'Sunrise Over the Sky Citadel',
-      location: 'Sigiriya, Cultural Triangle',
-      category: 'culture',
-      categoryLabel: 'Culture & Heritage',
-      image:
-        'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'The 5th-century rock fortress of King Kashyapa rising 200 metres above misty tropical jungle canopy.',
-    },
-    {
-      id: 'nine-arch-bridge',
-      title: 'The Blue Train at Demodara',
-      location: 'Ella, Highlands',
-      category: 'highlands',
-      categoryLabel: 'Highlands & Tea',
-      image:
-        'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'The colonial stone Nine Arch Bridge gracefully spanning dense tea terraces and eucalyptus forests in the morning mist.',
-    },
-    {
-      id: 'kandy-temple-dance',
-      title: 'Sacred Kandyan Drumming & Dance',
-      location: 'Temple of the Tooth, Kandy',
-      category: 'culture',
-      categoryLabel: 'Culture & Heritage',
-      image: '/images/sri-lankan-dancer-matching.jpg',
-      description:
-        'Ancient rhythms and ritual movements passed down through generations during cultural temple celebrations.',
-    },
-    {
-      id: 'galle-lighthouse',
-      title: 'Sunset at Galle Fort Ramparts',
-      location: 'Galle, Southern Coast',
-      category: 'coast',
-      categoryLabel: 'Coast & Oceans',
-      image:
-        'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'The iconic 1939 white lighthouse standing sentinel above 17th-century Dutch fortifications and coral reefs.',
-    },
-    {
-      id: 'wild-elephant-lake',
-      title: 'The Gathering at Kaudulla',
-      location: 'Minneriya & Kaudulla',
-      category: 'wildlife',
-      categoryLabel: 'Wildlife & Nature',
-      image:
-        'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'Wild Asian elephant herds gathering peacefully by the shores of ancient 3rd-century reservoirs at golden hour.',
-    },
-    {
-      id: 'leopard-safari',
-      title: 'Granite Boulders of Yala',
-      location: 'Yala National Park',
-      category: 'wildlife',
-      categoryLabel: 'Wildlife & Nature',
-      image:
-        'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'Sri Lanka’s untamed wilderness, home to the world’s densest wild leopard population and coastal lagoons.',
-    },
-    {
-      id: 'ceylon-tea-valleys',
-      title: 'Emerald Terraces of Nuwara Eliya',
-      location: 'Central Highlands',
-      category: 'highlands',
-      categoryLabel: 'Highlands & Tea',
-      image:
-        'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'Rolling carpets of single-origin Ceylon tea bushes glistening with cool morning dew in the hill country.',
-    },
-    {
-      id: 'coastal-slow-living',
-      title: 'Golden Sands of the South',
-      location: 'Mirissa & Tangalle',
-      category: 'coast',
-      categoryLabel: 'Coast & Oceans',
-      image:
-        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85',
-      description:
-        'Pristine curving palm bays where tropical turquoise waters meet secluded boutique beach retreats.',
-    },
-  ];
-
-  const photos: GalleryPhoto[] =
-    cms.gallery && cms.gallery.length > 0 ? cms.gallery : defaultPhotos;
+  const photos: CmsGalleryPhoto[] =
+    cms.gallery && cms.gallery.length > 0 ? cms.gallery : DEFAULT_GALLERY;
 
   const categories = [
-    { id: 'all', label: 'All moments' },
+    { id: 'all', label: 'All Regions' },
     { id: 'culture', label: 'Culture & Heritage' },
-    { id: 'highlands', label: 'Highlands & Tea' },
+    { id: 'highlands', label: 'Hill Country & Hiking' },
     { id: 'wildlife', label: 'Wildlife & Nature' },
-    { id: 'coast', label: 'Coast & Oceans' },
+    { id: 'coast', label: 'Sea & Sand' },
   ];
 
   const filtered =
@@ -141,23 +34,26 @@ export default function GalleryPage() {
     <main>
       <PageBanner
         eyebrow="BIMONDO GALLERY  /  SRI LANKA"
-        title="Moments of wonder across our island home."
+        title="Landscapes, heritage, wildlife and coasts across Sri Lanka."
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              VISUAL STORIES
+              VISUAL JOURNEY ACROSS THE ISLAND
             </div>
             <h2 className="serif">
-              Raw, vibrant &amp;{' '}
-              <em style={{ color: 'var(--terracotta)' }}>unforgettable.</em>
+              Not a place you visit,{' '}
+              <em style={{ color: 'var(--terracotta)' }}>
+                but a feeling you carry home.
+              </em>
             </h2>
           </div>
           <p>
-            Photography captured across our private journeys: from sacred ritual dances
-            in Kandy to the quiet mist of tea country and sun-drenched southern bays.
+            From the ancient capitals of Sigiriya, Anuradhapura, Polonnaruwa,
+            and Kandy to The Pekoe Trail in the tea hills, national park
+            safaris, and seasonal coastal escapes.
           </p>
         </div>
 
@@ -195,7 +91,9 @@ export default function GalleryPage() {
               <div className="gallery-overlay">
                 <span className="gallery-loc">{photo.location}</span>
                 <h3 className="serif gallery-title">{photo.title}</h3>
-                <span style={{ fontSize: '11px', color: '#e5f8fc', marginTop: '4px' }}>
+                <span
+                  style={{ fontSize: '11px', color: '#e5f8fc', marginTop: '4px' }}
+                >
                   Click to view full photo ↗
                 </span>
               </div>
@@ -207,14 +105,18 @@ export default function GalleryPage() {
         <div className="dest-custom-cta-box" style={{ marginTop: '55px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              SEE IT WITH YOUR OWN EYES
+              PRIVATE JOURNEYS ACROSS SRI LANKA
             </span>
-            <h3 className="serif" style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}>
-              Experience Sri Lanka in person
+            <h3
+              className="serif"
+              style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}
+            >
+              Experience Sri Lanka at your own pace
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '520px', lineHeight: 1.8 }}>
-              Let our Colombo team build your personalized route through these exact
-              landscapes with your own private driver-guide.
+              Let our team in Thalangama South, Battaramulla design a private,
+              tailor-made route through these regions with your own driver and
+              licensed guide.
             </p>
           </div>
           <Link href="/contact" prefetch={false} className="pill light">
@@ -236,7 +138,13 @@ export default function GalleryPage() {
             style={{ maxWidth: '850px', padding: '0', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ position: 'relative', height: 'clamp(220px, 42vh, 420px)', width: '100%' }}>
+            <div
+              style={{
+                position: 'relative',
+                height: 'clamp(220px, 42vh, 420px)',
+                width: '100%',
+              }}
+            >
               <Image
                 src={selectedPhoto.image}
                 alt={selectedPhoto.title}
@@ -264,17 +172,41 @@ export default function GalleryPage() {
                 ×
               </button>
             </div>
-            <div style={{ padding: 'clamp(18px, 4vw, 28px) clamp(16px, 4vw, 32px)' }}>
+            <div
+              style={{
+                padding: 'clamp(18px, 4vw, 28px) clamp(16px, 4vw, 32px)',
+              }}
+            >
               <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
                 {selectedPhoto.categoryLabel} · {selectedPhoto.location}
               </span>
-              <h2 className="serif" style={{ fontSize: 'clamp(24px, 6vw, 32px)', margin: '8px 0 12px' }}>
+              <h2
+                className="serif"
+                style={{
+                  fontSize: 'clamp(24px, 6vw, 32px)',
+                  margin: '8px 0 12px',
+                }}
+              >
                 {selectedPhoto.title}
               </h2>
-              <p style={{ lineHeight: 1.75, color: '#536f7e', margin: 0, fontSize: '14px' }}>
+              <p
+                style={{
+                  lineHeight: 1.75,
+                  color: '#536f7e',
+                  margin: 0,
+                  fontSize: '14px',
+                }}
+              >
                 {selectedPhoto.description}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '20px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                  marginTop: '20px',
+                }}
+              >
                 <Link
                   href="/contact"
                   prefetch={false}

@@ -11,10 +11,48 @@ interface FAQItem {
   a: string;
 }
 
+const GUEST_JOURNEY_STEPS = [
+  {
+    num: '01',
+    title: 'Enquiry',
+    desc: 'Contact through our website, email, or WhatsApp with travel dates or general ideas.',
+  },
+  {
+    num: '02',
+    title: 'Consultation',
+    desc: 'Discussion of your interests, preferred pace, accommodation style, and budget.',
+  },
+  {
+    num: '03',
+    title: 'Itinerary Design',
+    desc: 'Custom day-by-day route designed with suggested hotels and experiences.',
+  },
+  {
+    num: '04',
+    title: 'Quotation & Confirmation',
+    desc: 'Clear quotation, refinements, booking confirmation, and reservations.',
+  },
+  {
+    num: '05',
+    title: 'Pre-Arrival Information',
+    desc: 'Practical notes on packing, weather, cultural etiquette, and driver/guide details.',
+  },
+  {
+    num: '06',
+    title: 'Arrival & Journey',
+    desc: 'Airport greeting, private journey across Sri Lanka, and 24-hour on-call support.',
+  },
+  {
+    num: '07',
+    title: 'Departure & Follow-Up',
+    desc: 'Airport transfer on departure and post-journey feedback follow-up.',
+  },
+];
+
 const FAQ_CATEGORIES = [
-  { id: 'all', label: 'All Questions' },
+  { id: 'all', label: '7-Step Process & All FAQs' },
   { id: 'private', label: 'Private Journeys' },
-  { id: 'stays', label: 'Chauffeur & Stays' },
+  { id: 'stays', label: 'Stays & Guides' },
   { id: 'booking', label: 'Seasons & Booking' },
 ] as const;
 
@@ -22,62 +60,38 @@ const FAQS: FAQItem[] = [
   {
     id: 'who-is-bimondo',
     category: 'private',
-    q: 'Who is Bimondo Travels and how do your private journeys work?',
-    a: 'Founded in Colombo in 2022 by Bimsara Illangasinghe, Bimondo Travels designs 100% private, tailor-made journeys across Sri Lanka. You share your travel dates, pace, and interests, and our local specialists craft a bespoke route with handpicked stays and your own dedicated chauffeur-guide.',
+    q: 'Who is Bimondo Travels and where are you based?',
+    a: 'Bimondo Travels is a Sri Lankan travel company founded in 2022 by I.M. Bimsara Illangasinghe and based at No. 596/1, Thalangama South, Battaramulla, near Colombo. We plan and operate private, tailor-made journeys across Sri Lanka for solo travellers, couples, families, and small private groups.',
   },
   {
-    id: 'truly-private',
+    id: 'how-journey-works',
+    category: 'booking',
+    q: 'How does the 7-step Bimondo guest journey work from enquiry to departure?',
+    a: '(01) Enquiry via website, email, or WhatsApp; (02) Consultation on your interests, pace, accommodation style, and budget; (03) Custom day-by-day Itinerary Design; (04) Clear Quotation and Confirmation; (05) Pre-Arrival Information on packing, weather, cultural etiquette, and driver/guide details; (06) Airport greeting, private journey, and 24-hour on-call support; (07) Departure transfer and post-journey follow-up.',
+  },
+  {
+    id: 'accommodation-options',
+    category: 'stays',
+    q: 'What types of accommodation do you arrange across Sri Lanka?',
+    a: 'We arrange a curated range of four-star hotels, characterful boutique properties, and five-star luxury resorts. Routes, durations, hotels, and inclusions are selected and confirmed individually at the time of enquiry.',
+  },
+  {
+    id: 'drivers-and-guides',
+    category: 'stays',
+    q: 'Who accompanies us during our journey and what support is available?',
+    a: 'We provide private transport with professional drivers and licensed guides, specialist local guides for activities like hiking, birdwatching, and adventure sports, and 24-hour on-call assistance from our team in Battaramulla.',
+  },
+  {
+    id: 'wildlife-and-nature',
     category: 'private',
-    q: 'Are all Bimondo itineraries completely private to our group?',
-    a: 'Yes, always. You never share a vehicle or guide with strangers. Whether you are travelling solo, as a couple, or with family, your vehicle and chauffeur-guide are exclusively yours from airport pickup to departure.',
+    q: 'How do you handle wildlife safaris and adventure safety?',
+    a: 'We partner with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and with vetted, safety-checked operators for adventure activities. Wildlife sightings, sea conditions, and adventure activities depend on nature and are never guaranteed.',
   },
   {
-    id: 'chauffeur-guide',
-    category: 'stays',
-    q: 'Is a private air-conditioned vehicle and licensed chauffeur-guide included?',
-    a: 'Every Bimondo journey includes a modern, air-conditioned private vehicle, fuel, parking, highway tolls, and an experienced, licensed English-speaking Sri Lankan chauffeur-guide who accompanies you throughout.',
-  },
-  {
-    id: 'customize-hotels',
-    category: 'stays',
-    q: 'Can we customize our boutique hotels, villas, and daily pace?',
-    a: 'Completely. We match every stay to your taste—from historic tea planter bungalows in the hills and architect-designed coastal villas to luxury tented safari camps. During the trip, your daily schedule remains flexible if you wish to linger longer or stop along the way.',
-  },
-  {
-    id: 'best-season',
+    id: 'best-seasons',
     category: 'booking',
-    q: 'When is the best time of year to visit Sri Lanka?',
-    a: 'Sri Lanka is a year-round island destination thanks to two complementary monsoon seasons. November to April brings golden sunshine to the South & West Coasts, Cultural Triangle, and Hill Country, while May to September is ideal for the East Coast (Trincomalee, Pasikudah & Arugam Bay) and northern cultural capitals.',
-  },
-  {
-    id: 'wildlife-ethics',
-    category: 'private',
-    q: 'How does Bimondo ensure ethical wildlife safaris and local sustainability?',
-    a: 'We partner exclusively with conservation-minded naturalists and experienced jeep trackers who strictly respect park distances and animal welfare. We also prioritize quieter park gates, dawn entries, and locally owned lodges that directly benefit surrounding communities.',
-  },
-  {
-    id: 'on-trip-support',
-    category: 'stays',
-    q: 'What support is provided once we land in Sri Lanka?',
-    a: 'Alongside your dedicated chauffeur-guide, our Colombo concierge team is available 24/7 via WhatsApp and phone to handle restaurant reservations, spontaneous route adjustments, or any special requests.',
-  },
-  {
-    id: 'dietary-family',
-    category: 'stays',
-    q: 'Do you accommodate families with children or specific dietary requirements?',
-    a: 'Yes. We provide child car seats on request, pace drive times gently for younger travellers, and brief every hotel and local host in advance on vegetarian, vegan, gluten-free, halal, or allergy-safe dining.',
-  },
-  {
-    id: 'booking-deposit',
-    category: 'booking',
-    q: 'How far in advance should we book, and how are reservations confirmed?',
-    a: 'For peak winter and summer months, we recommend starting 2 to 6 months ahead to secure Sri Lanka’s most intimate boutique villas. Once you approve your custom route and transparent quote, a deposit locks in all hotels, vehicles, and scenic train seats.',
-  },
-  {
-    id: 'airport-transfers',
-    category: 'booking',
-    q: 'Are Bandaranaike International Airport (CMB) greetings and transfers included?',
-    a: 'Yes. Your personal chauffeur-guide greets you inside the arrivals concourse at Colombo Bandaranaike International Airport (CMB) and sees you all the way back to departures at the end of your journey.',
+    q: 'How do Sri Lanka’s coastal seasons work when planning our route?',
+    a: 'Sri Lanka is a year-round destination with two distinct coastal seasons: Weligama and the South/West Coast are best from November to April, while Arugam Bay and the East Coast are best from May to October.',
   },
 ];
 
@@ -101,27 +115,75 @@ export default function PlanningSection() {
       <div className="planning-top-split">
         <div className="planning-intro-col">
           <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-            06 / EASY FROM THE FIRST HELLO
+            06 / HOW A BIMONDO JOURNEY WORKS
           </div>
           <h2 className="big-heading serif">
-            Your dream trip.
+            Seven clear steps.
             <br />
-            <em style={{ color: 'var(--terracotta)' }}>Our local know-how.</em>
+            <em style={{ color: 'var(--terracotta)' }}>Personal from day one.</em>
           </h2>
           <p className="planning-intro-lead">
-            Real local care, honest advice, and transparent planning — from your
-            first message to your flight home.
+            From your first message to your departure flight, every itinerary is
+            designed around your pace with clear written arrangements and
+            24-hour local support.
           </p>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))',
+              gap: '10px',
+              margin: '14px 0 18px',
+            }}
+          >
+            {GUEST_JOURNEY_STEPS.map((step) => (
+              <div
+                key={step.num}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: '1px solid var(--line)',
+                  background: 'rgba(255, 255, 255, 0.55)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.12em',
+                    color: 'var(--terracotta)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Step {step.num} · {step.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.76rem',
+                    lineHeight: 1.38,
+                    color: 'var(--muted)',
+                    marginTop: '3px',
+                  }}
+                >
+                  {step.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+
           <Link className="pill dark" href="/contact" prefetch={false}>
-            LET&apos;S START PLANNING ↗
+            START WITH STEP 01 — ENQUIRE ↗
           </Link>
         </div>
       </div>
 
-      {/* Minimalist Pill-Filtered Hairline FAQ Block matching reference design */}
+      {/* Minimalist Pill-Filtered Hairline FAQ Block */}
       <div className="minimal-faq-block" id="faq">
-        {/* Top-left Pill Filter Tabs */}
-        <div className="minimal-faq-pills" role="tablist" aria-label="FAQ Categories">
+        <div
+          className="minimal-faq-pills"
+          role="tablist"
+          aria-label="FAQ Categories"
+        >
           {FAQ_CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.id;
             return (
@@ -139,7 +201,6 @@ export default function PlanningSection() {
           })}
         </div>
 
-        {/* Clean Horizontal Hairline Accordion List */}
         <div className="minimal-faq-list" data-lenis-prevent>
           {filteredFaqs.map((item) => {
             const isOpen = openId === item.id;

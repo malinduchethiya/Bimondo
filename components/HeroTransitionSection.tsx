@@ -4,21 +4,21 @@ export default function HeroTransitionSection() {
   const features = [
     {
       num: '01',
-      badge: 'BESPOKE PACE',
-      title: 'Private by Nature',
-      desc: 'Your own private vehicle and dedicated English-speaking chauffeur-guide moving to your personal rhythm.',
+      badge: 'TAILOR-MADE PACE',
+      title: 'Private and Personal',
+      desc: 'Every journey is planned around your interests, pace, preferences, and budget—for solo travellers, couples, families, and small private groups.',
     },
     {
       num: '02',
-      badge: 'SIGNATURE SRI LANKA',
-      title: 'Ancient & Untamed',
-      desc: 'From sunrise atop Sigiriya Lion Rock and sacred Kandy to misty tea trails and ethical wildlife safaris.',
+      badge: 'LOCAL INTEGRITY',
+      title: 'Authentic and Responsible',
+      desc: 'Real local experiences, respect for Sri Lanka’s heritage, responsible wildlife practices, and direct support for local communities.',
     },
     {
       num: '03',
-      badge: 'LOCAL CARE',
-      title: 'Warm Island Soul',
-      desc: 'Handpicked boutique stays, authentic village hospitality, and 24/7 on-call support from our Colombo team.',
+      badge: '24-HOUR CARE',
+      title: 'Reliable Local Support',
+      desc: 'Professional drivers and licensed guides, clear written arrangements, and our Battaramulla team available on call 24 hours a day.',
     },
   ];
 

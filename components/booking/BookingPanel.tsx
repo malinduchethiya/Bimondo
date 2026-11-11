@@ -49,8 +49,8 @@ export default function BookingPanel({
   const { settings } = useBookingSettings();
 
   const now = new Date();
-  const defaultMonth = `${now.getFullYear()}-${String(
-    now.getMonth() + 1
+  const defaultMonth = `${now.getUTCFullYear()}-${String(
+    now.getUTCMonth() + 1
   ).padStart(2, '0')}`;
 
   const [currentMonth, setCurrentMonth] = useState<string>(defaultMonth);
@@ -400,7 +400,7 @@ export default function BookingPanel({
                 <strong>
                   {availability?.source === 'live_provider_api' &&
                   availability.quote
-                    ? `${availability.quote.currency} ${availability.quote.total.toLocaleString()}`
+                    ? `${availability.quote.currency} ${availability.quote.total.toLocaleString('en-US')}`
                     : `Verified inside ${PROVIDER_BADGE[activeProvider]}`}
                 </strong>
               </div>

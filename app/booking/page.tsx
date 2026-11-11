@@ -5,12 +5,17 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { ACCOMMODATIONS, BookingItemType } from '@/lib/booking-types';
-import { TOURS } from '@/lib/tours';
+import {
+  TOURS,
+  COLOMBO_DAY_EXPERIENCES,
+  TOUR_QUALIFICATION_NOTICE,
+} from '@/lib/tours';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function BookingPage() {
   const { cms } = useSiteCms();
-  const toursList = cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
+  const toursList =
+    cms.tours && cms.tours.length >= 20 ? cms.tours : TOURS;
   const staysList =
     cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
 
@@ -26,6 +31,10 @@ export default function BookingPage() {
       setSelectedItemId(
         staysList[0]?.id || 'stay-sigiriya-water-gardens'
       );
+    } else if (nextCat === 'experience') {
+      setSelectedItemId(
+        COLOMBO_DAY_EXPERIENCES[0]?.id || 'thalangama-wetland-birdwalk'
+      );
     } else {
       setSelectedItemId(toursList[0]?.id || 'ceylon-grand-circuit');
     }
@@ -33,12 +42,21 @@ export default function BookingPage() {
 
   const selectedStay = staysList.find((s) => s.id === selectedItemId);
   const selectedTour = toursList.find((t) => t.id === selectedItemId);
+  const selectedDayExp = COLOMBO_DAY_EXPERIENCES.find(
+    (d) => d.id === selectedItemId
+  );
 
   const selectedItemName =
     bookingCategory === 'accommodation'
-      ? selectedStay?.name || 'Boutique Sri Lanka Stay'
+      ? selectedStay?.name || 'Sri Lanka Accommodation'
+      : bookingCategory === 'experience'
+      ? selectedDayExp
+        ? `${selectedDayExp.name} (${selectedDayExp.duration})`
+        : 'Colombo & Battaramulla Day Experience'
       : selectedTour
-      ? `${selectedTour.name} (${selectedTour.days} Days)`
+      ? `${selectedTour.name} (${
+          selectedTour.durationLabel || `${selectedTour.days} Days`
+        })`
       : 'Private Sri Lanka Journey';
 
   return (
@@ -49,11 +67,26 @@ export default function BookingPage() {
       />
 
       <section className="section wrap">
+        <div
+          style={{
+            padding: '14px 18px',
+            marginBottom: '22px',
+            borderRadius: '14px',
+            border: '1px solid var(--line)',
+            background: 'rgba(255, 255, 255, 0.75)',
+            fontSize: '13px',
+            lineHeight: 1.6,
+            color: 'var(--ink)',
+          }}
+        >
+          <strong>Important Note:</strong> {TOUR_QUALIFICATION_NOTICE}
+        </div>
+
         <div className="booking-page-selector-card">
           <div className="homepage-booking-top">
             <div>
               <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-                STEP 1 · SELECT YOUR EXPERIENCE OR ACCOMMODATION
+                STEP 1 · SELECT YOUR JOURNEY, DAY EXPERIENCE OR ACCOMMODATION
               </div>
               <h2 className="serif homepage-booking-title">
                 What would you like to{' '}
@@ -71,7 +104,18 @@ export default function BookingPage() {
                 }`}
                 onClick={() => handleCategorySwitch('tour')}
               >
-                Tours &amp; Experiences (Bókun / Viator)
+                Signature Journeys (20)
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={bookingCategory === 'experience'}
+                className={`minimal-faq-pill ${
+                  bookingCategory === 'experience' ? 'active' : ''
+                }`}
+                onClick={() => handleCategorySwitch('experience')}
+              >
+                Colombo Day Experiences (6)
               </button>
               <button
                 type="button"
@@ -82,18 +126,20 @@ export default function BookingPage() {
                 }`}
                 onClick={() => handleCategorySwitch('accommodation')}
               >
-                Boutique Stays (NightsBridge)
+                Accommodation (NightsBridge)
               </button>
             </div>
           </div>
 
-          {/* Item Selector Pills / Dropdown */}
+          {/* Item Selector Dropdown */}
           <div className="booking-page-item-picker">
             <div className="booking-bar-field">
               <label htmlFor="booking-page-item-select">
                 {bookingCategory === 'accommodation'
-                  ? 'SELECT BOUTIQUE ACCOMMODATION (NIGHTSBRIDGE)'
-                  : 'SELECT PRIVATE SIGNATURE TOUR (BÓKUN / VIATOR)'}
+                  ? 'SELECT REGIONAL ACCOMMODATION (NIGHTSBRIDGE)'
+                  : bookingCategory === 'experience'
+                  ? 'SELECT COLOMBO & BATTARAMULLA DAY EXPERIENCE'
+                  : 'SELECT PRIVATE SIGNATURE JOURNEY (BÓKUN / VIATOR)'}
               </label>
               <select
                 id="booking-page-item-select"
@@ -106,9 +152,17 @@ export default function BookingPage() {
                         {stay.name} — {stay.location}
                       </option>
                     ))
+                  : bookingCategory === 'experience'
+                  ? COLOMBO_DAY_EXPERIENCES.map((exp) => (
+                      <option key={exp.id} value={exp.id}>
+                        {exp.name} ({exp.duration} · {exp.location})
+                      </option>
+                    ))
                   : toursList.map((tour) => (
                       <option key={tour.id} value={tour.id}>
-                        {tour.name} ({tour.days} Days · {tour.route})
+                        {tour.name} (
+                        {tour.durationLabel || `${tour.days} Days`} ·{' '}
+                        {tour.route})
                       </option>
                     ))}
               </select>
@@ -116,10 +170,10 @@ export default function BookingPage() {
 
             <div className="booking-page-quick-links">
               <Link href="/packages" prefetch={false} className="pill">
-                VIEW TOUR ITINERARIES
+                VIEW ALL 20 TOURS
               </Link>
               <Link href="/stays" prefetch={false} className="pill">
-                VIEW BOUTIQUE STAYS
+                ACCOMMODATION OPTIONS
               </Link>
               <Link
                 href="/booking/confirmation"

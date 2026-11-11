@@ -1,0 +1,271 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'merlinfiverr0@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: AdminProfile
+    function isValidAdminProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: SiteCmsConfig (Stores ONLY metadata and R2 CDN URLs; never raw/base64 images)
+    function isValidSiteCmsConfig(data) {
+      return data.keys().hasAll([
+          'id',
+          'updatedBy',
+          'updatedAt',
+          'general',
+          'tours',
+          'stays',
+          'destinations',
+          'gallery',
+          'reviews',
+          'faqs'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'updatedBy',
+          'updatedAt',
+          'general',
+          'tours',
+          'stays',
+          'destinations',
+          'gallery',
+          'reviews',
+          'faqs'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+        data.updatedBy == request.auth.uid &&
+        data.updatedAt is timestamp &&
+        data.general is map && data.general.size() <= 20 &&
+        data.tours is list && data.tours.size() <= 50 &&
+        (data.tours.size() == 0 || data.tours[0] is map) &&
+        data.stays is list && data.stays.size() <= 50 &&
+        (data.stays.size() == 0 || data.stays[0] is map) &&
+        data.destinations is list && data.destinations.size() <= 50 &&
+        (data.destinations.size() == 0 || data.destinations[0] is map) &&
+        data.gallery is list && data.gallery.size() <= 100 &&
+        (data.gallery.size() == 0 || data.gallery[0] is map) &&
+        data.reviews is list && data.reviews.size() <= 100 &&
+        (data.reviews.size() == 0 || data.reviews[0] is map) &&
+        data.faqs is list && data.faqs.size() <= 100 &&
+        (data.faqs.size() == 0 || data.faqs[0] is map);
+    }
+
+    // Validation Blueprint: R2MediaItem (Strictly enforces HTTP/HTTPS R2 CDN URLs; rejects data:image base64)
+    function isValidR2MediaItem(data) {
+      return data.keys().hasAll([
+          'id',
+          'objectKey',
+          'cdnUrl',
+          'folder',
+          'fileName',
+          'contentType',
+          'sizeBytes',
+          'uploadedBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'objectKey',
+          'cdnUrl',
+          'folder',
+          'fileName',
+          'contentType',
+          'sizeBytes',
+          'uploadedBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.objectKey is string && data.objectKey.size() >= 1 && data.objectKey.size() <= 300 &&
+        data.cdnUrl is string && data.cdnUrl.size() >= 8 && data.cdnUrl.size() <= 500 && data.cdnUrl.matches('^https?://[^\\s]+$') &&
+        data.folder is string && data.folder.size() <= 32 && data.folder in ['tours', 'stays', 'destinations', 'gallery', 'general'] &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200 &&
+        data.contentType is string && data.contentType.size() >= 3 && data.contentType.size() <= 100 &&
+        data.sizeBytes is int && data.sizeBytes >= 0 && data.sizeBytes <= 52428800 &&
+        data.uploadedBy is string && data.uploadedBy.size() >= 1 && data.uploadedBy.size() <= 128 &&
+        data.uploadedBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: CustomerEnquiry
+    function isValidCustomerEnquiry(data) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'email',
+          'arrival',
+          'guests',
+          'duration',
+          'style',
+          'message',
+          'status',
+          'adminNotes',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'name',
+          'email',
+          'arrival',
+          'guests',
+          'duration',
+          'style',
+          'message',
+          'status',
+          'adminNotes',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
+        data.arrival is string && data.arrival.size() >= 1 && data.arrival.size() <= 64 &&
+        data.guests is string && data.guests.size() >= 1 && data.guests.size() <= 64 &&
+        data.duration is string && data.duration.size() >= 1 && data.duration.size() <= 64 &&
+        data.style is string && data.style.size() >= 1 && data.style.size() <= 100 &&
+        data.message is string && data.message.size() <= 2000 &&
+        data.status is string && data.status.size() <= 32 && data.status in ['new', 'in_progress', 'replied', 'archived'] &&
+        data.adminNotes is string && data.adminNotes.size() <= 2000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Collection 1: /admins/{adminUid}
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && isAdmin();
+      allow create: if isValidId(adminUid) &&
+        isValidAdminProfile(incoming()) &&
+        incoming().uid == adminUid &&
+        incoming().createdAt == request.time &&
+        isAdmin();
+      allow update: if false;
+      allow delete: if isValidId(adminUid) && isAdmin();
+    }
+
+    // Collection 2: /site_cms/{docId}
+    match /site_cms/{docId} {
+      allow get: if isValidId(docId);
+      allow create: if isValidId(docId) &&
+        isValidSiteCmsConfig(incoming()) &&
+        incoming().id == docId &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow update: if isValidId(docId) &&
+        isValidSiteCmsConfig(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'general',
+          'tours',
+          'stays',
+          'destinations',
+          'gallery',
+          'reviews',
+          'faqs'
+        ]);
+      allow delete: if isValidId(docId) && isAdmin();
+    }
+
+    // Collection 3: /r2_media/{mediaId} (Cloudflare R2 CDN Links Catalog)
+    match /r2_media/{mediaId} {
+      allow get: if isValidId(mediaId);
+      allow list: if resource.data.cdnUrl is string && resource.data.cdnUrl.size() <= 500;
+      allow create: if isValidId(mediaId) &&
+        isValidR2MediaItem(incoming()) &&
+        incoming().id == mediaId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow delete: if isValidId(mediaId) && isAdmin();
+      allow update: if isValidId(mediaId) &&
+        isValidR2MediaItem(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'objectKey',
+          'cdnUrl',
+          'folder',
+          'fileName',
+          'contentType',
+          'sizeBytes',
+          'uploadedBy',
+          'updatedAt'
+        ]);
+    }
+
+    // Collection 4: /enquiries/{enquiryId} (PII Isolated to Admins)
+    match /enquiries/{enquiryId} {
+      allow get: if isValidId(enquiryId) && isAdmin();
+      allow list: if isAdmin() && resource.data.email is string;
+      allow create: if isValidId(enquiryId) &&
+        isValidCustomerEnquiry(incoming()) &&
+        incoming().id == enquiryId &&
+        incoming().status == 'new' &&
+        incoming().adminNotes == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(enquiryId) &&
+        isValidCustomerEnquiry(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().name == existing().name &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'adminNotes',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(enquiryId) && isAdmin();
+    }
+  }
+}

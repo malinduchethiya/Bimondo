@@ -169,17 +169,17 @@ export interface AccommodationItem {
 export const ACCOMMODATIONS: AccommodationItem[] = [
   {
     id: 'stay-sigiriya-water-gardens',
-    name: 'Sigiriya Sanctuary Pool Villa',
-    location: 'Sigiriya · Cultural Triangle',
+    name: 'Cultural Triangle Boutique & Luxury Stays',
+    location: 'Sigiriya, Dambulla & Habarana · Cultural Triangle',
     region: 'culture',
     regionLabel: 'Cultural Triangle',
-    tagline: 'Private plunge pools facing the 5th-century Lion Rock',
+    tagline: 'Four-star hotels, boutique properties, and five-star luxury resorts near Sigiriya',
     description:
-      'Set amidst lotus ponds and rustling teak forest, this intimate boutique sanctuary offers uninterrupted views of Sigiriya Rock Fortress and dawn birdlife walks.',
+      'Selected according to your route, budget, and preference in Sri Lanka’s Cultural Triangle—positioned for early morning climbs at Sigiriya and Pidurangala, Dambulla cave visits, and afternoon safaris at Minneriya.',
     highlights: [
-      'Direct views of Sigiriya Lion Rock',
-      'Private plunge pool & verandah',
-      '20 minutes from Minneriya safari gate',
+      'Four-star, boutique, and five-star options',
+      'Convenient access to Sigiriya, Pidurangala & Dambulla',
+      'Confirmed individually at the time of enquiry',
     ],
     maxGuestsPerRoom: 3,
     image:
@@ -187,17 +187,17 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
   },
   {
     id: 'stay-kandy-planter-bungalow',
-    name: 'Hanthana Estate Planter’s Bungalow',
-    location: 'Kandy · Central Highlands',
+    name: 'Kandy & Sacred Hill Capital Stays',
+    location: 'Kandy · Central Province',
     region: 'hills',
     regionLabel: 'Central Highlands',
-    tagline: 'Restored 19th-century hill residence above Kandy valley',
+    tagline: 'Hillside boutique properties and four-to-five-star hotels in Kandy',
     description:
-      'Tucked high in the misty Hanthana mountain range, this heritage bungalow pairs crackling fireplaces and butler service with direct access to Stage 1 of The Pekoe Trail.',
+      'Carefully chosen properties in and around Kandy offering peaceful hillside or lakeside settings, well placed for visiting the Temple of the Tooth and beginning The Pekoe Trail.',
     highlights: [
-      'Historic colonial verandah & gardens',
-      'Direct access to The Pekoe Trail',
-      'Farm-to-table Sri Lankan rice & curry dining',
+      'Four-star hotels, boutique stays & five-star resorts',
+      'Easy access to the Temple of the Tooth & Kandy Lake',
+      'Selected around your preferred travel pace',
     ],
     maxGuestsPerRoom: 3,
     image:
@@ -205,17 +205,17 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
   },
   {
     id: 'stay-ella-nine-skies-bungalow',
-    name: 'Demodara Cloud Tea Bungalow',
-    location: 'Ella · Tea Country',
+    name: 'Nuwara Eliya & Ella Tea Country Stays',
+    location: 'Nuwara Eliya & Ella · Hill Country',
     region: 'hills',
     regionLabel: 'Tea Country',
-    tagline: 'Five-suite tea estate hideaway overlooking Demodara loop',
+    tagline: 'Highland hotels, tea-country boutique stays, and luxury retreats',
     description:
-      'Surrounded by working organic tea fields and cloud forest ridges, wake up to mountain mist, garden-Plucked Ceylon tea, and infinity pool views across Ella Gap.',
+      'Set in the cool mountain air of Nuwara Eliya and Ella, these properties are selected for travellers exploring tea estates, the scenic hill train, Little Adam’s Peak, Ella Rock, and Horton Plains.',
     highlights: [
-      'Heated garden pool over tea valleys',
-      'Private guided walks to Nine Arch Bridge',
-      'Personal chef & afternoon high tea',
+      'Four-star, boutique & five-star hill country properties',
+      'Positioned for The Pekoe Trail & Horton Plains',
+      'Matched to couples, families, or solo travellers',
     ],
     maxGuestsPerRoom: 4,
     image:
@@ -223,17 +223,17 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
   },
   {
     id: 'stay-galle-fort-courtyard',
-    name: 'Galle Fort Rampart Courtyard House',
-    location: 'Galle Fort · South Coast',
+    name: 'Galle & Unawatuna Heritage & Coastal Stays',
+    location: 'Galle & Unawatuna · South Coast',
     region: 'coast',
-    regionLabel: 'Southern Riviera',
-    tagline: '17th-century Dutch merchant house inside UNESCO Galle Fort',
+    regionLabel: 'South Coast',
+    tagline: 'Boutique fort properties and four-to-five-star southern coastal resorts',
     description:
-      'Tall teak colonnades, frangipani courtyards, and cool coral-stone suites steps from the historic lighthouse and ocean ramparts of Galle Fort.',
+      'From heritage boutique stays in and around Galle to beachfront resorts along Unawatuna and Bentota, selected according to season and your preferred level of comfort.',
     highlights: [
-      'Inside UNESCO World Heritage Galle Fort',
-      'Courtyard lap pool & library lounge',
-      'Evening rampart & architectural walks',
+      'Boutique properties, four-star & five-star coastal resorts',
+      'Ideal for Galle Fort walks & southern beach days',
+      'Best visited from November to April',
     ],
     maxGuestsPerRoom: 3,
     image:
@@ -241,17 +241,17 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
   },
   {
     id: 'stay-yala-wild-camp',
-    name: 'Yala Dunes Luxury Safari Camp',
-    location: 'Yala National Park Border',
+    name: 'Yala, Udawalawe & Wilpattu Safari Stays',
+    location: 'Yala, Udawalawe & Wilpattu · National Park Regions',
     region: 'wildlife',
-    regionLabel: 'Wildlife & Safari',
-    tagline: 'Tented wilderness pavilions where jungle meets the Indian Ocean',
+    regionLabel: 'Wildlife & Nature',
+    tagline: 'Safari lodges, four-star hotels, and five-star wilderness resorts',
     description:
-      'Bordering quieter park buffer zones near Yala, these air-conditioned canvas pavilions include dawn and dusk private 4x4 leopard-tracking drives with senior naturalists.',
+      'Positioned close to Sri Lanka’s principal national parks—Yala, Udawalawe, and Wilpattu—allowing early morning and late afternoon safari departures with responsible park operators.',
     highlights: [
-      'Private naturalist-guided 4x4 game drives',
-      'Canvas suites with outdoor copper tubs',
-      'Campfire dining under southern stars',
+      'Close to Yala, Udawalawe & Wilpattu park gates',
+      'Four-star, boutique & five-star safari accommodation',
+      'Coordinated with private 4x4 safari departures',
     ],
     maxGuestsPerRoom: 3,
     image:
@@ -259,20 +259,21 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
   },
   {
     id: 'stay-mirissa-ocean-villa',
-    name: 'Mirissa Coconut Headland Villa',
-    location: 'Mirissa · South Coast',
+    name: 'Mirissa, Weligama & East Coast Beach Stays',
+    location: 'Mirissa, Weligama, Arugam Bay & Kalpitiya',
     region: 'coast',
-    regionLabel: 'Southern Riviera',
-    tagline: 'Clifftop palm grove suites overlooking secret surf coves',
+    regionLabel: 'Sea & Sand Escapes',
+    tagline: 'Seasonal coastal stays from the South Coast to Arugam Bay and Kalpitiya',
     description:
-      'Perched on a quiet headland between Weligama and Mirissa, enjoy private ocean terraces, Ayurvedic spa rituals, and seasonal blue-whale departures.',
+      'Whether surfing at Weligama (November–April) or Arugam Bay (May–October), kite surfing in Kalpitiya, or relaxing in Mirissa, we recommend four-star, boutique, and five-star beachfront stays suited to the season.',
     highlights: [
-      'Panoramic Indian Ocean sunset terrace',
-      'Private path to secluded sandy cove',
-      '10 minutes from Mirissa harbour',
+      'Seasonally matched South, West & East Coast properties',
+      'Four-star hotels, boutique stays & five-star beach resorts',
+      'Tailored for beach relaxation, surfing, or family stays',
     ],
     maxGuestsPerRoom: 4,
     image:
       'https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=1000&q=85',
   },
 ];
+

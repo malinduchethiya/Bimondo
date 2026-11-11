@@ -2,10 +2,16 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import PageBanner from '@/components/PageBanner';
 import ProviderWidgetEmbed from '@/components/booking/ProviderWidgetEmbed';
+import AdminImageUploadField, {
+  R2UploadedItemMeta,
+} from '@/components/admin/AdminImageUploadField';
+import R2BucketManagerTab from '@/components/admin/R2BucketManagerTab';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { useBookingSettings } from '@/hooks/useBookingSettings';
+import { auth, googleProvider } from '@/lib/firebase';
 import {
   CmsCustomerEnquiry,
   CmsDestination,
@@ -30,15 +36,38 @@ type AdminTabId =
   | 'stays'
   | 'destinations'
   | 'gallery'
+  | 'r2_storage'
   | 'reviews_faqs'
   | 'booking'
   | 'settings';
 
+function formatDeterministicTime(iso: string): string {
+  if (!iso) return 'Just now';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm} UTC`;
+}
+
+function formatDeterministicDate(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function AdminDashboardPage() {
-  const { cms, loading: cmsLoading, refresh: refreshCms } = useSiteCms();
+  const {
+    cms,
+    firebaseUser,
+    refresh: refreshCms,
+    saveCmsToFirebase,
+    registerR2MediaInFirebase,
+    removeR2MediaFromFirebase,
+  } = useSiteCms();
   const {
     settings: bookingSettings,
-    loading: bookingLoading,
     refresh: refreshBooking,
   } = useBookingSettings();
 
@@ -64,25 +93,35 @@ export default function AdminDashboardPage() {
   );
   const [enquiryFilter, setEnquiryFilter] = useState<string>('all');
 
+  const handleFirebaseSignIn = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setStatusBanner(
+        'Signed in to Firebase Admin. All R2 CDN links & CMS changes sync directly with Firestore.'
+      );
+    } catch (err) {
+      setStatusBanner(
+        err instanceof Error ? err.message : 'Firebase sign-in cancelled.'
+      );
+    }
+  };
+
+  const handleFirebaseSignOut = async () => {
+    await signOut(auth);
+    setStatusBanner('Signed out of Firebase Admin session.');
+  };
+
   const saveCmsChanges = async (nextData?: SiteCmsData, customMsg?: string) => {
     const payload = nextData ?? workingCms;
     setSaving(true);
     setStatusBanner(null);
     try {
-      const res = await fetch('/api/admin/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cms: payload }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save site content.');
-      }
-      setCmsDraft(data.cms);
+      const saved = await saveCmsToFirebase(payload);
+      setCmsDraft(saved);
       setStatusBanner(
-        customMsg || 'Changes saved and published live across the website.'
+        customMsg ||
+          'Changes saved! R2 CDN links & metadata synced to Firebase Firestore.'
       );
-      window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
       await refreshCms();
     } catch (err) {
       setStatusBanner(
@@ -91,6 +130,50 @@ export default function AdminDashboardPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteR2ObjectByUrlIfPossible = async (imageUrl?: string) => {
+    if (!imageUrl || imageUrl.includes('images.unsplash.com')) return;
+    try {
+      const res = await fetch(
+        `/api/admin/r2?url=${encodeURIComponent(imageUrl)}`,
+        { method: 'DELETE' }
+      );
+      const data = await res.json();
+      if (res.ok && data.mediaDocId) {
+        await removeR2MediaFromFirebase(data.mediaDocId);
+      }
+    } catch {
+      // Ignore if URL is an external non-R2 URL
+    }
+  };
+
+  const handleR2ObjectRenamed = async (
+    oldCdnUrl: string,
+    newCdnUrl: string,
+    item: R2UploadedItemMeta
+  ) => {
+    await registerR2MediaInFirebase(item);
+    const next: SiteCmsData = {
+      ...workingCms,
+      tours: workingCms.tours.map((t) =>
+        t.image === oldCdnUrl ? { ...t, image: newCdnUrl } : t
+      ),
+      stays: workingCms.stays.map((s) =>
+        s.image === oldCdnUrl ? { ...s, image: newCdnUrl } : s
+      ),
+      destinations: workingCms.destinations.map((d) =>
+        d.image === oldCdnUrl ? { ...d, image: newCdnUrl } : d
+      ),
+      gallery: workingCms.gallery.map((g) =>
+        g.image === oldCdnUrl ? { ...g, image: newCdnUrl } : g
+      ),
+    };
+    setCmsDraft(next);
+    await saveCmsChanges(
+      next,
+      'R2 object renamed and all matching Firebase CDN links updated.'
+    );
   };
 
   const handleResetDefaults = async () => {
@@ -231,13 +314,17 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const deleteTour = (id: string) => {
+  const deleteTour = async (id: string) => {
+    const target = workingCms.tours.find((t) => t.id === id);
+    if (target?.image) {
+      await deleteR2ObjectByUrlIfPossible(target.image);
+    }
     const next = {
       ...workingCms,
       tours: workingCms.tours.filter((t) => t.id !== id),
     };
     setCmsDraft(next);
-    saveCmsChanges(next, 'Tour package removed.');
+    await saveCmsChanges(next, 'Tour package & associated R2 image removed.');
   };
 
   // --- CRUD Helpers for Boutique Stays ---
@@ -275,13 +362,17 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const deleteStay = (id: string) => {
+  const deleteStay = async (id: string) => {
+    const target = workingCms.stays.find((s) => s.id === id);
+    if (target?.image) {
+      await deleteR2ObjectByUrlIfPossible(target.image);
+    }
     const next = {
       ...workingCms,
       stays: workingCms.stays.filter((s) => s.id !== id),
     };
     setCmsDraft(next);
-    saveCmsChanges(next, 'Boutique stay removed.');
+    await saveCmsChanges(next, 'Boutique stay & associated R2 image removed.');
   };
 
   // --- CRUD Helpers for Destinations ---
@@ -318,13 +409,17 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const deleteDestination = (id: string) => {
+  const deleteDestination = async (id: string) => {
+    const target = workingCms.destinations.find((d) => d.id === id);
+    if (target?.image) {
+      await deleteR2ObjectByUrlIfPossible(target.image);
+    }
     const next = {
       ...workingCms,
       destinations: workingCms.destinations.filter((d) => d.id !== id),
     };
     setCmsDraft(next);
-    saveCmsChanges(next, 'Destination removed.');
+    await saveCmsChanges(next, 'Destination & associated R2 image removed.');
   };
 
   // --- CRUD Helpers for Gallery ---
@@ -355,13 +450,17 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const deleteGalleryPhoto = (id: string) => {
+  const deleteGalleryPhoto = async (id: string) => {
+    const target = workingCms.gallery.find((g) => g.id === id);
+    if (target?.image) {
+      await deleteR2ObjectByUrlIfPossible(target.image);
+    }
     const next = {
       ...workingCms,
       gallery: workingCms.gallery.filter((g) => g.id !== id),
     };
     setCmsDraft(next);
-    saveCmsChanges(next, 'Gallery photo removed.');
+    await saveCmsChanges(next, 'Gallery photo & associated R2 image removed.');
   };
 
   // --- CRUD Helpers for Guest Reviews & FAQs ---
@@ -491,6 +590,11 @@ export default function AdminDashboardPage() {
         badge: workingCms.gallery.length,
       },
       {
+        id: 'r2_storage',
+        label: 'Cloudflare R2 Bucket',
+        badge: 'CDN ONLY',
+      },
+      {
         id: 'reviews_faqs',
         label: 'Reviews & FAQs',
         badge: workingCms.reviews.length + workingCms.faqs.length,
@@ -575,12 +679,60 @@ export default function AdminDashboardPage() {
             </nav>
 
             <div className="admin-sidebar-footer">
+              <div
+                style={{
+                  padding: '10px',
+                  borderRadius: '10px',
+                  background: 'rgba(21,91,114,0.06)',
+                  marginBottom: '10px',
+                  fontSize: '11px',
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: '4px' }}>
+                  FIREBASE + R2 CDN SYNC
+                </div>
+                {firebaseUser ? (
+                  <div>
+                    <span style={{ color: '#14532d', display: 'block' }}>
+                      ● {firebaseUser.email}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleFirebaseSignOut}
+                      style={{
+                        marginTop: '4px',
+                        background: 'transparent',
+                        border: 0,
+                        padding: 0,
+                        fontSize: '10.5px',
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                        color: 'var(--muted)',
+                      }}
+                    >
+                      Sign out of Firebase
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="pill"
+                    onClick={handleFirebaseSignIn}
+                    style={{
+                      width: '100%',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      minHeight: '30px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    SIGN IN WITH GOOGLE (ADMIN)
+                  </button>
+                )}
+              </div>
+
               <p style={{ fontSize: '11.5px', color: 'var(--muted)', margin: '0 0 10px' }}>
-                Last synced:{' '}
-                {new Date(workingCms.updatedAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                Last synced: {formatDeterministicTime(workingCms.updatedAt)}
               </p>
               <div style={{ display: 'grid', gap: '8px' }}>
                 <Link
@@ -712,6 +864,18 @@ export default function AdminDashboardPage() {
                     <small>BOOKING INTEGRATIONS</small>
                     <strong className="serif">3 Engines</strong>
                     <span>NightsBridge · Bókun · Viator →</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="admin-kpi-card"
+                    onClick={() => setActiveTab('r2_storage')}
+                  >
+                    <small>CLOUDFLARE R2 BUCKET</small>
+                    <strong className="serif" style={{ fontSize: '22px' }}>
+                      R2 → Firebase CDN
+                    </strong>
+                    <span>Manage R2 images &amp; CDN links →</span>
                   </button>
 
                   <button
@@ -930,7 +1094,7 @@ export default function AdminDashboardPage() {
                                 {enq.email}
                               </a>{' '}
                               · Submitted{' '}
-                              {new Date(enq.createdAt).toLocaleDateString()} ·
+                              {formatDeterministicDate(enq.createdAt)} ·
                               Arrival: <strong>{enq.arrival}</strong> · {enq.guests}{' '}
                               · {enq.duration} · {enq.style}
                             </div>
@@ -1166,16 +1330,19 @@ export default function AdminDashboardPage() {
                           />
                         </div>
 
-                        <div className="admin-field">
-                          <label>HERO IMAGE URL</label>
-                          <input
-                            type="text"
-                            value={tour.image}
-                            onChange={(e) =>
-                              updateTour(tour.id, { image: e.target.value })
-                            }
-                          />
-                        </div>
+                        <AdminImageUploadField
+                          label="TOUR HERO IMAGE (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                          value={tour.image}
+                          folder="tours"
+                          onChange={(nextUrl) =>
+                            updateTour(tour.id, { image: nextUrl })
+                          }
+                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Deleted={(_, docId) =>
+                            removeR2MediaFromFirebase(docId)
+                          }
+                          onOpenR2Settings={() => setActiveTab('r2_storage')}
+                        />
                       </div>
 
                       <div className="admin-field">
@@ -1318,31 +1485,34 @@ export default function AdminDashboardPage() {
                         </div>
 
                         <div className="admin-field">
-                          <label>IMAGE URL &amp; MAX GUESTS/ROOM</label>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <input
-                              type="text"
-                              value={stay.image}
-                              onChange={(e) =>
-                                updateStay(stay.id, { image: e.target.value })
-                              }
-                              style={{ flex: 1 }}
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={stay.maxGuestsPerRoom}
-                              onChange={(e) =>
-                                updateStay(stay.id, {
-                                  maxGuestsPerRoom: Number(e.target.value) || 2,
-                                })
-                              }
-                              style={{ width: '80px' }}
-                            />
-                          </div>
+                          <label>MAX GUESTS PER ROOM</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={stay.maxGuestsPerRoom}
+                            onChange={(e) =>
+                              updateStay(stay.id, {
+                                maxGuestsPerRoom: Number(e.target.value) || 2,
+                              })
+                            }
+                          />
                         </div>
                       </div>
+
+                      <AdminImageUploadField
+                        label="PROPERTY PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                        value={stay.image}
+                        folder="stays"
+                        onChange={(nextUrl) =>
+                          updateStay(stay.id, { image: nextUrl })
+                        }
+                        onR2Uploaded={registerR2MediaInFirebase}
+                        onR2Deleted={(_, docId) =>
+                          removeR2MediaFromFirebase(docId)
+                        }
+                        onOpenR2Settings={() => setActiveTab('r2_storage')}
+                      />
 
                       <div className="admin-field">
                         <label>DESCRIPTION</label>
@@ -1475,10 +1645,11 @@ export default function AdminDashboardPage() {
                                   CmsDestination['region'],
                                   string
                                 > = {
-                                  culture: 'Culture & Heritage',
-                                  hills: 'Central Highlands',
-                                  coast: 'Coast & Beaches',
-                                  wildlife: 'Wildlife & Nature',
+                                  culture: 'Culture and Heritage',
+                                  hills: 'Hill Country and Hiking',
+                                  coast: 'Sea and Sand',
+                                  wildlife: 'Wildlife and Nature',
+                                  colombo: 'Colombo Area & Home Base',
                                 };
                                 updateDestination(dest.id, {
                                   region: r,
@@ -1487,9 +1658,10 @@ export default function AdminDashboardPage() {
                               }}
                             >
                               <option value="culture">Culture &amp; Heritage</option>
-                              <option value="hills">Central Highlands</option>
-                              <option value="coast">Coast &amp; Beaches</option>
+                              <option value="hills">Hill Country &amp; Hiking</option>
+                              <option value="coast">Sea &amp; Sand</option>
                               <option value="wildlife">Wildlife &amp; Nature</option>
+                              <option value="colombo">Colombo &amp; Battaramulla</option>
                             </select>
                           </div>
                         </div>
@@ -1507,18 +1679,19 @@ export default function AdminDashboardPage() {
                           />
                         </div>
 
-                        <div className="admin-field">
-                          <label>IMAGE URL</label>
-                          <input
-                            type="text"
-                            value={dest.image}
-                            onChange={(e) =>
-                              updateDestination(dest.id, {
-                                image: e.target.value,
-                              })
-                            }
-                          />
-                        </div>
+                        <AdminImageUploadField
+                          label="DESTINATION PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                          value={dest.image}
+                          folder="destinations"
+                          onChange={(nextUrl) =>
+                            updateDestination(dest.id, { image: nextUrl })
+                          }
+                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Deleted={(_, docId) =>
+                            removeR2MediaFromFirebase(docId)
+                          }
+                          onOpenR2Settings={() => setActiveTab('r2_storage')}
+                        />
                       </div>
 
                       <div className="admin-field">
@@ -1676,18 +1849,19 @@ export default function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="admin-field">
-                        <label>IMAGE URL</label>
-                        <input
-                          type="text"
-                          value={photo.image}
-                          onChange={(e) =>
-                            updateGalleryPhoto(photo.id, {
-                              image: e.target.value,
-                            })
-                          }
-                        />
-                      </div>
+                      <AdminImageUploadField
+                        label="GALLERY PHOTO (CLOUDFLARE R2 BUCKET → FIREBASE CDN LINK)"
+                        value={photo.image}
+                        folder="gallery"
+                        onChange={(nextUrl) =>
+                          updateGalleryPhoto(photo.id, { image: nextUrl })
+                        }
+                        onR2Uploaded={registerR2MediaInFirebase}
+                        onR2Deleted={(_, docId) =>
+                          removeR2MediaFromFirebase(docId)
+                        }
+                        onOpenR2Settings={() => setActiveTab('r2_storage')}
+                      />
 
                       <div className="admin-field" style={{ marginBottom: 0 }}>
                         <label>CAPTION / STORY</label>
@@ -1705,6 +1879,15 @@ export default function AdminDashboardPage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* TAB 6B: CLOUDFLARE R2 BUCKET & FIREBASE CDN MANAGER */}
+            {activeTab === 'r2_storage' && (
+              <R2BucketManagerTab
+                onR2Uploaded={registerR2MediaInFirebase}
+                onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
+                onR2Renamed={handleR2ObjectRenamed}
+              />
             )}
 
             {/* TAB 7: GUEST REVIEWS & FAQS MANAGER */}

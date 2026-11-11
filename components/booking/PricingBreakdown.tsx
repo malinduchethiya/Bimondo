@@ -190,7 +190,7 @@ export default function PricingBreakdown({
                 <div key={idx} className="verified-line-row">
                   <span>{item.label}</span>
                   <strong>
-                    {item.currency} {item.amount.toLocaleString()}
+                    {item.currency} {item.amount.toLocaleString('en-US')}
                   </strong>
                 </div>
               ))}
@@ -198,14 +198,14 @@ export default function PricingBreakdown({
                 <span>Taxes &amp; service fees</span>
                 <span>
                   {quote.taxesAndFees > 0
-                    ? `${quote.currency} ${quote.taxesAndFees.toLocaleString()}`
+                    ? `${quote.currency} ${quote.taxesAndFees.toLocaleString('en-US')}`
                     : 'Included / Calculated at checkout'}
                 </span>
               </div>
               <div className="verified-line-total">
                 <span>Verified Total</span>
                 <strong>
-                  {quote.currency} {quote.total.toLocaleString()}
+                  {quote.currency} {quote.total.toLocaleString('en-US')}
                 </strong>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
 export interface CmsDestination {
   id: string;
   name: string;
-  region: 'culture' | 'hills' | 'coast' | 'wildlife';
+  region: 'culture' | 'hills' | 'coast' | 'wildlife' | 'colombo';
   regionLabel: string;
   season: string;
   tagline: string;
@@ -78,347 +78,270 @@ export interface SiteCmsData {
 
 export const DEFAULT_DESTINATIONS: CmsDestination[] = [
   {
-    id: 'sigiriya',
-    name: 'Sigiriya & The Cultural Triangle',
+    id: 'sigiriya-cultural-triangle',
+    name: 'Sigiriya, Pidurangala & Ancient Kingdoms',
     region: 'culture',
-    regionLabel: 'Culture & Heritage',
-    season: 'Best Nov – Sep',
-    tagline: 'Ancient sky fortress & sacred ruins',
+    regionLabel: 'Culture and Heritage',
+    season: 'Year-round · Dry season May – Sep',
+    tagline: 'Sigiriya, Pidurangala, Anuradhapura, Polonnaruwa & Dambulla',
     description:
-      'Climb the 5th-century rock fortress of King Kashyapa, explore the ancient capitals of Anuradhapura and Polonnaruwa, and marvel at the cave temples of Dambulla.',
+      'Explore Sri Lanka’s Cultural Triangle with time to appreciate its history properly—climbing Sigiriya Rock Fortress and Pidurangala, and visiting the sacred cave temples of Dambulla alongside the ancient capitals of Anuradhapura and Polonnaruwa.',
     highlights: [
-      'Sigiriya Lion Rock climb',
-      'Pidurangala sunrise panorama',
-      'Dambulla Golden Cave Temples',
+      'Sigiriya Rock Fortress & Pidurangala sunrise views',
+      'Anuradhapura & Polonnaruwa ancient capitals',
+      'Dambulla Cave Temple & Cultural Triangle heritage',
     ],
     image:
       'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
   },
   {
-    id: 'kandy-hills',
-    name: 'Kandy & Knuckles Mountain Range',
-    region: 'hills',
-    regionLabel: 'Central Highlands',
-    season: 'Year-round · Cooler Dec – Mar',
-    tagline: 'Sacred relic, lake breeze & cloud forests',
+    id: 'kandy-sacred-capital',
+    name: 'Kandy & The Temple of the Tooth',
+    region: 'culture',
+    regionLabel: 'Culture and Heritage',
+    season: 'Year-round · Best Dec – Apr',
+    tagline: 'Sacred hill capital, living traditions & gateway to the hills',
     description:
-      'Sri Lanka’s cultural crown surrounded by mist-draped peaks. Home to the Temple of the Sacred Tooth Relic, vibrant Kandyan dance rituals, and pristine hiking.',
+      'Home to the sacred Temple of the Tooth, Kandy bridges Sri Lanka’s ancient royal heritage with the cool central mountains—serving as the cultural heart of the island and the starting point of The Pekoe Trail.',
     highlights: [
-      'Temple of the Tooth Relic',
-      'Kandy Lake evening walks',
-      'Knuckles UNESCO wilderness hike',
+      'Temple of the Sacred Tooth in Kandy',
+      'Respectful cultural visits & local traditions',
+      'Starting point for highland rail & trail journeys',
     ],
     image:
       'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
   },
   {
-    id: 'ella-nuwara-eliya',
-    name: 'Ella, Nuwara Eliya & Tea Country',
+    id: 'ella-hill-country',
+    name: 'Ella, Nuwara Eliya & Hill Country Trails',
     region: 'hills',
-    regionLabel: 'Central Highlands',
+    regionLabel: 'Hill Country and Hiking',
     season: 'Best Jan – May',
-    tagline: 'Misty tea estates, waterfalls & slow trains',
+    tagline: 'Nuwara Eliya, Ella, The Pekoe Trail & Horton Plains',
     description:
-      'Cool mountain air, endless emerald hills, and colonial heritage. Take the iconic blue train through pine forests, hike Little Adam’s Peak, and sip single-origin Ceylon tea.',
+      'Discover Sri Lanka’s tea hills by scenic train and on foot—walking selected stages of The Pekoe Trail through tea estates and villages, trekking Horton Plains to World’s End, and climbing Little Adam’s Peak and Ella Rock.',
     highlights: [
-      'Nine Arch Bridge train crossing',
-      'Tea factory tasting & picking',
-      'Little Adam’s Peak trek',
+      'Selected stages of The Pekoe Trail',
+      'Horton Plains & World’s End plateau walk',
+      'Little Adam’s Peak, Ella Rock & scenic hill train',
     ],
     image:
       'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
   },
   {
-    id: 'galle-south-coast',
-    name: 'Galle Fort & The Southern Riviera',
-    region: 'coast',
-    regionLabel: 'Coast & Beaches',
-    season: 'Best Nov – Apr',
-    tagline: 'Dutch ramparts, surf bays & slow living',
-    description:
-      'Wander cobblestone lanes lined with 17th-century colonial villas, watch local stilt fishermen at golden hour, and relax along golden palm-fringed beaches.',
-    highlights: [
-      'UNESCO Galle Fort walking tour',
-      'Mirissa blue whale watching',
-      'Weligama gentle surf lessons',
-    ],
-    image:
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
-  },
-  {
-    id: 'yala-wildlife',
-    name: 'Yala & Udawalawe National Parks',
+    id: 'yala-wildlife-rainforest',
+    name: 'Yala, Udawalawe, Wilpattu, Minneriya & Sinharaja',
     region: 'wildlife',
-    regionLabel: 'Wildlife & Nature',
-    season: 'Best Feb – Oct',
-    tagline: 'Leopard prowls, elephant herds & wild lagoons',
+    regionLabel: 'Wildlife and Nature',
+    season: 'Year-round · Minneriya Gathering Jul – Oct',
+    tagline: 'National park safaris & UNESCO Sinharaja rainforest walks',
     description:
-      'Sri Lanka boasts one of the highest densities of wild leopards on earth. Ride open-top 4x4 jeeps across scrub jungle, waterholes, and coastal lagoons.',
+      'Experience Sri Lanka’s wildlife responsibly across Yala, Udawalawe, and Wilpattu National Parks, witness the seasonal elephant gathering at Minneriya, and walk with naturalists for endemic birdlife inside Sinharaja Rainforest.',
     highlights: [
-      'Guided leopard tracking safaris',
-      'Udawalawe elephant transit home',
-      'Crocodiles & exotic birdlife',
+      'Private safaris in Yala, Udawalawe & Wilpattu',
+      'Seasonal Minneriya elephant gathering',
+      'Sinharaja rainforest walks & endemic birdwatching',
     ],
     image:
       'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1000&q=85',
   },
   {
-    id: 'minneriya',
-    name: 'Minneriya & Kaudulla Gathering',
-    region: 'wildlife',
-    regionLabel: 'Wildlife & Nature',
-    season: 'Peak Jul – Oct',
-    tagline: 'The largest Asian elephant gathering',
+    id: 'galle-sea-and-sand',
+    name: 'Galle, Unawatuna, Mirissa, Weligama, Arugam Bay, Kalpitiya & Bentota',
+    region: 'coast',
+    regionLabel: 'Sea and Sand',
+    season: 'South/West Nov – Apr · East Coast May – Oct',
+    tagline: 'Galle Fort heritage, seasonal surf bays, diving & lagoon adventures',
     description:
-      'During the dry season, up to 300 wild elephants congregate around ancient 3rd-century irrigation reservoirs. A breathtaking natural spectacle unique to Sri Lanka.',
+      'From coastal stays in Galle, Unawatuna, and Mirissa to surfing at Weligama (Nov–Apr) and Arugam Bay (May–Oct), paramotoring at Bentota, and diving or kite surfing in Kalpitiya—matched carefully to the island’s two coastal seasons.',
     highlights: [
-      'The Great Elephant Gathering',
-      'Ancient lake ecosystems',
-      'Sunset open-air jeep drives',
+      'Galle, Unawatuna & Mirissa coastal escapes',
+      'Surfing at Weligama (Nov–Apr) & Arugam Bay (May–Oct)',
+      'Kalpitiya Bar Reef diving, kite surfing & Bentota paramotoring',
     ],
     image:
-      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=85',
+      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
+  },
+  {
+    id: 'colombo-battaramulla',
+    name: 'Colombo, Battaramulla, Thalangama Wetland, Kotte, Kelaniya & Negombo',
+    region: 'colombo',
+    regionLabel: 'Colombo Area & Home Base',
+    season: 'Year-round · Ideal on arrival or departure',
+    tagline: 'Our home base in Battaramulla, urban wetlands & historic capitals',
+    description:
+      'Based in Thalangama South, Battaramulla—where quiet wetland birdlife meets Sri Lanka’s capital—we offer half-day and full-day experiences across Thalangama Lake, Colombo, the 15th-century Kingdom of Kotte, Kelaniya Raja Maha Vihara, and Negombo Lagoon.',
+    highlights: [
+      'Thalangama Wetland Birdwalk & Kotte Heritage Walk',
+      'Colombo City Highlights & Colombo Food Trail',
+      'Kelaniya Temple Visit & Negombo Lagoon Day',
+    ],
+    image:
+      'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=1000&q=85',
   },
 ];
 
 export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [
   {
     id: 'dancer-welcome',
-    title: 'Ayubowan — May You Live Long',
-    location: 'Kandy & Central Province',
+    title: 'Living Heritage in Kandy',
+    location: 'Kandy · Culture and Heritage',
     category: 'culture',
     categoryLabel: 'Culture & Heritage',
     image: '/images/kandyan-ves-dancer.jpg',
     description:
-      'A traditional Sri Lankan Kandyan dancer in sacred regalia offering the reverent hands-together Ayubowan greeting.',
+      'Traditional Kandyan cultural heritage—visited with respect for local customs, dress, and living traditions.',
   },
   {
     id: 'sigiriya-citadel',
-    title: 'Sunrise Over the Sky Citadel',
-    location: 'Sigiriya, Cultural Triangle',
+    title: 'Sigiriya & Pidurangala at First Light',
+    location: 'Sigiriya · Cultural Triangle',
     category: 'culture',
     categoryLabel: 'Culture & Heritage',
     image:
       'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1200&q=85',
     description:
-      'The 5th-century rock fortress of King Kashyapa rising 200 metres above misty tropical jungle canopy.',
+      'Morning mist over Sigiriya Rock Fortress and the surrounding forests of the Cultural Triangle.',
   },
   {
     id: 'nine-arch-bridge',
-    title: 'The Blue Train at Demodara',
-    location: 'Ella, Highlands',
+    title: 'Hill Country Rail & Tea Trails',
+    location: 'Ella & Nuwara Eliya · Hill Country',
     category: 'highlands',
-    categoryLabel: 'Highlands & Tea',
+    categoryLabel: 'Hill Country & Hiking',
     image:
       'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1200&q=85',
     description:
-      'The colonial stone Nine Arch Bridge gracefully spanning dense tea terraces and eucalyptus forests in the morning mist.',
+      'The scenic mountain railway and walking routes linking Kandy, Nuwara Eliya, and Ella.',
   },
   {
     id: 'kandy-temple-dance',
-    title: 'Sacred Kandyan Drumming & Dance',
-    location: 'Temple of the Tooth, Kandy',
+    title: 'Sacred Traditions of the Island',
+    location: 'Kandy & Kelaniya',
     category: 'culture',
     categoryLabel: 'Culture & Heritage',
     image: '/images/sri-lankan-dancer-matching.jpg',
     description:
-      'Ancient rhythms and ritual movements passed down through generations during cultural temple celebrations.',
+      'Sacred temples, historic shrines, and centuries of Buddhist art and craftsmanship across Sri Lanka.',
   },
   {
     id: 'galle-lighthouse',
-    title: 'Sunset at Galle Fort Ramparts',
-    location: 'Galle, Southern Coast',
+    title: 'Galle Fort & The Southern Coast',
+    location: 'Galle, Unawatuna & Mirissa',
     category: 'coast',
-    categoryLabel: 'Coast & Oceans',
+    categoryLabel: 'Sea & Sand',
     image:
       'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1200&q=85',
     description:
-      'The iconic 1939 white lighthouse standing sentinel above 17th-century Dutch fortifications and coral reefs.',
+      'Historic ramparts at Galle Fort and relaxed coastal days along the southern shores.',
   },
   {
     id: 'wild-elephant-lake',
-    title: 'The Gathering at Kaudulla',
-    location: 'Minneriya & Kaudulla',
+    title: 'Elephants in Open National Parks',
+    location: 'Minneriya & Udawalawe',
     category: 'wildlife',
     categoryLabel: 'Wildlife & Nature',
     image:
       'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=85',
     description:
-      'Wild Asian elephant herds gathering peacefully by the shores of ancient 3rd-century reservoirs at golden hour.',
+      'Responsible wildlife safaris observing wild elephant herds across Minneriya and Udawalawe.',
   },
   {
     id: 'leopard-safari',
-    title: 'Granite Boulders of Yala',
-    location: 'Yala National Park',
+    title: 'Wilderness Tracks of Yala & Wilpattu',
+    location: 'Yala & Wilpattu National Parks',
     category: 'wildlife',
     categoryLabel: 'Wildlife & Nature',
     image:
       'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1200&q=85',
     description:
-      'Sri Lanka’s untamed wilderness, home to the world’s densest wild leopard population and coastal lagoons.',
+      'Early morning safaris with operators who respect park rules and animal welfare.',
   },
   {
     id: 'ceylon-tea-valleys',
-    title: 'Emerald Terraces of Nuwara Eliya',
-    location: 'Central Highlands',
+    title: 'Walking The Pekoe Trail',
+    location: 'Kandy, Nuwara Eliya & Ella',
     category: 'highlands',
-    categoryLabel: 'Highlands & Tea',
+    categoryLabel: 'Hill Country & Hiking',
     image:
       'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=85',
     description:
-      'Rolling carpets of single-origin Ceylon tea bushes glistening with cool morning dew in the hill country.',
+      'Walking through working tea estates, highland villages, and cool mountain ridges.',
   },
   {
     id: 'coastal-slow-living',
-    title: 'Golden Sands of the South',
-    location: 'Mirissa & Tangalle',
+    title: 'Surf Bays & Coastal Escapes',
+    location: 'Weligama, Arugam Bay & Kalpitiya',
     category: 'coast',
-    categoryLabel: 'Coast & Oceans',
+    categoryLabel: 'Sea & Sand',
     image:
       'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85',
     description:
-      'Pristine curving palm bays where tropical turquoise waters meet secluded boutique beach retreats.',
+      'Warm Indian Ocean swells and quiet sandy bays planned around the best coastal seasons.',
   },
 ];
 
-export const DEFAULT_REVIEWS: CmsReviewItem[] = [
-  {
-    id: 'rev-1',
-    name: 'Elena & Marcus Weber',
-    location: 'Munich, Germany',
-    rating: 5,
-    tour: '14-Day Ceylon Grand Circuit',
-    date: 'Visited February 2026',
-    quote:
-      '“Our chauffeur-guide Nimal felt like family from day one. No tour bus crowds, gorgeous boutique tea villas in Ella, and spontaneous stops for fresh king coconuts. Bimondo made Sri Lanka truly unforgettable.”',
-  },
-  {
-    id: 'rev-2',
-    name: 'The Jenkins Family (4 guests)',
-    location: 'Melbourne, Australia',
-    rating: 5,
-    tour: '10-Day Family Island Discovery',
-    date: 'Visited December 2025',
-    quote:
-      '“Travelling with two kids aged 8 and 11 can be daunting, but Bimondo took care of every single detail. Watching hundreds of wild elephants gather at Minneriya was a lifelong memory for our boys.”',
-  },
-  {
-    id: 'rev-3',
-    name: 'Claire & Antoine Dupont',
-    location: 'Paris, France',
-    rating: 5,
-    tour: '8-Day Southern Shores in Luxury',
-    date: 'Visited January 2026',
-    quote:
-      '“From watching sunrise over Pidurangala to quiet sunset walks along Galle Fort ramparts. The 24/7 WhatsApp concierge was always reassuring. An authentic, private experience we will cherish.”',
-  },
-  {
-    id: 'rev-4',
-    name: 'Liam & Sophie Campbell',
-    location: 'Edinburgh, UK',
-    rating: 5,
-    tour: '8-Day The Pekoe Trail Walk',
-    date: 'Visited March 2026',
-    quote:
-      '“Incredible walks through emerald tea valleys with our naturalist guide. Every hotel had character and warmth. You truly come as a traveller and leave as a lifelong friend.”',
-  },
-];
+// No fabricated reviews by default. Verified guest reviews can be added via the Admin Panel.
+export const DEFAULT_REVIEWS: CmsReviewItem[] = [];
 
 export const DEFAULT_FAQS: CmsFaqItem[] = [
   {
     id: 'who-is-bimondo',
     category: 'private',
-    q: 'Who is Bimondo Travels and how do your private journeys work?',
-    a: 'Founded in Colombo in 2022 by Bimsara Illangasinghe, Bimondo Travels designs 100% private, tailor-made journeys across Sri Lanka. You share your travel dates, pace, and interests, and our local specialists craft a bespoke route with handpicked stays and your own dedicated chauffeur-guide.',
+    q: 'Who is Bimondo Travels and where are you based?',
+    a: 'Bimondo Travels is a Sri Lankan travel company founded in 2022 by I.M. Bimsara Illangasinghe and based at No. 596/1, Thalangama South, Battaramulla, near Colombo. We plan and operate private, tailor-made journeys across Sri Lanka for solo travellers, couples, families, and small private groups.',
+  },
+  {
+    id: 'how-journey-works',
+    category: 'booking',
+    q: 'How does planning and booking a journey with Bimondo Travels work?',
+    a: 'Every journey follows a clear 7-step process: (01) Enquiry via our website, email, or WhatsApp; (02) Personal consultation on your dates, interests, pace, and budget; (03) Custom day-by-day itinerary design; (04) Transparent quotation and booking confirmation; (05) Pre-arrival information on packing, weather, and your driver/guide; (06) Airport greeting, private journey, and 24-hour on-call support; and (07) Airport transfer on departure and post-trip follow-up.',
   },
   {
     id: 'truly-private',
     category: 'private',
-    q: 'Are all Bimondo itineraries completely private to our group?',
-    a: 'Yes, always. You never share a vehicle or guide with strangers. Whether you are travelling solo, as a couple, or with family, your vehicle and chauffeur-guide are exclusively yours from airport pickup to departure.',
+    q: 'Are your tours private or shared with other travellers?',
+    a: 'Our journeys are private and personal. Every itinerary is built around your own dates, pace, and interests—rather than rushing you through a fixed group bus schedule.',
   },
   {
-    id: 'chauffeur-guide',
+    id: 'accommodation-options',
     category: 'stays',
-    q: 'Is a private air-conditioned vehicle and licensed chauffeur-guide included?',
-    a: 'Every Bimondo journey includes a modern, air-conditioned private vehicle, fuel, parking, highway tolls, and an experienced, licensed English-speaking Sri Lankan chauffeur-guide who accompanies you throughout.',
+    q: 'What types of accommodation do you arrange?',
+    a: 'We arrange a curated range of four-star hotels, characterful boutique properties, and five-star luxury resorts across Sri Lanka. Hotels and inclusions are selected and confirmed individually at the time of enquiry according to your route and preferences.',
   },
   {
-    id: 'customize-hotels',
+    id: 'drivers-and-guides',
     category: 'stays',
-    q: 'Can we customize our boutique hotels, villas, and daily pace?',
-    a: 'Completely. We match every stay to your taste—from historic tea planter bungalows in the hills and architect-designed coastal villas to luxury tented safari camps. During the trip, your daily schedule remains flexible if you wish to linger longer or stop along the way.',
+    q: 'What transport, drivers, and guides are provided during the journey?',
+    a: 'We provide private transport with professional drivers and licensed guides, together with specialist local guides for activities such as hiking on The Pekoe Trail, birdwatching in Thalangama or Sinharaja, and adventure sports.',
   },
   {
-    id: 'best-season',
-    category: 'booking',
-    q: 'When is the best time of year to visit Sri Lanka?',
-    a: 'Sri Lanka is a year-round island destination thanks to two complementary monsoon seasons. November to April brings golden sunshine to the South & West Coasts, Cultural Triangle, and Hill Country, while May to September is ideal for the East Coast (Trincomalee, Pasikudah & Arugam Bay) and northern cultural capitals.',
-  },
-  {
-    id: 'wildlife-ethics',
+    id: 'wildlife-and-nature',
     category: 'private',
-    q: 'How does Bimondo ensure ethical wildlife safaris and local sustainability?',
-    a: 'We partner exclusively with conservation-minded naturalists and experienced jeep trackers who strictly respect park distances and animal welfare. We also prioritize quieter park gates, dawn entries, and locally owned lodges that directly benefit surrounding communities.',
+    q: 'How do you approach wildlife safaris and adventure activities?',
+    a: 'We work with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and with vetted, safety-checked operators for surfing, rafting in Kitulgala, paramotoring in Bentota, and diving or kite surfing in Kalpitiya. Please note that wildlife sightings, sea conditions, and adventure activities depend on nature and are never guaranteed.',
   },
   {
-    id: 'on-trip-support',
-    category: 'stays',
-    q: 'What support is provided once we land in Sri Lanka?',
-    a: 'Alongside your dedicated chauffeur-guide, our Colombo concierge team is available 24/7 via WhatsApp and phone to handle restaurant reservations, spontaneous route adjustments, or any special requests.',
-  },
-  {
-    id: 'dietary-family',
-    category: 'stays',
-    q: 'Do you accommodate families with children or specific dietary requirements?',
-    a: 'Yes. We provide child car seats on request, pace drive times gently for younger travellers, and brief every hotel and local host in advance on vegetarian, vegan, gluten-free, halal, or allergy-safe dining.',
-  },
-  {
-    id: 'booking-deposit',
+    id: 'best-seasons',
     category: 'booking',
-    q: 'How far in advance should we book, and how are reservations confirmed?',
-    a: 'For peak winter and summer months, we recommend starting 2 to 6 months ahead to secure Sri Lanka’s most intimate boutique villas. Once you approve your custom route and transparent quote, a deposit locks in all hotels, vehicles, and scenic train seats.',
+    q: 'How do Sri Lanka’s seasons affect where we should travel?',
+    a: 'Sri Lanka is a year-round destination with two distinct coastal seasons. For example, Weligama and the South/West Coast are best from November to April, while Arugam Bay and the East Coast are best from May to October. During consultation, we design your route around the best weather for your travel dates.',
   },
   {
-    id: 'airport-transfers',
-    category: 'booking',
-    q: 'Are Bandaranaike International Airport (CMB) greetings and transfers included?',
-    a: 'Yes. Your personal chauffeur-guide greets you inside the arrivals concourse at Colombo Bandaranaike International Airport (CMB) and sees you all the way back to departures at the end of your journey.',
+    id: 'colombo-day-trips',
+    category: 'private',
+    q: 'Can we arrange short half-day or full-day experiences around Colombo and Battaramulla?',
+    a: 'Yes. Because our office is in Thalangama South, Battaramulla, we offer six dedicated day experiences ideal at the start or end of a trip: the Thalangama Wetland Birdwalk, Colombo City Highlights, Colombo Food Trail, Kotte Heritage Walk, Kelaniya Temple Visit, and Negombo Lagoon Day.',
+  },
+  {
+    id: 'on-call-support',
+    category: 'stays',
+    q: 'What support is available while we are travelling in Sri Lanka?',
+    a: 'Alongside your dedicated driver and guide, our team in Battaramulla is available on call 24 hours a day throughout your stay in Sri Lanka to assist with arrangements, schedule adjustments, or any support you need.',
   },
 ];
 
-export const DEFAULT_ENQUIRIES: CmsCustomerEnquiry[] = [
-  {
-    id: 'enq-sample-1',
-    createdAt: '2026-04-12T09:30:00.000Z',
-    name: 'Hannah & Oliver Lindqvist',
-    email: 'hannah.lindqvist@example.com',
-    arrival: '2026-12-14',
-    guests: '2 travellers',
-    duration: '11–16 days',
-    style: 'Culture & heritage',
-    message:
-      'We would love a private 14-day honeymoon itinerary combining Sigiriya, tea estates in Ella, a quiet leopard safari, and 4 nights in a boutique villa near Galle Fort.',
-    status: 'new',
-    adminNotes:
-      'Assign senior chauffeur-guide Nimal; send Ceylon Grand Circuit + Tea Bungalow options.',
-  },
-  {
-    id: 'enq-sample-2',
-    createdAt: '2026-04-10T15:15:00.000Z',
-    name: 'Dr. Rajesh & Priya Patel',
-    email: 'r.patel@example.co.uk',
-    arrival: '2026-08-05',
-    guests: '3–4 travellers',
-    duration: '7–10 days',
-    style: 'Wildlife & nature',
-    message:
-      'Travelling with our two teenagers in August. Very keen on the Minneriya Elephant Gathering and Trincomalee east coast beach stays.',
-    status: 'in_progress',
-    adminNotes:
-      'Sent initial quote via WhatsApp; awaiting flight confirmation.',
-  },
-];
+export const DEFAULT_ENQUIRIES: CmsCustomerEnquiry[] = [];
 
 export function getDefaultCmsData(): SiteCmsData {
   return {
@@ -429,7 +352,7 @@ export function getDefaultCmsData(): SiteCmsData {
       whatsappNumber: '94762232054',
       contactEmail: 'tours@bimondo.com',
       instagramUrl: 'https://www.instagram.com/bimondo.tours/',
-      locationLabel: 'Battaramulla, Sri Lanka',
+      locationLabel: 'No. 596/1, Thalangama South, Battaramulla, Sri Lanka',
       foundedYear: '2022',
     },
     tours: TOURS,

@@ -4526,6 +4526,77 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   resize: vertical;
 }
 
+.admin-image-upload-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(21, 91, 114, 0.32);
+  background: #ffffff;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.admin-image-upload-box.is-drag-over {
+  border-color: var(--terracotta);
+  background: #eaf5f9;
+}
+
+.admin-image-preview-thumb {
+  position: relative;
+  width: 78px;
+  height: 62px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #edf5f8;
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.admin-image-upload-controls {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-image-upload-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-image-drop-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.admin-image-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 639px) {
+  .admin-image-upload-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-image-preview-thumb {
+    width: 100%;
+    height: 120px;
+  }
+}
+
 @media (min-width: 640px) {
   .admin-kpi-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4566,4 +4637,495 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   }
 }
 
+/* ==========================================================================
+   #why Responsive 3-Card Sliding Cards Section (Matching Reference Photo)
+   ========================================================================== */
+#why.sliding-cards-section,
+main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-type(1) > div#horizontal-scroll-track:nth-of-type(1) > section#why:nth-of-type(3) {
+  background: #f1f3f6 !important;
+  color: #262626 !important;
+}
 
+#why.sliding-cards-section > .wrap.sliding-cards-wrap {
+  width: min(1140px, calc(100% - 32px)) !important;
+  max-width: 1140px !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#why.sliding-cards-section .tourist-reviews-widget.sliding-cards-shell {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px 0 !important;
+  width: 100% !important;
+  max-width: 1100px !important;
+}
+
+.sliding-cards-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2vw, 24px);
+  width: 100%;
+}
+
+.sliding-cards-viewport {
+  width: 100%;
+  max-width: 980px;
+  overflow: hidden;
+  padding: 12px 4px 20px;
+  box-sizing: border-box;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 3%,
+    #000 97%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 3%,
+    #000 97%,
+    transparent 100%
+  );
+}
+
+.sliding-train-ribbon {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 26px;
+  width: max-content;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.sliding-profile-card.train-cart-card {
+  width: 304px;
+  min-width: 304px;
+  max-width: 304px;
+  flex: 0 0 304px;
+  background: #ffffff !important;
+  border-radius: 25px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.sliding-profile-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(59, 113, 254, 0.14);
+}
+
+.sliding-card-image-header {
+  position: relative;
+  padding: 26px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.sliding-card-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background-color: #3b71fe;
+  border-radius: 25px 25px 0 25px;
+}
+
+.sliding-card-overlay::before,
+.sliding-card-overlay::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -40px;
+  height: 40px;
+  width: 40px;
+  background-color: #3b71fe;
+}
+
+.sliding-card-overlay::after {
+  border-radius: 0 25px 0 0;
+  background-color: #ffffff;
+}
+
+.sliding-card-avatar {
+  position: relative;
+  height: 132px;
+  width: 132px;
+  border-radius: 50%;
+  background: #ffffff;
+  padding: 4px;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.sliding-card-avatar-img {
+  border-radius: 50%;
+  border: 4px solid #3b71fe !important;
+  object-fit: cover;
+}
+
+.sliding-card-body {
+  position: relative;
+  z-index: 2;
+  padding: 20px 22px 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  flex: 1;
+}
+
+.sliding-card-title {
+  font-family: var(--font-dm-sans), sans-serif !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  color: #262626 !important;
+  margin: 0 0 4px !important;
+}
+
+.sliding-card-subtitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3b71fe;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+  display: block;
+}
+
+.sliding-card-desc {
+  font-size: 13.5px !important;
+  color: #707070 !important;
+  text-align: center !important;
+  line-height: 1.62 !important;
+  margin: 0 !important;
+  flex: 1;
+}
+
+.sliding-cards-arrow {
+  background: transparent;
+  border: none;
+  color: #3b71fe;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  transition: transform 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sliding-cards-arrow:hover {
+  color: #265df2;
+  transform: scale(1.1);
+}
+
+.sliding-cards-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.sliding-cards-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: none;
+  background: #9db6fe;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.sliding-cards-dot.active {
+  background: #3b71fe;
+  transform: scale(1.28);
+}
+
+@media (max-width: 900px) {
+  .sliding-cards-viewport {
+    max-width: 310px;
+  }
+
+  .sliding-profile-card.train-cart-card {
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
+    flex: 0 0 280px;
+  }
+
+  .sliding-card-avatar {
+    height: 112px;
+    width: 112px;
+  }
+}
+
+/* ==========================================================================
+   Hero Bottom-Right Tripadvisor Frosted Rating Badge
+   ========================================================================== */
+.hero-tripadvisor-card {
+  position: absolute;
+  right: clamp(20px, 4vw, 56px);
+  bottom: clamp(64px, 8.5vh, 92px);
+  z-index: 5;
+  padding: 16px 22px;
+  border-radius: 16px;
+  background: rgba(52, 73, 98, 0.56);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 14px 34px rgba(4, 18, 30, 0.28);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 196px;
+}
+
+.hero-ta-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.15;
+}
+
+.hero-ta-brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.hero-ta-divider {
+  font-size: 16px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.hero-ta-score {
+  font-size: 17px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.hero-ta-stars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #93f52c;
+  font-size: 24px;
+  line-height: 1;
+  margin: 1px 0 3px;
+}
+
+.hero-ta-sub {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.2;
+}
+
+@media (max-width: 720px) {
+  .hero-tripadvisor-card {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    align-self: flex-end;
+    margin: 14px 20px 24px auto;
+    padding: 12px 16px;
+    min-width: 168px;
+  }
+
+  .hero-ta-brand {
+    font-size: 15px;
+  }
+
+  .hero-ta-score {
+    font-size: 14.5px;
+  }
+
+  .hero-ta-stars {
+    font-size: 20px;
+  }
+
+  .hero-ta-sub {
+    font-size: 11.5px;
+  }
+}
+
+/* ==========================================================================
+   #places Staggered Vertical Image Slider (Auto 2s Right-to-Left + Side Arrows)
+   ========================================================================== */
+#places.places-staggered-section {
+  overflow: hidden;
+}
+
+.places-staggered-slider-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.places-staggered-viewport {
+  width: 100%;
+  overflow: hidden;
+  padding: 8px 0 12px;
+}
+
+.places-staggered-track {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 16px;
+  width: max-content;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+#places .place.staggered-place-card {
+  position: relative;
+  width: 210px !important;
+  min-width: 210px !important;
+  max-width: 210px !important;
+  flex: 0 0 210px !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+  box-shadow: 0 12px 28px rgba(11, 44, 61, 0.14);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+#places .place.staggered-place-card.variant-tall-up {
+  height: 340px !important;
+  margin-top: 0px !important;
+}
+
+#places .place.staggered-place-card.variant-low-down {
+  height: 315px !important;
+  margin-top: 42px !important;
+}
+
+#places .place.staggered-place-card.variant-mid-up {
+  height: 325px !important;
+  margin-top: 4px !important;
+}
+
+#places .place.staggered-place-card.variant-compact-mid {
+  height: 296px !important;
+  margin-top: 28px !important;
+}
+
+#places .place.staggered-place-card.variant-tall-deep {
+  height: 352px !important;
+  margin-top: 2px !important;
+}
+
+#places .place.staggered-place-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 18px 36px rgba(11, 44, 61, 0.22);
+}
+
+#places .place.staggered-place-card .staggered-place-label {
+  font-size: 17px !important;
+  bottom: 14px !important;
+  left: 14px !important;
+  right: 12px !important;
+  line-height: 1.15 !important;
+}
+
+#places .place.staggered-place-card .staggered-place-label small {
+  font-size: 10px !important;
+  margin-top: 3px !important;
+  opacity: 0.9;
+}
+
+.places-staggered-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background: rgba(11, 44, 61, 0.68);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(6, 26, 38, 0.25);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.places-staggered-arrow:hover {
+  background: rgba(11, 44, 61, 0.9);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.places-staggered-arrow.prev {
+  left: 10px;
+}
+
+.places-staggered-arrow.next {
+  right: 10px;
+}
+
+@media (max-width: 900px) {
+  #places .place.staggered-place-card {
+    width: 156px !important;
+    min-width: 156px !important;
+    max-width: 156px !important;
+    flex: 0 0 156px !important;
+    border-radius: 18px !important;
+  }
+
+  #places .place.staggered-place-card.variant-tall-up {
+    height: 230px !important;
+    margin-top: 0px !important;
+  }
+
+  #places .place.staggered-place-card.variant-low-down {
+    height: 214px !important;
+    margin-top: 26px !important;
+  }
+
+  #places .place.staggered-place-card.variant-mid-up {
+    height: 222px !important;
+    margin-top: 4px !important;
+  }
+
+  #places .place.staggered-place-card.variant-compact-mid {
+    height: 202px !important;
+    margin-top: 18px !important;
+  }
+
+  #places .place.staggered-place-card.variant-tall-deep {
+    height: 238px !important;
+    margin-top: 2px !important;
+  }
+
+  .places-staggered-arrow {
+    width: 38px;
+    height: 38px;
+  }
+}

@@ -28,6 +28,20 @@ interface BookingCalendarProps {
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 function toYmd(year: number, month1Based: number, day: number): string {
   return `${year}-${String(month1Based).padStart(2, '0')}-${String(
@@ -52,23 +66,20 @@ export default function BookingCalendar({
 }: BookingCalendarProps) {
   const todayStr = useMemo(() => {
     const now = new Date();
-    return toYmd(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    return toYmd(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate());
   }, []);
 
   const { year, month, monthLabel, cells } = useMemo(() => {
     const parts = currentMonth.split('-');
-    const y = Number(parts[0]) || new Date().getFullYear();
-    const m = Number(parts[1]) || new Date().getMonth() + 1;
+    const y = Number(parts[0]) || new Date().getUTCFullYear();
+    const m = Number(parts[1]) || new Date().getUTCMonth() + 1;
 
-    const firstDay = new Date(y, m - 1, 1);
-    const totalDays = new Date(y, m, 0).getDate();
+    const firstDayUtc = new Date(Date.UTC(y, m - 1, 1));
+    const totalDays = new Date(Date.UTC(y, m, 0)).getUTCDate();
     // Convert Sunday=0..Saturday=6 into Monday=0..Sunday=6
-    const startOffset = (firstDay.getDay() + 6) % 7;
+    const startOffset = (firstDayUtc.getUTCDay() + 6) % 7;
 
-    const label = firstDay.toLocaleDateString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
+    const label = `${MONTH_NAMES[(m - 1 + 12) % 12]} ${y}`;
 
     const list: Array<{ day: number | null; dateStr: string }> = [];
     for (let i = 0; i < startOffset; i++) {

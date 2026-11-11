@@ -9,21 +9,8 @@ import {
 } from '@/lib/booking-types';
 
 export default function BookingConfirmationPage() {
-  const [provider, setProvider] = useState<BookingProviderId>(() => {
-    if (typeof window === 'undefined') return 'bokun';
-    const sp = new URLSearchParams(window.location.search);
-    return (sp.get('provider') || 'bokun') as BookingProviderId;
-  });
-  const [referenceInput, setReferenceInput] = useState<string>(() => {
-    if (typeof window === 'undefined') return '';
-    const sp = new URLSearchParams(window.location.search);
-    return (
-      sp.get('ref') ||
-      sp.get('bookingReference') ||
-      sp.get('confirmationCode') ||
-      ''
-    );
-  });
+  const [provider, setProvider] = useState<BookingProviderId>('bokun');
+  const [referenceInput, setReferenceInput] = useState<string>('');
   const [verification, setVerification] =
     useState<VerifiedBookingConfirmation | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -74,10 +61,14 @@ export default function BookingConfirmationPage() {
       .then((res) => res.json())
       .then((data: VerifiedBookingConfirmation) => {
         if (!active) return;
+        setProvider(urlProvider);
+        if (urlRef) setReferenceInput(urlRef);
         setVerification(data);
       })
       .catch(() => {
         if (!active) return;
+        setProvider(urlProvider);
+        if (urlRef) setReferenceInput(urlRef);
         setVerification({
           verified: false,
           status: 'failed',
@@ -221,7 +212,7 @@ export default function BookingConfirmationPage() {
                       <small>TOTAL PAID / QUOTED</small>
                       <strong>
                         {verification.totalPrice
-                          ? `${verification.totalPrice.currency} ${verification.totalPrice.amount.toLocaleString()}`
+                          ? `${verification.totalPrice.currency} ${verification.totalPrice.amount.toLocaleString('en-US')}`
                           : 'Refer to provider receipt'}
                       </strong>
                     </div>

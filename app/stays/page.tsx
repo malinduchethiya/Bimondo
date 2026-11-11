@@ -6,6 +6,7 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
+import { TOUR_QUALIFICATION_NOTICE } from '@/lib/tours';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function StaysPage() {
@@ -24,11 +25,11 @@ export default function StaysPage() {
   const [mobileModalOpen, setMobileModalOpen] = useState<boolean>(false);
 
   const regionTabs = [
-    { id: 'all', label: 'All Stays' },
+    { id: 'all', label: 'All Regions' },
     { id: 'culture', label: 'Cultural Triangle' },
-    { id: 'hills', label: 'Tea Country & Hills' },
-    { id: 'coast', label: 'Southern Coast' },
-    { id: 'wildlife', label: 'Safari Lodges' },
+    { id: 'hills', label: 'Kandy & Hill Country' },
+    { id: 'coast', label: 'South, West & East Coasts' },
+    { id: 'wildlife', label: 'National Park Regions' },
   ];
 
   const filtered =
@@ -39,26 +40,46 @@ export default function StaysPage() {
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO BOUTIQUE STAYS  /  NIGHTSBRIDGE ACCOMMODATION"
-        title="Handpicked heritage bungalows, tea villas & safari camps."
+        eyebrow="BIMONDO ACCOMMODATION STANDARDS  /  NIGHTSBRIDGE BOOKING"
+        title="Four-star hotels, boutique properties & five-star luxury resorts."
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              NIGHTSBRIDGE ACCOMMODATION BOOKING
+              SECTION 13 · ACCOMMODATION OPTIONS &amp; NIGHTSBRIDGE
             </div>
             <h2 className="serif">
-              Stays with character{' '}
-              <em style={{ color: 'var(--terracotta)' }}>&amp; island soul.</em>
+              Selected around your{' '}
+              <em style={{ color: 'var(--terracotta)' }}>
+                route, pace &amp; preference.
+              </em>
             </h2>
           </div>
           <p>
-            Select your check-in and check-out dates, rooms, and guests below to
-            check real-time availability and rates through our official
-            NightsBridge accommodation booking integration.
+            Across Sri Lanka, we arrange a curated range of four-star hotels,
+            characterful boutique properties, and five-star luxury resorts.
+            Select your check-in and check-out dates below to check availability
+            through our official NightsBridge accommodation integration, or
+            enquire with our team for a complete tailor-made itinerary.
           </p>
+        </div>
+
+        {/* Qualification Notice */}
+        <div
+          style={{
+            padding: '14px 18px',
+            marginBottom: '28px',
+            borderRadius: '14px',
+            border: '1px solid var(--line)',
+            background: 'rgba(255, 255, 255, 0.75)',
+            fontSize: '13px',
+            lineHeight: 1.6,
+            color: 'var(--ink)',
+          }}
+        >
+          <strong>Accommodation Policy:</strong> {TOUR_QUALIFICATION_NOTICE}
         </div>
 
         {/* Top Quick Date & Guest Filter Bar */}
@@ -165,7 +186,7 @@ export default function StaysPage() {
                       referrerPolicy="no-referrer"
                     />
                     <span className="dest-season-badge">
-                      NIGHTSBRIDGE · UP TO {stay.maxGuestsPerRoom} GUESTS/ROOM
+                      4★ HOTELS · BOUTIQUE · 5★ LUXURY
                     </span>
                   </div>
                   <div className="dest-content">
@@ -179,7 +200,7 @@ export default function StaysPage() {
                     <p className="dest-tagline">{stay.tagline}</p>
                     <p className="dest-desc">{stay.description}</p>
                     <div className="dest-highlights">
-                      <strong>Property features:</strong>
+                      <strong>Accommodation standards:</strong>
                       <ul>
                         {stay.highlights.map((h, i) => (
                           <li key={i}>✳ {h}</li>
@@ -194,7 +215,7 @@ export default function StaysPage() {
                           color: 'var(--green)',
                         }}
                       >
-                        OFFICIAL NIGHTSBRIDGE RATES
+                        NIGHTSBRIDGE / CUSTOM ENQUIRY
                       </span>
                       <button
                         type="button"
@@ -204,7 +225,7 @@ export default function StaysPage() {
                           setMobileModalOpen(true);
                         }}
                       >
-                        BOOK NOW ↗
+                        CHECK AVAILABILITY ↗
                       </button>
                     </div>
                   </div>
@@ -214,7 +235,10 @@ export default function StaysPage() {
           </div>
 
           {/* Sticky Booking Sidebar on Desktop */}
-          <aside className="sticky-booking-sidebar" aria-label="Accommodation Booking Panel">
+          <aside
+            className="sticky-booking-sidebar"
+            aria-label="Accommodation Booking Panel"
+          >
             <BookingPanel
               key={`${activeStay.id}-${checkIn}-${checkOut}-${adults}-${childrenCount}-${rooms}`}
               itemId={activeStay.id}
@@ -235,21 +259,22 @@ export default function StaysPage() {
         <div className="dest-custom-cta-box" style={{ marginTop: '48px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              MULTI-STOP VILLA &amp; CHAUFFEUR JOURNEYS
+              TAILOR-MADE STAYS &amp; PRIVATE TRANSPORT
             </span>
             <h3
               className="serif"
               style={{ fontSize: '32px', margin: '10px 0', color: '#fff' }}
             >
-              Combining multiple boutique stays across Sri Lanka?
+              Planning a multi-stop journey across Sri Lanka?
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '540px', lineHeight: 1.75 }}>
-              Our Colombo concierge can link your NightsBridge villa reservations
-              with a dedicated private chauffeur-guide from arrival to departure.
+              Our Battaramulla team coordinates all hotel reservations, private
+              transport with professional drivers and licensed guides, and
+              24-hour on-call support throughout your stay.
             </p>
           </div>
           <Link href="/contact" prefetch={false} className="pill light">
-            SPEAK WITH OUR CONCIERGE ↗
+            ENQUIRE WITH OUR TEAM ↗
           </Link>
         </div>
       </section>
@@ -257,7 +282,7 @@ export default function StaysPage() {
       {/* Mobile Sticky Bottom Booking Bar */}
       <div className="mobile-sticky-booking-bar">
         <div>
-          <small>SELECTED STAY (NIGHTSBRIDGE)</small>
+          <small>SELECTED REGION STAY</small>
           <strong>{activeStay.name}</strong>
         </div>
         <button

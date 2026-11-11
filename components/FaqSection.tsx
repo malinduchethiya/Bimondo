@@ -11,40 +11,40 @@ interface FaqItem {
 
 const FAQS: FaqItem[] = [
   {
-    category: 'PRIVATE TRAVEL',
-    question: 'Are all Bimondo journeys completely private?',
+    category: 'PRIVATE JOURNEYS',
+    question: 'Are all Bimondo Travels itineraries private and tailor-made?',
     answer:
-      'Yes. Every journey we craft is 100% private to you and your travelling companions. You never share a vehicle or guide with strangers, and each day moves to your personal pace—whether you want to linger longer at a highland tea estate or stop spontaneously at a roadside fruit stall.',
+      'Yes. Every journey is planned around your interests, preferred pace, accommodation style, and budget—whether you are travelling solo, as a couple, with family, or in a small private group.',
   },
   {
-    category: 'TAILOR-MADE ROUTES',
-    question: 'Can we customize the sample itineraries and hotel style?',
+    category: '7-STEP PROCESS',
+    question: 'How does the guest journey work from first enquiry to departure?',
     answer:
-      'Completely. The journeys on our website are curated starting points. We tailor every route, duration, activity, and stay around your preferences—from intimate heritage tea bungalows and architect-designed boutique villas to luxury tented safari camps.',
+      'We follow seven clear steps: (01) Enquiry via website, email, or WhatsApp; (02) Personal consultation; (03) Custom day-by-day itinerary design; (04) Clear quotation and booking confirmation; (05) Pre-arrival information on packing, weather, cultural etiquette, and driver/guide details; (06) Airport greeting, private journey, and 24-hour on-call support; and (07) Departure transfer and post-trip follow-up.',
   },
   {
-    category: 'CHAUFFEUR-GUIDES',
-    question: 'Who will accompany us during our trip in Sri Lanka?',
+    category: 'ACCOMMODATION & TRANSPORT',
+    question: 'What accommodation and transport standards do you provide?',
     answer:
-      'You will travel with a dedicated, licensed English-speaking Sri Lankan chauffeur-guide in a modern, air-conditioned private vehicle, supported 24/7 by our Colombo-based concierge team for any reservations, adjustments, or local recommendations.',
+      'We arrange a curated range of four-star hotels, boutique properties, and five-star luxury resorts across Sri Lanka, paired with private transport, professional drivers, licensed guides, and specialist local guides for hiking, birdwatching, and adventure sports.',
   },
   {
-    category: 'SEASONS & WEATHER',
-    question: 'When is the best time of year to visit Sri Lanka?',
+    category: 'SEASONS & COASTS',
+    question: 'When is the best time of year to visit different parts of Sri Lanka?',
     answer:
-      'Sri Lanka is a true year-round island destination thanks to two distinct monsoon patterns. December to April is ideal for the South & West Coasts, Hill Country, and Cultural Triangle, while May to September brings sun-drenched days to the East Coast (Trincomalee, Pasikudah & Arugam Bay) and northern cultural capitals.',
+      'Sri Lanka is a year-round destination with two distinct coastal seasons. Weligama and the South and West Coasts are best from November to April, while Arugam Bay and the East Coast are best from May to October.',
   },
   {
-    category: 'WILDLIFE ETHICS',
-    question: 'How do you approach wildlife safaris and conservation?',
+    category: 'RESPONSIBLE TRAVEL',
+    question: 'How do you approach wildlife safaris and nature experiences?',
     answer:
-      'We work exclusively with ethical naturalists and experienced trackers who respect park regulations and animal welfare. We often recommend quieter park sectors, dawn entry windows, or lesser-known reserves like Wilpattu, Kumana, and Gal Oya to avoid jeep crowding.',
+      'We partner with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and with vetted, safety-checked adventure operators. Routes, durations, hotels, and inclusions are confirmed individually at the time of enquiry; wildlife sightings, sea conditions, and adventure activities depend on nature and are never guaranteed.',
   },
   {
-    category: 'BOOKING & SUPPORT',
-    question: 'How does the planning and confirmation process work?',
+    category: 'HOME BASE IN BATTARAMULLA',
+    question: 'Where is Bimondo Travels located in Sri Lanka?',
     answer:
-      'Simply share your travel dates or ideas via WhatsApp or email. Within 24–48 hours, we design a personalized route proposal. Once we refine the details together and you are delighted with every stay, we issue a clear written quote and lock in your reservations.',
+      'Our office is located at No. 596/1, Thalangama South, Battaramulla, Sri Lanka—close to Colombo, Kotte, Thalangama Wetland, and the expressway network linking Bandaranaike International Airport (CMB) with the rest of the island.',
   },
 ];
 
@@ -65,16 +65,16 @@ export default function FaqSection() {
           <h2 className="big-heading serif">
             Questions,
             <br />
-            <em style={{ color: 'var(--terracotta)' }}>answered simply.</em>
+            <em style={{ color: 'var(--terracotta)' }}>answered clearly.</em>
           </h2>
           <p className="faq-lead">
-            Everything you need to know about planning a private, unhurried
-            journey across Sri Lanka with our local team.
+            Practical information on how we plan, confirm, and support your
+            private journey across Sri Lanka from our base in Battaramulla.
           </p>
           <div className="faq-cta-box">
-            <span>Have a specific question about dates or routes?</span>
+            <span>Have a question about travel dates or a custom route?</span>
             <Link className="pill dark" href="/contact" prefetch={false}>
-              ASK OUR LOCAL TEAM ↗
+              SPEAK WITH OUR TEAM ↗
             </Link>
           </div>
         </div>

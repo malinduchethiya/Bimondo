@@ -1,130 +1,285 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
-interface ReviewItem {
+interface TouristThoughtCard {
+  id: string;
   name: string;
-  location: string;
-  rating: number;
-  tour: string;
-  date: string;
-  quote: string;
+  subtitle: string;
+  thought: string;
+  image: string;
 }
 
-const REVIEWS: ReviewItem[] = [
+const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
   {
-    name: 'Elena & Marcus Weber',
-    location: 'Munich, Germany',
-    rating: 5,
-    tour: '14-Day Ceylon Grand Circuit',
-    date: 'Visited February 2026',
-    quote:
-      '“Our chauffeur-guide Nimal felt like family from day one. No tour bus crowds, gorgeous boutique tea villas in Ella, and spontaneous stops for fresh king coconuts. Bimondo made Sri Lanka truly unforgettable.”',
+    id: 'thought-1',
+    name: 'David & Sarah Miller',
+    subtitle: 'United Kingdom · Grand Island Journey',
+    thought:
+      '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
+    image:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
   },
   {
-    name: 'The Jenkins Family (4 guests)',
-    location: 'Melbourne, Australia',
-    rating: 5,
-    tour: '10-Day Family Island Discovery',
-    date: 'Visited December 2025',
-    quote:
-      '“Travelling with two kids aged 8 and 11 can be daunting, but Bimondo took care of every single detail. Watching hundreds of wild elephants gather at Minneriya was a lifelong memory for our boys.”',
+    id: 'thought-2',
+    name: 'Claire Dubois',
+    subtitle: 'France · Pekoe Trail & South Coast',
+    thought:
+      '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
+    image:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
   },
   {
-    name: 'Claire & Antoine Dupont',
-    location: 'Paris, France',
-    rating: 5,
-    tour: '8-Day Southern Shores in Luxury',
-    date: 'Visited January 2026',
-    quote:
-      '“From watching sunrise over Pidurangala to quiet sunset walks along Galle Fort ramparts. The 24/7 WhatsApp concierge was always reassuring. An authentic, private experience we will cherish.”',
+    id: 'thought-3',
+    name: 'Liam & Chloe Reynolds',
+    subtitle: 'Australia · Surf, Safari & Coast',
+    thought:
+      '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
+    image:
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
   },
   {
-    name: 'Liam & Sophie Campbell',
-    location: 'Edinburgh, UK',
-    rating: 5,
-    tour: '8-Day The Pekoe Trail Walk',
-    date: 'Visited March 2026',
-    quote:
-      '“Incredible walks through emerald tea valleys with our naturalist guide. Every hotel had character and warmth. You truly come as a traveller and leave as a lifelong friend.”',
+    id: 'thought-4',
+    name: 'Ananya & Rohan Sharma',
+    subtitle: 'India · Cultural Triangle & Hills',
+    thought:
+      '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
+    image:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-5',
+    name: 'Lukas & Hannah Weber',
+    subtitle: 'Germany · Wildlife & Rainforests',
+    thought:
+      '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
+    image:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+  },
+  {
+    id: 'thought-6',
+    name: 'Sofía & Mateo Rossi',
+    subtitle: 'Italy · Romance in Ceylon',
+    thought:
+      '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
+    image:
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
   },
 ];
 
+// Train speed in pixels per second moving from right to left
+const TRAIN_SPEED_PX_PER_SEC = 85;
+
 export default function ValuesSection() {
   const { cms } = useSiteCms();
-  const reviews = cms.reviews && cms.reviews.length > 0 ? cms.reviews : REVIEWS;
-  const [activeReviewIdx, setActiveReviewIdx] = useState<number>(0);
 
-  const safeIdx = activeReviewIdx < reviews.length ? activeReviewIdx : 0;
+  const cards: TouristThoughtCard[] =
+    Array.isArray(cms.reviews) && cms.reviews.length > 0
+      ? cms.reviews.map((rev, idx) => ({
+          id: rev.id || `rev-${idx}`,
+          name: rev.name,
+          subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
+          thought: rev.quote,
+          image:
+            DEFAULT_TOURIST_THOUGHTS[idx % DEFAULT_TOURIST_THOUGHTS.length]
+              .image,
+        }))
+      : DEFAULT_TOURIST_THOUGHTS;
 
-  const nextReview = () => {
-    setActiveReviewIdx((prev) => (prev + 1) % reviews.length);
+  const totalCards = cards.length;
+  // Duplicate cards 3x so the train track never runs out of carriages during continuous motion or manual nudges
+  const trainCards = [...cards, ...cards, ...cards];
+
+  const ribbonRef = useRef<HTMLDivElement | null>(null);
+  const firstSetWidthRef = useRef<number>(0);
+  const singleCardStepRef = useRef<number>(330);
+  const currentOffsetRef = useRef<number>(0);
+  const targetNudgeRef = useRef<number>(0);
+  const isHoveredRef = useRef<boolean>(false);
+  const currentVelocityFactorRef = useRef<number>(1);
+  const [activeDot, setActiveDot] = useState<number>(0);
+
+  useEffect(() => {
+    const measureTrack = () => {
+      const ribbon = ribbonRef.current;
+      if (!ribbon) return;
+      const children = ribbon.children;
+      if (children.length > totalCards) {
+        const firstCard = children[0] as HTMLElement;
+        const secondSetFirstCard = children[totalCards] as HTMLElement;
+        const setWidth = secondSetFirstCard.offsetLeft - firstCard.offsetLeft;
+        if (setWidth > 0) {
+          firstSetWidthRef.current = setWidth;
+          singleCardStepRef.current = setWidth / totalCards;
+        }
+      }
+    };
+
+    measureTrack();
+    window.addEventListener('resize', measureTrack);
+    return () => window.removeEventListener('resize', measureTrack);
+  }, [totalCards]);
+
+  useEffect(() => {
+    let rafId: number;
+    let lastTime = performance.now();
+    let lastReportedDot = 0;
+
+    const animateTrain = (now: number) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+
+      // Smoothly ramp speed down on hover and back up on leave
+      const targetVel = isHoveredRef.current ? 0 : 1;
+      currentVelocityFactorRef.current +=
+        (targetVel - currentVelocityFactorRef.current) * Math.min(1, dt * 8);
+
+      // Continuous right-to-left train movement
+      currentOffsetRef.current +=
+        TRAIN_SPEED_PX_PER_SEC * currentVelocityFactorRef.current * dt;
+
+      // Apply any smooth manual nudge from arrows/dots
+      if (Math.abs(targetNudgeRef.current) > 0.5) {
+        const step = targetNudgeRef.current * Math.min(1, dt * 10);
+        currentOffsetRef.current += step;
+        targetNudgeRef.current -= step;
+      } else if (targetNudgeRef.current !== 0) {
+        currentOffsetRef.current += targetNudgeRef.current;
+        targetNudgeRef.current = 0;
+      }
+
+      const setWidth = firstSetWidthRef.current;
+      if (setWidth > 0) {
+        // Keep offset wrapped seamlessly within [0, setWidth)
+        if (currentOffsetRef.current >= setWidth) {
+          currentOffsetRef.current -= setWidth;
+        } else if (currentOffsetRef.current < 0) {
+          currentOffsetRef.current += setWidth;
+        }
+
+        const cardStep = singleCardStepRef.current || setWidth / totalCards;
+        const currentDot =
+          Math.floor((currentOffsetRef.current + cardStep * 0.35) / cardStep) %
+          totalCards;
+        if (currentDot !== lastReportedDot) {
+          lastReportedDot = currentDot;
+          setActiveDot(currentDot);
+        }
+      }
+
+      if (ribbonRef.current) {
+        ribbonRef.current.style.transform = `translate3d(-${currentOffsetRef.current.toFixed(
+          2
+        )}px, 0, 0)`;
+      }
+
+      rafId = window.requestAnimationFrame(animateTrain);
+    };
+
+    rafId = window.requestAnimationFrame(animateTrain);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [totalCards]);
+
+  const handlePrev = () => {
+    targetNudgeRef.current -= singleCardStepRef.current;
   };
 
-  const prevReview = () => {
-    setActiveReviewIdx((prev) => (prev - 1 + reviews.length) % reviews.length);
+  const handleNext = () => {
+    targetNudgeRef.current += singleCardStepRef.current;
   };
 
-  const currentReview = reviews[safeIdx];
+  const handleDotClick = (dotIndex: number) => {
+    const desiredOffset = dotIndex * singleCardStepRef.current;
+    const diff = desiredOffset - currentOffsetRef.current;
+    targetNudgeRef.current = diff;
+  };
 
   return (
-    <section className="section values leaf-green-section" id="why">
-      <div className="wrap">
-        <div className="tourist-reviews-widget">
-          <div className="reviews-widget-header">
-            <div>
-              <span className="eyebrow reviews-eyebrow">
-                05 / ★ 4.98 / 5.0 · TRAVELLER REVIEWS
-              </span>
-              <h2 className="serif reviews-heading">Stories from our guests</h2>
-            </div>
-            <div className="reviews-nav-arrows">
-              <button
-                type="button"
-                className="review-arrow-btn"
-                onClick={prevReview}
-                aria-label="Previous review"
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="review-arrow-btn"
-                onClick={nextReview}
-                aria-label="Next review"
-              >
-                →
-              </button>
-            </div>
-          </div>
+    <section className="section values sliding-cards-section" id="why">
+      <div className="wrap sliding-cards-wrap">
+        <div
+          className="tourist-reviews-widget sliding-cards-shell"
+          onMouseEnter={() => {
+            isHoveredRef.current = true;
+          }}
+          onMouseLeave={() => {
+            isHoveredRef.current = false;
+          }}
+        >
+          <div className="sliding-cards-stage">
+            <button
+              type="button"
+              className="sliding-cards-arrow prev"
+              onClick={handlePrev}
+              aria-label="Slide train right"
+            >
+              <ChevronLeft size={36} strokeWidth={2.4} />
+            </button>
 
-          <div className="review-quote-box">
-            <div className="stars-row">
-              {Array.from({ length: currentReview.rating }).map((_, i) => (
-                <span key={i} className="star">
-                  ★
-                </span>
-              ))}
-            </div>
-            <p className="review-quote-text">{currentReview.quote}</p>
-            <div className="review-author-meta">
-              <strong>{currentReview.name}</strong>
-              <div className="review-submeta">
-                <span>{currentReview.location}</span> ·{' '}
-                <em>{currentReview.tour}</em> · <span>{currentReview.date}</span>
+            <div className="sliding-cards-viewport">
+              <div ref={ribbonRef} className="sliding-train-ribbon">
+                {trainCards.map((card, idx) => (
+                  <article
+                    key={`${card.id}-cart-${idx}`}
+                    className="sliding-profile-card train-cart-card"
+                  >
+                    <div className="sliding-card-image-header">
+                      <span className="sliding-card-overlay" />
+                      <div className="sliding-card-avatar">
+                        <Image
+                          src={card.image}
+                          alt={card.name}
+                          fill
+                          sizes="132px"
+                          className="sliding-card-avatar-img"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sliding-card-body">
+                      <h3 className="sliding-card-title">{card.name}</h3>
+                      {card.subtitle && (
+                        <span className="sliding-card-subtitle">
+                          {card.subtitle}
+                        </span>
+                      )}
+                      <p className="sliding-card-desc">{card.thought}</p>
+                    </div>
+                  </article>
+                ))}
               </div>
             </div>
+
+            <button
+              type="button"
+              className="sliding-cards-arrow next"
+              onClick={handleNext}
+              aria-label="Slide train left"
+            >
+              <ChevronRight size={36} strokeWidth={2.4} />
+            </button>
           </div>
 
-          <div className="review-dots">
-            {reviews.map((_, i) => (
+          <div
+            className="sliding-cards-dots"
+            role="tablist"
+            aria-label="Tourist thoughts pagination"
+          >
+            {cards.map((card, i) => (
               <button
-                key={i}
+                key={card.id}
                 type="button"
-                className={`review-dot ${safeIdx === i ? 'active' : ''}`}
-                onClick={() => setActiveReviewIdx(i)}
-                aria-label={`Go to review ${i + 1}`}
+                role="tab"
+                aria-selected={activeDot === i}
+                className={`sliding-cards-dot ${
+                  activeDot === i ? 'active' : ''
+                }`}
+                onClick={() => handleDotClick(i)}
+                aria-label={`Jump to tourist thought ${i + 1}`}
               />
             ))}
           </div>
@@ -133,4 +288,3 @@ export default function ValuesSection() {
     </section>
   );
 }
-

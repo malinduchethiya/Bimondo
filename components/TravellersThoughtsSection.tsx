@@ -2,52 +2,45 @@
 
 import React, { useState } from 'react';
 
-interface Thought {
+interface CoreValueCard {
   id: string;
+  num: string;
+  title: string;
   quote: string;
-  story: string;
-  author: string;
-  origin: string;
-  journey: string;
-  duration: string;
-  date: string;
-  featured?: boolean;
+  description: string;
+  pillar: string;
 }
 
-const THOUGHTS: Thought[] = [
+const CORE_VALUES: CoreValueCard[] = [
   {
-    id: 'claire-marcus',
-    quote: '“We came looking for a holiday and left feeling like we had family in Sri Lanka.”',
-    story:
-      'From waking up to mist rolling over the Nine Arch Bridge in Ella to sharing home-cooked jackfruit curry in a quiet Kandy village, every single day felt unhurried and deeply personal. Our chauffeur-guide knew every hidden viewpoint before the crowds arrived.',
-    author: 'Claire & Marcus V.',
-    origin: 'Zurich, Switzerland',
-    journey: 'Ceylon Grand Circuit',
-    duration: '14 Days · Private Journey',
-    date: 'January 2026',
+    id: 'authenticity',
+    num: '01 / CORE VALUE',
+    title: 'Authenticity',
+    quote:
+      '“We show the real Sri Lanka—local food, working villages, living traditions, and honest conversations.”',
+    description:
+      'Rather than staged tourist stops, we build time into every route for genuine encounters with Sri Lanka’s people, heritage, and landscapes.',
+    pillar: 'Section 05 · Company Profile',
   },
   {
-    id: 'arjun-meera',
-    quote: '“Not a single tourist trap — just pure, soulful island magic at our own pace.”',
-    story:
-      'Bimsara and his team listened to how we actually like to travel. When we wanted an extra afternoon by the cove in Tangalle instead of rushing, everything was rearranged effortlessly within minutes. Watching elephants gather at dusk in Minneriya stays with us forever.',
-    author: 'Elena & Thomas K.',
-    origin: 'Melbourne, Australia',
-    journey: 'Leopards, Elephants & South Coast',
-    duration: '11 Days · Tailor-Made',
-    date: 'February 2026',
-    featured: true,
+    id: 'personal-service',
+    num: '02 / CORE VALUE',
+    title: 'Personal Service',
+    quote:
+      '“Every traveller is different. We listen carefully, plan thoughtfully, and adapt each itinerary to the people we are hosting.”',
+    description:
+      'Whether you are a solo traveller, a couple, a family with children, or a small private group, your route is designed around your own pace.',
+    pillar: 'Section 05 · Company Profile',
   },
   {
-    id: 'sophie-family',
-    quote: '“Travelling with two children has never felt this calm, safe and full of wonder.”',
-    story:
-      'Our driver was endlessly patient and warm with our kids — stopping for fresh king coconuts along the roadside, spotting peacocks and toque macaques, and picking boutique stays where we could truly exhale as a family.',
-    author: 'The Lindqvist Family',
-    origin: 'Stockholm, Sweden',
-    journey: 'Family Island Discovery',
-    duration: '10 Days · Family Route',
-    date: 'December 2025',
+    id: 'sustainability-heritage',
+    num: '03 / CORE VALUE',
+    title: 'Sustainability & Respect for Heritage',
+    quote:
+      '“Tourism should protect nature and benefit local communities—approaching sacred places and wildlife with care.”',
+    description:
+      'We work with safari operators who respect park rules and animal welfare, encourage proper dress and conduct at sacred sites, and partner with locally owned stays.',
+    pillar: 'Sections 05 & 15 · Company Profile',
   },
 ];
 
@@ -60,22 +53,23 @@ export default function TravellersThoughtsSection() {
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              06 / TRAVELLERS&apos; THOUGHTS
+              06 / OUR SIX CORE VALUES
             </div>
             <h2 className="serif">
-              Words carried
+              What guides every
               <br />
-              <em style={{ color: 'var(--terracotta)' }}>back home.</em>
+              <em style={{ color: 'var(--terracotta)' }}>Bimondo journey.</em>
             </h2>
           </div>
           <p>
-            Real stories from guests who explored the island privately with our
-            local guides and travel designers.
+            Authenticity, Personal Service, Sustainability, Innovation,
+            Reliability, and Respect for Heritage—the principles at the heart of
+            our Battaramulla team since 2022.
           </p>
         </div>
 
         <div className="thoughts-grid">
-          {THOUGHTS.map((item, idx) => {
+          {CORE_VALUES.map((item, idx) => {
             const isHighlighted = idx === activeIdx;
             return (
               <article
@@ -85,24 +79,21 @@ export default function TravellersThoughtsSection() {
                 onClick={() => setActiveIdx(idx)}
               >
                 <div className="thought-top">
-                  <span className="thought-tag">{item.duration}</span>
-                  <span className="thought-stars" aria-label="5 out of 5 stars">
-                    ★★★★★
-                  </span>
+                  <span className="thought-tag">{item.num}</span>
                 </div>
 
                 <blockquote className="thought-quote serif">
                   {item.quote}
                 </blockquote>
 
-                <p className="thought-story">{item.story}</p>
+                <p className="thought-story">{item.description}</p>
 
                 <div className="thought-foot">
                   <div>
-                    <strong className="thought-author">{item.author}</strong>
-                    <span className="thought-origin">{item.origin}</span>
+                    <strong className="thought-author">{item.title}</strong>
+                    <span className="thought-origin">Bimondo Travels</span>
                   </div>
-                  <div className="thought-route-badge">{item.journey}</div>
+                  <div className="thought-route-badge">{item.pillar}</div>
                 </div>
               </article>
             );
