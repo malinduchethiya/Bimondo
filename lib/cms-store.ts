@@ -171,14 +171,17 @@ export function appendCustomerEnquiry(
 ): CmsCustomerEnquiry {
   const current = readSiteCmsData();
   const newItem: CmsCustomerEnquiry = {
-    id: `enq-${Date.now()}`,
+    id: `bk-${Date.now()}`,
     createdAt: new Date().toISOString(),
     name: input.name,
     email: input.email,
+    phone: input.phone || '',
+    bookingMethod: input.bookingMethod || 'direct_admin',
+    selectedPackage: input.selectedPackage || 'Custom Tailor-Made Journey',
     arrival: input.arrival || 'Flexible',
     guests: input.guests || '2 travellers',
     duration: input.duration || '7–10 days',
-    style: input.style || 'A little of everything',
+    style: input.style || 'Balanced island discovery',
     message: input.message || '',
     status: 'new',
     adminNotes: '',

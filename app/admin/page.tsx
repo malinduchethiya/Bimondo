@@ -16,6 +16,7 @@ import { useSiteCms } from '@/hooks/useSiteCms';
 import { useBookingSettings } from '@/hooks/useBookingSettings';
 import { auth, googleProvider } from '@/lib/firebase';
 import {
+  BookingSubmissionMethod,
   CmsCustomerEnquiry,
   CmsDestination,
   CmsFaqItem,
@@ -104,6 +105,7 @@ export default function AdminDashboardPage() {
     firebaseUser,
     refresh: refreshCms,
     saveCmsToFirebase,
+    submitCustomerEnquiryToFirebase,
     registerR2MediaInFirebase,
     removeR2MediaFromFirebase,
   } = useSiteCms();
@@ -144,6 +146,33 @@ export default function AdminDashboardPage() {
     'ceylon-grand-circuit'
   );
   const [enquiryFilter, setEnquiryFilter] = useState<string>('all');
+  const [enquiryMethodFilter, setEnquiryMethodFilter] =
+    useState<string>('all');
+  const [showManualBookingForm, setShowManualBookingForm] =
+    useState<boolean>(false);
+  const [manualBooking, setManualBooking] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    bookingMethod: BookingSubmissionMethod;
+    selectedPackage: string;
+    arrival: string;
+    guests: string;
+    duration: string;
+    style: string;
+    message: string;
+  }>({
+    name: '',
+    email: '',
+    phone: '',
+    bookingMethod: 'manual',
+    selectedPackage: 'Custom Tailor-Made Journey',
+    arrival: '',
+    guests: '2 travellers (Couple / Friends)',
+    duration: '7–8 days',
+    style: 'Balanced island discovery',
+    message: '',
+  });
 
   const handleFirebaseSignIn = async () => {
     try {
@@ -954,10 +983,68 @@ export default function AdminDashboardPage() {
     workingCms.gallery.find((g) => g.id === selectedPhotoId) ||
     workingCms.gallery[0];
 
-  const filteredEnquiries =
-    enquiryFilter === 'all'
-      ? workingCms.enquiries
-      : workingCms.enquiries.filter((e) => e.status === enquiryFilter);
+  const resolveEnquiryMethod = (
+    enq: CmsCustomerEnquiry
+  ): BookingSubmissionMethod => {
+    if (enq.bookingMethod) return enq.bookingMethod;
+    const s = (enq.style || '').toUpperCase();
+    if (s.startsWith('[WHATSAPP]')) return 'whatsapp';
+    if (s.startsWith('[EMAIL]')) return 'email';
+    if (s.startsWith('[CALLBACK]')) return 'callback';
+    if (s.startsWith('[MANUAL]')) return 'manual';
+    return 'direct_admin';
+  };
+
+  const formatMethodLabel = (method: BookingSubmissionMethod): string => {
+    switch (method) {
+      case 'whatsapp':
+        return 'WHATSAPP CONCIERGE';
+      case 'email':
+        return 'EMAIL QUOTE';
+      case 'callback':
+        return 'PHONE CALLBACK';
+      case 'manual':
+        return 'MANUAL DESK';
+      default:
+        return 'DIRECT ADMIN';
+    }
+  };
+
+  const filteredEnquiries = workingCms.enquiries.filter((e) => {
+    const matchStatus = enquiryFilter === 'all' || e.status === enquiryFilter;
+    const method = resolveEnquiryMethod(e);
+    const matchMethod =
+      enquiryMethodFilter === 'all' || method === enquiryMethodFilter;
+    return matchStatus && matchMethod;
+  });
+
+  const handleCreateManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await submitCustomerEnquiryToFirebase(manualBooking);
+      setManualBooking({
+        name: '',
+        email: '',
+        phone: '',
+        bookingMethod: 'manual',
+        selectedPackage: 'Custom Tailor-Made Journey',
+        arrival: '',
+        guests: '2 travellers (Couple / Friends)',
+        duration: '7–8 days',
+        style: 'Balanced island discovery',
+        message: '',
+      });
+      setShowManualBookingForm(false);
+      setCmsDraft(null);
+      await refreshCms();
+      setStatusBanner(
+        'Booking logged into Admin Panel & synced to Firebase Firestore.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <main className="admin-control-center">
@@ -3381,131 +3468,578 @@ export default function AdminDashboardPage() {
             )}
 
             {/* ============================================================== */}
-            {/* CUSTOMER ENQUIRIES INBOX                                       */}
+            {/* CUSTOMER ENQUIRIES & MULTI-METHOD BOOKINGS INBOX               */}
             {/* ============================================================== */}
             {activeTab === 'enquiries' && (
               <div className="admin-assignments-card">
-                <div className="section-head" style={{ marginBottom: '20px' }}>
+                <div className="section-head" style={{ marginBottom: '16px' }}>
                   <div>
                     <span
                       className="eyebrow"
                       style={{ color: 'var(--terracotta)' }}
                     >
-                      CUSTOMER ENQUIRIES INBOX
+                      MULTI-CHANNEL BOOKINGS &amp; ENQUIRIES INBOX
                     </span>
                     <h3
                       className="serif"
                       style={{ fontSize: '26px', margin: '4px 0 0' }}
                     >
-                      Traveller Enquiries ({filteredEnquiries.length})
+                      Customer Bookings ({filteredEnquiries.length} of{' '}
+                      {workingCms.enquiries.length})
                     </h3>
+                    <p
+                      style={{
+                        fontSize: '12.5px',
+                        color: 'var(--muted)',
+                        margin: '4px 0 0',
+                      }}
+                    >
+                      Receive bookings via Direct Admin Desk, WhatsApp
+                      Concierge, Email Quote, Callback Request, or Manual Desk
+                      entry.
+                    </p>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {(['all', 'new', 'in_progress', 'replied', 'archived'] as const).map(
-                      (statusKey) => (
-                        <button
-                          key={statusKey}
-                          type="button"
-                          className={`pill ${
-                            enquiryFilter === statusKey ? 'dark' : ''
-                          }`}
-                          style={{
-                            padding: '6px 12px',
-                            minHeight: '30px',
-                            fontSize: '10.5px',
-                          }}
-                          onClick={() => setEnquiryFilter(statusKey)}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className={`pill ${showManualBookingForm ? 'dark' : ''}`}
+                      onClick={() =>
+                        setShowManualBookingForm((prev) => !prev)
+                      }
+                    >
+                      {showManualBookingForm
+                        ? 'CLOSE MANUAL ENTRY ×'
+                        : '+ LOG MANUAL BOOKING'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Manual Booking Entry Form (for phone, walk-in, or partner agent bookings) */}
+                {showManualBookingForm && (
+                  <form
+                    onSubmit={handleCreateManualBooking}
+                    style={{
+                      padding: '18px',
+                      borderRadius: '12px',
+                      background: 'var(--bg-elev)',
+                      border: '1px solid var(--line)',
+                      marginBottom: '20px',
+                      display: 'grid',
+                      gap: '14px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <strong style={{ fontSize: '13px' }}>
+                        LOG NEW BOOKING INTO ADMIN DESK
+                      </strong>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          color: 'var(--muted)',
+                        }}
+                      >
+                        Saves to Admin Panel &amp; Firestore `/enquiries`
+                      </span>
+                    </div>
+
+                    <div className="admin-form-grid-3">
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>BOOKING CHANNEL / METHOD</label>
+                        <select
+                          value={manualBooking.bookingMethod}
+                          onChange={(e) =>
+                            setManualBooking({
+                              ...manualBooking,
+                              bookingMethod: e.target
+                                .value as BookingSubmissionMethod,
+                            })
+                          }
                         >
-                          {statusKey.toUpperCase().replace('_', ' ')}
-                        </button>
-                      )
-                    )}
+                          <option value="manual">
+                            Manual Desk / Walk-in / Agent
+                          </option>
+                          <option value="direct_admin">
+                            Direct Admin Booking
+                          </option>
+                          <option value="whatsapp">WhatsApp Concierge</option>
+                          <option value="email">Email Quote Request</option>
+                          <option value="callback">
+                            Phone Callback Request
+                          </option>
+                        </select>
+                      </div>
+
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>GUEST FULL NAME *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Clara & Thomas Weber"
+                          value={manualBooking.name}
+                          onChange={(e) =>
+                            setManualBooking({
+                              ...manualBooking,
+                              name: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>GUEST EMAIL *</label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="guest@example.com"
+                          value={manualBooking.email}
+                          onChange={(e) =>
+                            setManualBooking({
+                              ...manualBooking,
+                              email: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="admin-form-grid-3">
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>PHONE / WHATSAPP NUMBER</label>
+                        <input
+                          type="text"
+                          placeholder="+44 7700 900000"
+                          value={manualBooking.phone}
+                          onChange={(e) =>
+                            setManualBooking({
+                              ...manualBooking,
+                              phone: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>TOUR OR BOUTIQUE STAY PACKAGE</label>
+                        <select
+                          value={manualBooking.selectedPackage}
+                          onChange={(e) =>
+                            setManualBooking({
+                              ...manualBooking,
+                              selectedPackage: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="Custom Tailor-Made Journey">
+                            Custom Tailor-Made Journey
+                          </option>
+                          {workingCms.tours.map((t) => (
+                            <option
+                              key={t.id}
+                              value={`Tour: ${t.name} (${t.days})`}
+                            >
+                              Tour: {t.name} ({t.days})
+                            </option>
+                          ))}
+                          {workingCms.stays.map((s) => (
+                            <option
+                              key={s.id}
+                              value={`Stay: ${s.name} (${s.location})`}
+                            >
+                              Stay: {s.name} ({s.location})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="admin-field" style={{ marginBottom: 0 }}>
+                        <label>ARRIVAL DATE &amp; GUESTS</label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input
+                            type="date"
+                            value={manualBooking.arrival}
+                            onChange={(e) =>
+                              setManualBooking({
+                                ...manualBooking,
+                                arrival: e.target.value,
+                              })
+                            }
+                            style={{ flex: 1 }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="2 travellers"
+                            value={manualBooking.guests}
+                            onChange={(e) =>
+                              setManualBooking({
+                                ...manualBooking,
+                                guests: e.target.value,
+                              })
+                            }
+                            style={{ width: '120px' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-field" style={{ marginBottom: 0 }}>
+                      <label>BOOKING DETAILS / REQUEST NOTES</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Itinerary notes, room preferences, flight numbers..."
+                        value={manualBooking.message}
+                        onChange={(e) =>
+                          setManualBooking({
+                            ...manualBooking,
+                            message: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: '8px',
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        className="pill dark"
+                        disabled={saving}
+                      >
+                        {saving ? 'SAVING…' : 'SAVE BOOKING TO ADMIN DESK'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Dual Filter Bar: Filter by Booking Method & Status */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    paddingBottom: '16px',
+                    marginBottom: '16px',
+                    borderBottom: '1px solid var(--line)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        color: 'var(--muted)',
+                        marginRight: '4px',
+                      }}
+                    >
+                      METHOD:
+                    </span>
+                    {(
+                      [
+                        { id: 'all', label: 'ALL METHODS' },
+                        { id: 'direct_admin', label: 'DIRECT ADMIN' },
+                        { id: 'whatsapp', label: 'WHATSAPP' },
+                        { id: 'email', label: 'EMAIL QUOTE' },
+                        { id: 'callback', label: 'CALLBACK' },
+                        { id: 'manual', label: 'MANUAL DESK' },
+                      ] as const
+                    ).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`pill ${
+                          enquiryMethodFilter === m.id ? 'dark' : ''
+                        }`}
+                        style={{
+                          padding: '5px 11px',
+                          minHeight: '28px',
+                          fontSize: '10px',
+                        }}
+                        onClick={() => setEnquiryMethodFilter(m.id)}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        letterSpacing: '0.08em',
+                        color: 'var(--muted)',
+                        marginRight: '4px',
+                      }}
+                    >
+                      STATUS:
+                    </span>
+                    {(
+                      ['all', 'new', 'in_progress', 'replied', 'archived'] as const
+                    ).map((statusKey) => (
+                      <button
+                        key={statusKey}
+                        type="button"
+                        className={`pill ${
+                          enquiryFilter === statusKey ? 'dark' : ''
+                        }`}
+                        style={{
+                          padding: '5px 11px',
+                          minHeight: '28px',
+                          fontSize: '10px',
+                        }}
+                        onClick={() => setEnquiryFilter(statusKey)}
+                      >
+                        {statusKey.toUpperCase().replace('_', ' ')}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 {filteredEnquiries.length === 0 ? (
                   <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-                    No enquiries match this filter.
+                    No bookings match the selected method or status filter.
                   </p>
                 ) : (
                   <div style={{ display: 'grid', gap: '14px' }}>
-                    {filteredEnquiries.map((enq) => (
-                      <div key={enq.id} className="admin-item-editor-card">
-                        <div className="admin-item-editor-top">
-                          <div>
-                            <span className="admin-type-pill">
-                              {enq.arrival} · {enq.guests} · {enq.duration}
-                            </span>
-                            <h4
-                              className="serif"
-                              style={{ fontSize: '20px', margin: '4px 0 0' }}
+                    {filteredEnquiries.map((enq) => {
+                      const method = resolveEnquiryMethod(enq);
+                      const cleanPhone = (enq.phone || '').replace(/\D/g, '');
+                      const replyWaNumber =
+                        cleanPhone ||
+                        (
+                          workingCms.general.whatsappNumber || '94762232054'
+                        ).replace(/\D/g, '');
+                      const replyWaText = `Hello ${enq.name}, thank you for your booking enquiry (${enq.id.toUpperCase()}) with Bimondo Travels!`;
+                      return (
+                        <div key={enq.id} className="admin-item-editor-card">
+                          <div className="admin-item-editor-top">
+                            <div>
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  flexWrap: 'wrap',
+                                  marginBottom: '4px',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: '10px',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.08em',
+                                    padding: '3px 8px',
+                                    borderRadius: '999px',
+                                    background:
+                                      method === 'whatsapp'
+                                        ? '#dcfce7'
+                                        : method === 'callback'
+                                        ? '#fef3c7'
+                                        : method === 'email'
+                                        ? '#e0f2fe'
+                                        : 'rgba(21,91,114,0.12)',
+                                    color:
+                                      method === 'whatsapp'
+                                        ? '#14532d'
+                                        : method === 'callback'
+                                        ? '#92400e'
+                                        : method === 'email'
+                                        ? '#075985'
+                                        : 'var(--ink)',
+                                  }}
+                                >
+                                  {formatMethodLabel(method)}
+                                </span>
+                                <span className="admin-type-pill">
+                                  REF #{enq.id.toUpperCase()} · {enq.arrival} ·{' '}
+                                  {enq.guests} · {enq.duration}
+                                </span>
+                              </div>
+                              <h4
+                                className="serif"
+                                style={{ fontSize: '20px', margin: '4px 0 0' }}
+                              >
+                                {enq.name}{' '}
+                                <span
+                                  style={{
+                                    fontSize: '14px',
+                                    fontWeight: 400,
+                                    color: 'var(--muted)',
+                                  }}
+                                >
+                                  ({enq.email}
+                                  {enq.phone ? ` · ${enq.phone}` : ''})
+                                </span>
+                              </h4>
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                gap: '8px',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                              }}
                             >
-                              {enq.name} ({enq.email})
-                            </h4>
+                              <select
+                                value={enq.status}
+                                onChange={(e) =>
+                                  updateEnquiry(
+                                    enq.id,
+                                    {
+                                      status: e.target
+                                        .value as CmsCustomerEnquiry['status'],
+                                    },
+                                    true
+                                  )
+                                }
+                              >
+                                <option value="new">New</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="replied">Replied</option>
+                                <option value="archived">Archived</option>
+                              </select>
+                              <button
+                                type="button"
+                                className="pill"
+                                style={{
+                                  padding: '5px 10px',
+                                  minHeight: '30px',
+                                  fontSize: '10px',
+                                }}
+                                onClick={() => deleteEnquiry(enq.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <select
-                              value={enq.status}
-                              onChange={(e) =>
-                                updateEnquiry(
-                                  enq.id,
-                                  {
-                                    status: e.target
-                                      .value as CmsCustomerEnquiry['status'],
-                                  },
-                                  true
-                                )
-                              }
+
+                          {enq.selectedPackage && (
+                            <div
+                              style={{
+                                fontSize: '12.5px',
+                                fontWeight: 700,
+                                color: 'var(--green)',
+                                marginTop: '6px',
+                              }}
                             >
-                              <option value="new">New</option>
-                              <option value="in_progress">In Progress</option>
-                              <option value="replied">Replied</option>
-                              <option value="archived">Archived</option>
-                            </select>
-                            <button
-                              type="button"
+                              Package / Stay: {enq.selectedPackage}
+                            </div>
+                          )}
+
+                          <p
+                            style={{
+                              fontSize: '13.5px',
+                              margin: '6px 0 12px',
+                              color: 'var(--ink)',
+                            }}
+                          >
+                            <strong>Interest:</strong> {enq.style} — &ldquo;
+                            {enq.message}&rdquo;
+                          </p>
+
+                          {/* Quick Reply Bar */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              flexWrap: 'wrap',
+                              marginBottom: '12px',
+                            }}
+                          >
+                            <a
+                              href={`https://wa.me/${replyWaNumber}?text=${encodeURIComponent(
+                                replyWaText
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="pill"
                               style={{
-                                padding: '5px 10px',
-                                minHeight: '30px',
+                                padding: '5px 11px',
+                                minHeight: '28px',
                                 fontSize: '10px',
                               }}
-                              onClick={() => deleteEnquiry(enq.id)}
                             >
-                              Delete
-                            </button>
+                              REPLY VIA WHATSAPP ↗
+                            </a>
+                            <a
+                              href={`mailto:${enq.email}?subject=${encodeURIComponent(
+                                `Your Sri Lanka Journey with Bimondo Travels (${enq.id.toUpperCase()})`
+                              )}`}
+                              className="pill"
+                              style={{
+                                padding: '5px 11px',
+                                minHeight: '28px',
+                                fontSize: '10px',
+                              }}
+                            >
+                              SEND EMAIL QUOTE ↗
+                            </a>
+                            {enq.phone && (
+                              <a
+                                href={`tel:${enq.phone}`}
+                                className="pill"
+                                style={{
+                                  padding: '5px 11px',
+                                  minHeight: '28px',
+                                  fontSize: '10px',
+                                }}
+                              >
+                                CALL {enq.phone}
+                              </a>
+                            )}
+                          </div>
+
+                          <div
+                            className="admin-field"
+                            style={{ marginBottom: 0 }}
+                          >
+                            <label>INTERNAL CONCIERGE NOTES</label>
+                            <input
+                              type="text"
+                              placeholder="Add private notes…"
+                              value={enq.adminNotes}
+                              onChange={(e) =>
+                                updateEnquiry(enq.id, {
+                                  adminNotes: e.target.value,
+                                })
+                              }
+                              onBlur={() =>
+                                saveCmsChanges(
+                                  undefined,
+                                  'Enquiry notes saved.'
+                                )
+                              }
+                            />
                           </div>
                         </div>
-
-                        <p
-                          style={{
-                            fontSize: '13.5px',
-                            margin: '8px 0 12px',
-                            color: 'var(--ink)',
-                          }}
-                        >
-                          <strong>Style:</strong> {enq.style} — &ldquo;
-                          {enq.message}&rdquo;
-                        </p>
-
-                        <div className="admin-field" style={{ marginBottom: 0 }}>
-                          <label>INTERNAL CONCIERGE NOTES</label>
-                          <input
-                            type="text"
-                            placeholder="Add private notes…"
-                            value={enq.adminNotes}
-                            onChange={(e) =>
-                              updateEnquiry(enq.id, {
-                                adminNotes: e.target.value,
-                              })
-                            }
-                            onBlur={() =>
-                              saveCmsChanges(undefined, 'Enquiry notes saved.')
-                            }
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

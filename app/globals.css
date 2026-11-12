@@ -5523,3 +5523,148 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
     height: 38px;
   }
 }
+
+/* ==========================================================================
+   MULTI-METHOD BOOKING FORM (#enquiry / Focus Mode Target)
+   ========================================================================== */
+main:nth-of-type(1) > section#contact:nth-of-type(9) > div:nth-of-type(1) > form#enquiry:nth-of-type(1),
+section#contact form#enquiry {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+  padding: clamp(22px, 3vw, 34px);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 22px 56px rgba(5, 25, 36, 0.24);
+  align-content: start;
+}
+
+.booking-method-field {
+  margin-bottom: 4px;
+}
+
+.booking-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.booking-method-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d5cfc4;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+.booking-method-option input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+.booking-method-option:hover {
+  border-color: #8c8579;
+}
+
+.booking-method-option.active {
+  border-color: var(--green);
+  background: rgba(21, 91, 114, 0.06);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
+.booking-method-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.booking-method-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.booking-confirmation-box {
+  background: #f0f9f4;
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: #14532d;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.booking-confirmation-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.booking-confirmation-head span {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(20, 83, 45, 0.1);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.booking-confirmation-box p {
+  margin: 0 !important;
+  font-size: 12.5px !important;
+  line-height: 1.5 !important;
+  color: #166534 !important;
+  max-width: 100% !important;
+}
+
+.booking-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.booking-confirmation-actions .pill {
+  padding: 7px 12px;
+  min-height: 32px;
+  font-size: 10.5px;
+}
+
+@media (max-width: 640px) {
+  main:nth-of-type(1) > section#contact:nth-of-type(9) > div:nth-of-type(1) > form#enquiry:nth-of-type(1),
+  section#contact form#enquiry {
+    grid-template-columns: 1fr;
+    padding: 18px 16px;
+    gap: 12px;
+  }
+
+  .booking-method-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .booking-method-option {
+    padding: 8px 10px;
+  }
+
+  .booking-method-desc {
+    display: none;
+  }
+}
+

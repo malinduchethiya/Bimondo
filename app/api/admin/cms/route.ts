@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
       const created = appendCustomerEnquiry({
         name: String(body.enquiry.name || '').trim(),
         email: String(body.enquiry.email || '').trim(),
+        phone: String(body.enquiry.phone || '').trim(),
+        bookingMethod: body.enquiry.bookingMethod || 'direct_admin',
+        selectedPackage: String(
+          body.enquiry.selectedPackage || 'Custom Tailor-Made Journey'
+        ).trim(),
         arrival: String(body.enquiry.arrival || '').trim(),
         guests: String(body.enquiry.guests || '').trim(),
         duration: String(body.enquiry.duration || '').trim(),

@@ -427,7 +427,8 @@ export function useSiteCms() {
   }, []);
 
   /**
-   * Submits a public customer enquiry to Firestore (/enquiries/{id}) and the server store.
+   * Submits a public customer booking/enquiry to Firestore (/enquiries/{id}) and the server store,
+   * and immediately updates the shared CMS state so the Admin Panel sees it in real time.
    */
   const submitCustomerEnquiryToFirebase = useCallback(
     async (
@@ -435,7 +436,7 @@ export function useSiteCms() {
         CmsCustomerEnquiry,
         'id' | 'createdAt' | 'status' | 'adminNotes'
       >
-    ) => {
+    ): Promise<CmsCustomerEnquiry | null> => {
       const res = await fetch('/api/admin/cms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -445,10 +446,31 @@ export function useSiteCms() {
         }),
       });
       const data = await res.json();
+      if (data?.cms) {
+        sharedCmsState = {
+          ...sharedCmsState,
+          enquiries: Array.isArray(data.cms.enquiries)
+            ? data.cms.enquiries
+            : sharedCmsState.enquiries,
+        };
+        notifyListeners();
+        window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
+      }
+
       const enquiryId = sanitizeDocId(
-        data?.enquiry?.id || `enq_${Date.now()}`,
-        'enq'
+        data?.enquiry?.id || `bk_${Date.now()}`,
+        'bk'
       );
+
+      const methodTag = (enquiryInput.bookingMethod || 'direct_admin').toUpperCase();
+      const pkgLabel = enquiryInput.selectedPackage || 'Custom Tailor-Made Journey';
+      const phoneLabel = enquiryInput.phone ? ` | Tel: ${enquiryInput.phone}` : '';
+      const combinedStyle = `[${methodTag}] ${pkgLabel} · ${
+        enquiryInput.style || 'Balanced island discovery'
+      }`.slice(0, 100);
+      const combinedMsg = `${
+        enquiryInput.message || ''
+      }${phoneLabel} (Package: ${pkgLabel})`.trim().slice(0, 2000);
 
       try {
         await setDoc(doc(collection(db, 'enquiries'), enquiryId), {
@@ -458,16 +480,18 @@ export function useSiteCms() {
           arrival: (enquiryInput.arrival || 'Flexible').slice(0, 64),
           guests: (enquiryInput.guests || '2 travellers').slice(0, 64),
           duration: (enquiryInput.duration || '7–10 days').slice(0, 64),
-          style: (enquiryInput.style || 'A little of everything').slice(0, 100),
-          message: (enquiryInput.message || '').slice(0, 2000),
+          style: combinedStyle,
+          message: combinedMsg,
           status: 'new',
           adminNotes: '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
       } catch {
-        // Server API already recorded enquiry if Firestore rules reject unverified fields
+        // Server API already recorded enquiry
       }
+
+      return (data?.enquiry as CmsCustomerEnquiry) || null;
     },
     []
   );

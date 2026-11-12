@@ -49,11 +49,21 @@ export interface CmsFaqItem {
   a: string;
 }
 
+export type BookingSubmissionMethod =
+  | 'direct_admin'
+  | 'whatsapp'
+  | 'email'
+  | 'callback'
+  | 'manual';
+
 export interface CmsCustomerEnquiry {
   id: string;
   createdAt: string;
   name: string;
   email: string;
+  phone?: string;
+  bookingMethod?: BookingSubmissionMethod;
+  selectedPackage?: string;
   arrival: string;
   guests: string;
   duration: string;
