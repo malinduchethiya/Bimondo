@@ -93,22 +93,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
   };
 
   try {
-    const existingSnap = await getDoc(cmsDocRef);
-    if (existingSnap.exists()) {
-      await updateDoc(cmsDocRef, {
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        general: firestorePayload.general,
-        tours: firestorePayload.tours,
-        stays: firestorePayload.stays,
-        destinations: firestorePayload.destinations,
-        gallery: firestorePayload.gallery,
-        reviews: firestorePayload.reviews,
-        faqs: firestorePayload.faqs,
-      });
-    } else {
-      await setDoc(cmsDocRef, firestorePayload);
-    }
+    await setDoc(cmsDocRef, firestorePayload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
   }
@@ -273,10 +258,12 @@ function initSharedCmsStore() {
         sharedLoadingState = false;
         notifyListeners();
       } else {
-        // Automatically seed initial CMS collections into Firestore if empty
-        persistFullCmsToFirestore(sharedCmsState).catch(() => {
-          // Ignore seed race condition
-        });
+        // Only auto-seed when confirmed from server (not an empty local offline cache)
+        if (!snap.metadata.fromCache) {
+          persistFullCmsToFirestore(sharedCmsState).catch(() => {
+            // Ignore seed race condition
+          });
+        }
         sharedLoadingState = false;
         notifyListeners();
       }
@@ -372,8 +359,14 @@ export function useSiteCms() {
       const mediaRef = doc(db, 'r2_media', cleanId);
 
       try {
-        const snap = await getDoc(mediaRef);
-        if (snap.exists()) {
+        let existsOnServer = false;
+        try {
+          const snap = await getDoc(mediaRef);
+          existsOnServer = snap.exists();
+        } catch {
+          existsOnServer = false;
+        }
+        if (existsOnServer) {
           await updateDoc(mediaRef, {
             objectKey: item.objectKey.slice(0, 300),
             cdnUrl: item.cdnUrl.slice(0, 500),

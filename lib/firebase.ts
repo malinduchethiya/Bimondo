@@ -2,12 +2,39 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  getFirestore,
+  initializeFirestore,
+  setLogLevel,
+  Firestore,
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+function initFirestoreClient(): Firestore {
+  try {
+    setLogLevel('silent');
+  } catch {
+    // Ignore log level errors
+  }
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true,
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = initFirestoreClient();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -37,11 +64,29 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export function isOfflineFirestoreError(error: unknown): boolean {
+  const msg =
+    error instanceof Error
+      ? error.message.toLowerCase()
+      : String(error).toLowerCase();
+  return (
+    msg.includes('client is offline') ||
+    msg.includes('could not reach cloud firestore backend') ||
+    msg.includes('unavailable') ||
+    msg.includes('network error')
+  );
+}
+
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
-): never {
+): void {
+  // Do not crash or spam console errors when Firestore is operating in offline cache mode
+  if (isOfflineFirestoreError(error)) {
+    return;
+  }
+
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -68,7 +113,10 @@ export function handleFirestoreError(
  * being saved to Firestore. All images must be uploaded to Cloudflare R2
  * and referenced only by their R2 CDN URL.
  */
-export function assertNoInlineImagesInFirestore(value: unknown, path = 'root'): void {
+export function assertNoInlineImagesInFirestore(
+  value: unknown,
+  path = 'root'
+): void {
   if (typeof value === 'string') {
     if (value.trim().startsWith('data:image/')) {
       throw new Error(
@@ -96,13 +144,8 @@ export async function validateFirestoreConnection(): Promise<void> {
   if (connectionTested || typeof window === 'undefined') return;
   connectionTested = true;
   try {
-    await getDocFromServer(doc(db, 'site_cms', 'main'));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('the client is offline')
-    ) {
-      console.error('Please check your Firebase configuration.');
-    }
+    await getDoc(doc(db, 'site_cms', 'main'));
+  } catch {
+    // Gracefully operate with offline cache + /api/admin/cms server fallback
   }
 }
