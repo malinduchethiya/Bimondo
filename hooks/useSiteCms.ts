@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import {
@@ -39,8 +40,8 @@ export interface R2MediaFirestoreRecord {
 
 // ============================================================================
 // Shared Module-Level Singleton Store
-// Prevents 8+ components on the same page from creating duplicate Firestore
-// listeners, auth listeners, and /api/admin/cms HTTP requests.
+// Ensures all components share one Firestore listener and every Admin save
+// writes directly to Firestore (/site_cms/main + individual collections).
 // ============================================================================
 let sharedCmsState: SiteCmsData = getDefaultCmsData();
 let sharedLoadingState = true;
@@ -55,6 +56,13 @@ function notifyListeners() {
   listeners.forEach((fn) => fn());
 }
 
+function sanitizeDocId(rawId: string, fallbackPrefix: string): string {
+  const cleaned = String(rawId || '')
+    .replace(/[^a-zA-Z0-9_\-]/g, '_')
+    .slice(0, 120);
+  return cleaned || `${fallbackPrefix}_${Date.now()}`;
+}
+
 async function fetchServerFallbackOnce(): Promise<SiteCmsData | null> {
   try {
     const res = await fetch('/api/admin/cms', { cache: 'no-store' });
@@ -63,6 +71,108 @@ async function fetchServerFallbackOnce(): Promise<SiteCmsData | null> {
     return (data?.cms as SiteCmsData) || null;
   } catch {
     return null;
+  }
+}
+
+async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
+  assertNoInlineImagesInFirestore(data);
+  const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
+  const cmsDocRef = doc(db, 'site_cms', 'main');
+
+  const firestorePayload = {
+    id: 'main',
+    updatedBy: actorUid,
+    updatedAt: serverTimestamp(),
+    general: data.general,
+    tours: data.tours.slice(0, 50),
+    stays: data.stays.slice(0, 50),
+    destinations: data.destinations.slice(0, 50),
+    gallery: data.gallery.slice(0, 100),
+    reviews: data.reviews.slice(0, 100),
+    faqs: data.faqs.slice(0, 100),
+  };
+
+  try {
+    const existingSnap = await getDoc(cmsDocRef);
+    if (existingSnap.exists()) {
+      await updateDoc(cmsDocRef, {
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        general: firestorePayload.general,
+        tours: firestorePayload.tours,
+        stays: firestorePayload.stays,
+        destinations: firestorePayload.destinations,
+        gallery: firestorePayload.gallery,
+        reviews: firestorePayload.reviews,
+        faqs: firestorePayload.faqs,
+      });
+    } else {
+      await setDoc(cmsDocRef, firestorePayload);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
+  }
+
+  // Also sync individual collection documents (tours, stays, destinations, gallery, reviews, faqs)
+  try {
+    const batch = writeBatch(db);
+    data.tours.slice(0, 50).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `tour_${idx}`);
+      batch.set(doc(db, 'tours', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    data.stays.slice(0, 50).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `stay_${idx}`);
+      batch.set(doc(db, 'stays', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    data.destinations.slice(0, 50).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `dest_${idx}`);
+      batch.set(doc(db, 'destinations', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    data.gallery.slice(0, 100).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `photo_${idx}`);
+      batch.set(doc(db, 'gallery', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    data.reviews.slice(0, 100).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `rev_${idx}`);
+      batch.set(doc(db, 'reviews', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    data.faqs.slice(0, 100).forEach((item, idx) => {
+      const id = sanitizeDocId(item.id, `faq_${idx}`);
+      batch.set(doc(db, 'faqs', id), {
+        id,
+        updatedBy: actorUid,
+        updatedAt: serverTimestamp(),
+        payload: item,
+      });
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'collections_batch_sync');
   }
 }
 
@@ -78,7 +188,10 @@ async function refreshSharedStore() {
           typeof d.updatedAt?.toDate === 'function'
             ? d.updatedAt.toDate().toISOString()
             : sharedCmsState.updatedAt,
-        general: d.general || sharedCmsState.general,
+        general: {
+          ...sharedCmsState.general,
+          ...(d.general || {}),
+        },
         tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
         stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
         destinations: Array.isArray(d.destinations)
@@ -117,7 +230,6 @@ function initSharedCmsStore() {
     notifyListeners();
   });
 
-  // Initial server fallback fetch once for enquiries / local data
   fetchServerFallbackOnce().then((fallback) => {
     if (fallback) {
       sharedCmsState = {
@@ -141,7 +253,10 @@ function initSharedCmsStore() {
             typeof d.updatedAt?.toDate === 'function'
               ? d.updatedAt.toDate().toISOString()
               : sharedCmsState.updatedAt,
-          general: d.general || sharedCmsState.general,
+          general: {
+            ...sharedCmsState.general,
+            ...(d.general || {}),
+          },
           tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
           stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
           destinations: Array.isArray(d.destinations)
@@ -158,6 +273,10 @@ function initSharedCmsStore() {
         sharedLoadingState = false;
         notifyListeners();
       } else {
+        // Automatically seed initial CMS collections into Firestore if empty
+        persistFullCmsToFirestore(sharedCmsState).catch(() => {
+          // Ignore seed race condition
+        });
         sharedLoadingState = false;
         notifyListeners();
       }
@@ -206,7 +325,7 @@ export function useSiteCms() {
 
   /**
    * Saves CMS metadata & Cloudflare R2 CDN links to both Firebase Firestore
-   * and the server API. Strictly rejects any inline/base64 image data.
+   * (/site_cms/main + individual collections) and the server API.
    */
   const saveCmsToFirebase = useCallback(
     async (nextData: SiteCmsData): Promise<SiteCmsData> => {
@@ -223,43 +342,8 @@ export function useSiteCms() {
         throw new Error(apiData.error || 'Failed to update CMS store.');
       }
 
-      // 2. If signed in to Firebase as admin, persist metadata & R2 CDN links to Firestore /site_cms/main
-      if (auth.currentUser) {
-        const cmsDocRef = doc(db, 'site_cms', 'main');
-        const firestorePayload = {
-          id: 'main',
-          updatedBy: auth.currentUser.uid,
-          updatedAt: serverTimestamp(),
-          general: nextData.general,
-          tours: nextData.tours.slice(0, 50),
-          stays: nextData.stays.slice(0, 50),
-          destinations: nextData.destinations.slice(0, 50),
-          gallery: nextData.gallery.slice(0, 100),
-          reviews: nextData.reviews.slice(0, 100),
-          faqs: nextData.faqs.slice(0, 100),
-        };
-
-        try {
-          const existingSnap = await getDoc(cmsDocRef);
-          if (existingSnap.exists()) {
-            await updateDoc(cmsDocRef, {
-              updatedBy: auth.currentUser.uid,
-              updatedAt: serverTimestamp(),
-              general: firestorePayload.general,
-              tours: firestorePayload.tours,
-              stays: firestorePayload.stays,
-              destinations: firestorePayload.destinations,
-              gallery: firestorePayload.gallery,
-              reviews: firestorePayload.reviews,
-              faqs: firestorePayload.faqs,
-            });
-          } else {
-            await setDoc(cmsDocRef, firestorePayload);
-          }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
-        }
-      }
+      // 2. Always persist to Firestore (/site_cms/main + tours, stays, destinations, gallery, reviews, faqs)
+      await persistFullCmsToFirestore(apiData.cms);
 
       sharedCmsState = apiData.cms;
       notifyListeners();
@@ -283,9 +367,10 @@ export function useSiteCms() {
       sizeBytes: number;
     }) => {
       assertNoInlineImagesInFirestore(item.cdnUrl, 'r2_media.cdnUrl');
-      if (!auth.currentUser) return;
+      const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
+      const cleanId = sanitizeDocId(item.id, 'r2_media');
+      const mediaRef = doc(db, 'r2_media', cleanId);
 
-      const mediaRef = doc(db, 'r2_media', item.id);
       try {
         const snap = await getDoc(mediaRef);
         if (snap.exists()) {
@@ -296,19 +381,19 @@ export function useSiteCms() {
             fileName: item.fileName.slice(0, 200),
             contentType: item.contentType.slice(0, 100),
             sizeBytes: Math.round(item.sizeBytes),
-            uploadedBy: auth.currentUser.uid,
+            uploadedBy: actorUid,
             updatedAt: serverTimestamp(),
           });
         } else {
           await setDoc(mediaRef, {
-            id: item.id,
+            id: cleanId,
             objectKey: item.objectKey.slice(0, 300),
             cdnUrl: item.cdnUrl.slice(0, 500),
             folder: item.folder,
             fileName: item.fileName.slice(0, 200),
             contentType: item.contentType.slice(0, 100),
             sizeBytes: Math.round(item.sizeBytes),
-            uploadedBy: auth.currentUser.uid,
+            uploadedBy: actorUid,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
@@ -317,7 +402,7 @@ export function useSiteCms() {
         handleFirestoreError(
           error,
           OperationType.WRITE,
-          `r2_media/${item.id}`
+          `r2_media/${cleanId}`
         );
       }
     },
@@ -328,14 +413,15 @@ export function useSiteCms() {
    * Removes an R2 media catalog entry from Firebase Firestore (/r2_media/{id}).
    */
   const removeR2MediaFromFirebase = useCallback(async (mediaId: string) => {
-    if (!auth.currentUser || !mediaId) return;
+    if (!mediaId) return;
+    const cleanId = sanitizeDocId(mediaId, 'r2_media');
     try {
-      await deleteDoc(doc(db, 'r2_media', mediaId));
+      await deleteDoc(doc(db, 'r2_media', cleanId));
     } catch (error) {
       handleFirestoreError(
         error,
         OperationType.DELETE,
-        `r2_media/${mediaId}`
+        `r2_media/${cleanId}`
       );
     }
   }, []);
@@ -359,7 +445,10 @@ export function useSiteCms() {
         }),
       });
       const data = await res.json();
-      const enquiryId = data?.enquiry?.id || `enq_${Date.now()}`;
+      const enquiryId = sanitizeDocId(
+        data?.enquiry?.id || `enq_${Date.now()}`,
+        'enq'
+      );
 
       try {
         await setDoc(doc(collection(db, 'enquiries'), enquiryId), {

@@ -75,11 +75,19 @@ export interface CmsGeneralSettings {
   facebookLabel?: string;
   websiteUrl?: string;
   primaryMarkets?: string;
+  heroImages?: string[];
   tripadvisorEnabled?: boolean;
   tripadvisorBrand?: string;
   tripadvisorRating?: string;
   tripadvisorReviewsText?: string;
 }
+
+export const DEFAULT_HERO_IMAGES: string[] = [
+  '/images/hero-vibrant-srilanka.jpg',
+  'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1920&q=85',
+  'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1920&q=85',
+  'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1920&q=85',
+];
 
 export interface SiteCmsData {
   updatedAt: string;
@@ -491,6 +499,7 @@ export function getDefaultCmsData(): SiteCmsData {
       websiteUrl: 'https://www.bimondo.com',
       primaryMarkets:
         'United Kingdom, Europe, Australia, India, and the Middle East',
+      heroImages: DEFAULT_HERO_IMAGES,
       tripadvisorEnabled: true,
       tripadvisorBrand: 'Tripadvisor',
       tripadvisorRating: '5.0',

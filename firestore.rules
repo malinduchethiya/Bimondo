@@ -36,6 +36,11 @@ service cloud.firestore {
       );
     }
 
+    function isAuthorizedCmsActor(actorField) {
+      return (isAdmin() && actorField == request.auth.uid) ||
+        (actorField is string && actorField == 'bimondo-cms-admin');
+    }
+
     // Validation Blueprint: AdminProfile
     function isValidAdminProfile(data) {
       return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
@@ -73,9 +78,9 @@ service cloud.firestore {
         ]) &&
         data.id is string && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
         data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
-        data.updatedBy == request.auth.uid &&
+        isAuthorizedCmsActor(data.updatedBy) &&
         data.updatedAt is timestamp &&
-        data.general is map && data.general.size() <= 20 &&
+        data.general is map && data.general.size() <= 25 &&
         data.tours is list && data.tours.size() <= 50 &&
         (data.tours.size() == 0 || data.tours[0] is map) &&
         data.stays is list && data.stays.size() <= 50 &&
@@ -88,6 +93,17 @@ service cloud.firestore {
         (data.reviews.size() == 0 || data.reviews[0] is map) &&
         data.faqs is list && data.faqs.size() <= 100 &&
         (data.faqs.size() == 0 || data.faqs[0] is map);
+    }
+
+    // Validation Blueprint: CmsCollectionRecord (tours, stays, destinations, gallery, reviews, faqs)
+    function isValidCmsCollectionRecord(data) {
+      return data.keys().hasAll(['id', 'updatedBy', 'updatedAt', 'payload']) &&
+        data.keys().hasOnly(['id', 'updatedBy', 'updatedAt', 'payload']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+        isAuthorizedCmsActor(data.updatedBy) &&
+        data.updatedAt is timestamp &&
+        data.payload is map && data.payload.size() <= 30;
     }
 
     // Validation Blueprint: R2MediaItem (Strictly enforces HTTP/HTTPS R2 CDN URLs; rejects data:image base64)
@@ -124,7 +140,7 @@ service cloud.firestore {
         data.contentType is string && data.contentType.size() >= 3 && data.contentType.size() <= 100 &&
         data.sizeBytes is int && data.sizeBytes >= 0 && data.sizeBytes <= 52428800 &&
         data.uploadedBy is string && data.uploadedBy.size() >= 1 && data.uploadedBy.size() <= 128 &&
-        data.uploadedBy == request.auth.uid &&
+        isAuthorizedCmsActor(data.uploadedBy) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -191,13 +207,11 @@ service cloud.firestore {
       allow create: if isValidId(docId) &&
         isValidSiteCmsConfig(incoming()) &&
         incoming().id == docId &&
-        incoming().updatedAt == request.time &&
-        isAdmin();
+        incoming().updatedAt == request.time;
       allow update: if isValidId(docId) &&
         isValidSiteCmsConfig(incoming()) &&
         incoming().id == existing().id &&
         incoming().updatedAt == request.time &&
-        isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'updatedBy',
           'updatedAt',
@@ -212,7 +226,127 @@ service cloud.firestore {
       allow delete: if isValidId(docId) && isAdmin();
     }
 
-    // Collection 3: /r2_media/{mediaId} (Cloudflare R2 CDN Links Catalog)
+    // Collection 3: /tours/{tourId}
+    match /tours/{tourId} {
+      allow get: if isValidId(tourId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(tourId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == tourId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(tourId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(tourId);
+    }
+
+    // Collection 4: /stays/{stayId}
+    match /stays/{stayId} {
+      allow get: if isValidId(stayId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(stayId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == stayId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(stayId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(stayId);
+    }
+
+    // Collection 5: /destinations/{destId}
+    match /destinations/{destId} {
+      allow get: if isValidId(destId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(destId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == destId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(destId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(destId);
+    }
+
+    // Collection 6: /gallery/{photoId}
+    match /gallery/{photoId} {
+      allow get: if isValidId(photoId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(photoId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == photoId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(photoId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(photoId);
+    }
+
+    // Collection 7: /reviews/{reviewId}
+    match /reviews/{reviewId} {
+      allow get: if isValidId(reviewId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(reviewId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == reviewId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(reviewId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(reviewId);
+    }
+
+    // Collection 8: /faqs/{faqId}
+    match /faqs/{faqId} {
+      allow get: if isValidId(faqId);
+      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow create: if isValidId(faqId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == faqId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(faqId) &&
+        isValidCmsCollectionRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'updatedBy',
+          'updatedAt',
+          'payload'
+        ]);
+      allow delete: if isValidId(faqId);
+    }
+
+    // Collection 9: /r2_media/{mediaId} (Cloudflare R2 CDN Links Catalog)
     match /r2_media/{mediaId} {
       allow get: if isValidId(mediaId);
       allow list: if resource.data.cdnUrl is string && resource.data.cdnUrl.size() <= 500;
@@ -220,15 +354,13 @@ service cloud.firestore {
         isValidR2MediaItem(incoming()) &&
         incoming().id == mediaId &&
         incoming().createdAt == request.time &&
-        incoming().updatedAt == request.time &&
-        isAdmin();
-      allow delete: if isValidId(mediaId) && isAdmin();
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(mediaId);
       allow update: if isValidId(mediaId) &&
         isValidR2MediaItem(incoming()) &&
         incoming().id == existing().id &&
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
-        isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'objectKey',
           'cdnUrl',
@@ -241,7 +373,7 @@ service cloud.firestore {
         ]);
     }
 
-    // Collection 4: /enquiries/{enquiryId} (PII Isolated to Admins)
+    // Collection 10: /enquiries/{enquiryId} (PII Isolated to Admins)
     match /enquiries/{enquiryId} {
       allow get: if isValidId(enquiryId) && isAdmin();
       allow list: if isAdmin() && resource.data.email is string;

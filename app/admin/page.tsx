@@ -18,6 +18,7 @@ import {
   CmsFaqItem,
   CmsGalleryPhoto,
   CmsReviewItem,
+  DEFAULT_HERO_IMAGES,
   SiteCmsData,
   StaggerSlideVariant,
 } from '@/lib/cms-defaults';
@@ -121,7 +122,7 @@ export default function AdminDashboardPage() {
       setCmsDraft(saved);
       setStatusBanner(
         customMsg ||
-          'Changes saved! R2 CDN links & metadata synced to Firebase Firestore.'
+          'Changes saved! R2 CDN links & all collections synced to Firebase Firestore.'
       );
       await refreshCms();
     } catch (err) {
@@ -134,7 +135,7 @@ export default function AdminDashboardPage() {
   };
 
   const deleteR2ObjectByUrlIfPossible = async (imageUrl?: string) => {
-    if (!imageUrl || imageUrl.includes('images.unsplash.com')) return;
+    if (!imageUrl || imageUrl.includes('images.unsplash.com') || imageUrl.startsWith('/')) return;
     try {
       const res = await fetch(
         `/api/admin/r2?url=${encodeURIComponent(imageUrl)}`,
@@ -155,8 +156,19 @@ export default function AdminDashboardPage() {
     item: R2UploadedItemMeta
   ) => {
     await registerR2MediaInFirebase(item);
+    const currentHeroImgs =
+      Array.isArray(workingCms.general.heroImages) &&
+      workingCms.general.heroImages.length > 0
+        ? workingCms.general.heroImages
+        : DEFAULT_HERO_IMAGES;
     const next: SiteCmsData = {
       ...workingCms,
+      general: {
+        ...workingCms.general,
+        heroImages: currentHeroImgs.map((u) =>
+          u === oldCdnUrl ? newCdnUrl : u
+        ),
+      },
       tours: workingCms.tours.map((t) =>
         t.image === oldCdnUrl ? { ...t, image: newCdnUrl } : t
       ),
@@ -571,6 +583,80 @@ export default function AdminDashboardPage() {
     saveCmsChanges(next, 'Enquiry deleted.');
   };
 
+  // --- CRUD Helpers for Hero Section 4-Second Slideshow Images ---
+  const heroSlidesList: string[] =
+    Array.isArray(workingCms.general.heroImages) &&
+    workingCms.general.heroImages.length > 0
+      ? workingCms.general.heroImages
+      : DEFAULT_HERO_IMAGES;
+
+  const addHeroSlide = () => {
+    const nextSlides = [
+      ...heroSlidesList,
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1920&q=85',
+    ];
+    setCmsDraft({
+      ...workingCms,
+      general: {
+        ...workingCms.general,
+        heroImages: nextSlides,
+      },
+    });
+  };
+
+  const updateHeroSlide = (index: number, nextUrl: string) => {
+    const nextSlides = heroSlidesList.map((url, idx) =>
+      idx === index ? nextUrl : url
+    );
+    setCmsDraft({
+      ...workingCms,
+      general: {
+        ...workingCms.general,
+        heroImages: nextSlides,
+      },
+    });
+  };
+
+  const moveHeroSlide = (index: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= heroSlidesList.length) return;
+    const nextSlides = [...heroSlidesList];
+    const temp = nextSlides[index];
+    nextSlides[index] = nextSlides[targetIdx];
+    nextSlides[targetIdx] = temp;
+    setCmsDraft({
+      ...workingCms,
+      general: {
+        ...workingCms.general,
+        heroImages: nextSlides,
+      },
+    });
+  };
+
+  const removeHeroSlide = async (index: number) => {
+    if (heroSlidesList.length <= 1) {
+      setStatusBanner('At least 1 Hero slideshow image is required.');
+      return;
+    }
+    const targetUrl = heroSlidesList[index];
+    if (targetUrl) {
+      await deleteR2ObjectByUrlIfPossible(targetUrl);
+    }
+    const nextSlides = heroSlidesList.filter((_, idx) => idx !== index);
+    const next: SiteCmsData = {
+      ...workingCms,
+      general: {
+        ...workingCms.general,
+        heroImages: nextSlides,
+      },
+    };
+    setCmsDraft(next);
+    await saveCmsChanges(
+      next,
+      'Hero slideshow image removed and synced to Firestore.'
+    );
+  };
+
   const newEnquiriesCount = workingCms.enquiries.filter(
     (e) => e.status === 'new'
   ).length;
@@ -618,7 +704,11 @@ export default function AdminDashboardPage() {
         label: 'Booking Engines',
         badge: '3 Providers',
       },
-      { id: 'settings', label: 'Site & Contact Info' },
+      {
+        id: 'settings',
+        label: 'Hero & Site Settings',
+        badge: `${heroSlidesList.length} Slides`,
+      },
     ];
 
   const filteredEnquiries =
@@ -3003,6 +3093,176 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
+                {/* HERO SECTION 4-SECOND MULTI-IMAGE SLIDESHOW MANAGER */}
+                <div className="admin-assignments-card">
+                  <div className="section-head" style={{ marginBottom: '20px' }}>
+                    <div>
+                      <span
+                        className="eyebrow"
+                        style={{ color: 'var(--terracotta)' }}
+                      >
+                        09B / HERO SECTION 4-SECOND IMAGE SLIDESHOW (#HOME)
+                      </span>
+                      <h3
+                        className="serif"
+                        style={{ fontSize: '26px', margin: '4px 0 0' }}
+                      >
+                        Hero Background Slideshow Images ({heroSlidesList.length}{' '}
+                        Slides · 4s Interval)
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: 'var(--muted)',
+                          margin: '6px 0 0',
+                        }}
+                      >
+                        Add, reorder, or upload multiple Hero background photos.
+                        The homepage Hero section automatically cross-fades
+                        through these images every 4 seconds.
+                      </p>
+                    </div>
+                    <div
+                      style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}
+                    >
+                      <button
+                        type="button"
+                        className="pill"
+                        onClick={addHeroSlide}
+                      >
+                        + ADD HERO SLIDE IMAGE
+                      </button>
+                      <button
+                        type="button"
+                        className="pill dark"
+                        disabled={saving}
+                        onClick={() =>
+                          saveCmsChanges(
+                            undefined,
+                            'Hero 4-second slideshow images saved and synced to Firebase Firestore.'
+                          )
+                        }
+                      >
+                        {saving ? 'SAVING…' : 'SAVE HERO SLIDESHOW'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gap: '16px' }}>
+                    {heroSlidesList.map((slideUrl, idx) => (
+                      <div
+                        key={`hero-slide-admin-${idx}`}
+                        style={{
+                          padding: '16px',
+                          borderRadius: '14px',
+                          border: '1px solid rgba(21, 91, 114, 0.16)',
+                          background: '#f8fbfd',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            marginBottom: '10px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <strong
+                            style={{
+                              fontSize: '12px',
+                              letterSpacing: '0.08em',
+                              color: 'var(--ink)',
+                            }}
+                          >
+                            HERO SLIDE {String(idx + 1).padStart(2, '0')}{' '}
+                            {idx === 0 ? '(INITIAL SLIDE)' : ''}
+                          </strong>
+                          <div
+                            style={{
+                              display: 'flex',
+                              gap: '8px',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              className="pill"
+                              style={{
+                                padding: '5px 10px',
+                                minHeight: '30px',
+                                fontSize: '10px',
+                              }}
+                              disabled={idx === 0}
+                              onClick={() => moveHeroSlide(idx, 'up')}
+                            >
+                              ↑ MOVE UP
+                            </button>
+                            <button
+                              type="button"
+                              className="pill"
+                              style={{
+                                padding: '5px 10px',
+                                minHeight: '30px',
+                                fontSize: '10px',
+                              }}
+                              disabled={idx === heroSlidesList.length - 1}
+                              onClick={() => moveHeroSlide(idx, 'down')}
+                            >
+                              ↓ MOVE DOWN
+                            </button>
+                            <button
+                              type="button"
+                              className="pill"
+                              style={{
+                                padding: '5px 12px',
+                                minHeight: '30px',
+                                fontSize: '10px',
+                                borderColor: '#fecdca',
+                                color: '#b42318',
+                              }}
+                              disabled={heroSlidesList.length <= 1}
+                              onClick={() => removeHeroSlide(idx)}
+                            >
+                              REMOVE SLIDE
+                            </button>
+                          </div>
+                        </div>
+
+                        <AdminImageUploadField
+                          label={`HERO SLIDE #${idx + 1} IMAGE (CLOUDFLARE R2 UPLOAD OR CDN URL)`}
+                          folder="general"
+                          value={slideUrl}
+                          onChange={(nextUrl) => updateHeroSlide(idx, nextUrl)}
+                          onR2Uploaded={async (item) => {
+                            await registerR2MediaInFirebase(item);
+                            const updatedSlides = heroSlidesList.map((u, i) =>
+                              i === idx ? item.cdnUrl : u
+                            );
+                            const nextCms: SiteCmsData = {
+                              ...workingCms,
+                              general: {
+                                ...workingCms.general,
+                                heroImages: updatedSlides,
+                              },
+                            };
+                            setCmsDraft(nextCms);
+                            await saveCmsChanges(
+                              nextCms,
+                              `Hero Slide #${idx + 1} uploaded to Cloudflare R2 and saved to Firestore.`
+                            );
+                          }}
+                          onR2Deleted={async (_, mediaDocId) => {
+                            await removeR2MediaFromFirebase(mediaDocId);
+                          }}
+                          onOpenR2Settings={() => setActiveTab('r2_storage')}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* HERO FROSTED TRIPADVISOR RATING CARD SETTINGS */}
                 <div className="admin-assignments-card">
                   <div className="section-head" style={{ marginBottom: '20px' }}>
@@ -3011,7 +3271,7 @@ export default function AdminDashboardPage() {
                         className="eyebrow"
                         style={{ color: 'var(--terracotta)' }}
                       >
-                        09B / HERO SECTION FROSTED GLASS TRIPADVISOR CARD (#HOME)
+                        09C / HERO SECTION FROSTED GLASS TRIPADVISOR CARD (#HOME)
                       </span>
                       <h3 className="serif" style={{ fontSize: '26px', margin: '4px 0 0' }}>
                         Bottom-Right Frosted Rating Badge

@@ -29,7 +29,7 @@
     },
     "SiteCmsConfig": {
       "title": "SiteCmsConfig",
-      "description": "Site-wide CMS metadata and Cloudflare R2 CDN links. Binary or base64 image data is strictly forbidden in Firestore; all images are stored in Cloudflare R2 and referenced by CDN URL.",
+      "description": "Site-wide CMS metadata and Cloudflare R2 CDN links, including Hero section 4-second slideshow images.",
       "type": "object",
       "properties": {
         "id": {
@@ -41,7 +41,7 @@
         },
         "updatedBy": {
           "type": "string",
-          "description": "UID or system identifier that updated the CMS document.",
+          "description": "UID or admin identifier that updated the CMS document.",
           "minLength": 1,
           "maxLength": 128
         },
@@ -52,27 +52,27 @@
         },
         "general": {
           "type": "object",
-          "description": "Brand and contact settings map."
+          "description": "Brand, contact, Tripadvisor badge, and Hero slideshow settings map."
         },
         "tours": {
           "type": "array",
-          "description": "List of private tour packages (up to 50 items) referencing Cloudflare R2 CDN image URLs."
+          "description": "List of private tour packages (up to 50 items) referencing R2 CDN image URLs."
         },
         "stays": {
           "type": "array",
-          "description": "List of boutique stays (up to 50 items) referencing Cloudflare R2 CDN image URLs."
+          "description": "List of boutique stays (up to 50 items) referencing R2 CDN image URLs."
         },
         "destinations": {
           "type": "array",
-          "description": "List of regional destinations (up to 50 items) referencing Cloudflare R2 CDN image URLs."
+          "description": "List of regional destinations (up to 50 items) referencing R2 CDN image URLs."
         },
         "gallery": {
           "type": "array",
-          "description": "List of gallery photo metadata (up to 100 items) referencing Cloudflare R2 CDN image URLs."
+          "description": "List of gallery photo metadata (up to 100 items) referencing R2 CDN image URLs."
         },
         "reviews": {
           "type": "array",
-          "description": "List of guest reviews (up to 100 items)."
+          "description": "List of guest reviews / Tourist Thoughts (up to 100 items)."
         },
         "faqs": {
           "type": "array",
@@ -92,6 +92,36 @@
         "faqs"
       ]
     },
+    "CmsCollectionRecord": {
+      "title": "CmsCollectionRecord",
+      "description": "Individual collection document for tours, stays, destinations, gallery, reviews, or faqs synced with Firestore.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Admin UID or CMS sync identifier.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        },
+        "payload": {
+          "type": "object",
+          "description": "Structured entity fields for the item."
+        }
+      },
+      "required": ["id", "updatedBy", "updatedAt", "payload"]
+    },
     "R2MediaItem": {
       "title": "R2MediaItem",
       "description": "Metadata index of an image object stored in the Cloudflare R2 bucket, linking the R2 object key and R2 public CDN URL to Firebase.",
@@ -106,7 +136,7 @@
         },
         "objectKey": {
           "type": "string",
-          "description": "Object key inside the Cloudflare R2 bucket (e.g. tours/173000-sigiriya.jpg).",
+          "description": "Object key inside the Cloudflare R2 bucket.",
           "minLength": 1,
           "maxLength": 300
         },
@@ -141,7 +171,7 @@
         },
         "uploadedBy": {
           "type": "string",
-          "description": "Admin UID who uploaded or updated the R2 object.",
+          "description": "Admin UID or CMS identifier who uploaded the R2 object.",
           "minLength": 1,
           "maxLength": 128
         },
@@ -268,7 +298,31 @@
     },
     "/site_cms/{docId}": {
       "schema": { "$ref": "#/entities/SiteCmsConfig" },
-      "description": "Publicly readable site CMS configuration storing Cloudflare R2 CDN links (never binary/base64 images); writable only by verified admins."
+      "description": "Publicly readable site CMS configuration storing Cloudflare R2 CDN links and Hero slideshow images."
+    },
+    "/tours/{tourId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable tour package documents synced from CMS."
+    },
+    "/stays/{stayId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable boutique stay documents synced from CMS."
+    },
+    "/destinations/{destId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable destination region documents synced from CMS."
+    },
+    "/gallery/{photoId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable gallery photo documents synced from CMS."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable tourist thought review documents synced from CMS."
+    },
+    "/faqs/{faqId}": {
+      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
+      "description": "Publicly readable planning FAQ documents synced from CMS."
     },
     "/r2_media/{mediaId}": {
       "schema": { "$ref": "#/entities/R2MediaItem" },
