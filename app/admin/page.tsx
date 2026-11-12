@@ -8,7 +8,9 @@ import ProviderWidgetEmbed from '@/components/booking/ProviderWidgetEmbed';
 import AdminImageUploadField, {
   R2UploadedItemMeta,
 } from '@/components/admin/AdminImageUploadField';
-import R2BucketManagerTab from '@/components/admin/R2BucketManagerTab';
+import R2BucketManagerTab, {
+  R2QuickAssignTarget,
+} from '@/components/admin/R2BucketManagerTab';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { useBookingSettings } from '@/hooks/useBookingSettings';
 import { auth, googleProvider } from '@/lib/firebase';
@@ -190,6 +192,83 @@ export default function AdminDashboardPage() {
       next,
       'R2 object renamed and all matching Firebase CDN links updated.'
     );
+  };
+
+  const handleQuickAssignFromR2Bucket = async (
+    target: R2QuickAssignTarget,
+    cdnUrl: string,
+    item: R2UploadedItemMeta
+  ) => {
+    await registerR2MediaInFirebase(item);
+    const currentHeroImgs =
+      Array.isArray(workingCms.general.heroImages) &&
+      workingCms.general.heroImages.length > 0
+        ? workingCms.general.heroImages
+        : DEFAULT_HERO_IMAGES;
+
+    let next: SiteCmsData = { ...workingCms };
+    let msg = 'Assigned R2 image and saved to Firebase Firestore.';
+
+    if (target.type === 'hero_add') {
+      next = {
+        ...workingCms,
+        general: {
+          ...workingCms.general,
+          heroImages: [...currentHeroImgs, cdnUrl],
+        },
+      };
+      msg = 'Added R2 image to Hero 4-Second Slideshow and saved to Firestore.';
+    } else if (target.type === 'gallery_add') {
+      const newPhoto: CmsGalleryPhoto = {
+        id: `photo-${Date.now()}`,
+        title: item.fileName.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '),
+        location: 'Sri Lanka',
+        category: 'culture',
+        categoryLabel: 'Culture & Heritage',
+        image: cdnUrl,
+        description: 'Captured on a private Bimondo Travels journey.',
+      };
+      next = {
+        ...workingCms,
+        gallery: [newPhoto, ...workingCms.gallery],
+      };
+      msg = 'Added R2 image to Visual Gallery and saved to Firestore.';
+    } else if (target.type === 'tour') {
+      next = {
+        ...workingCms,
+        tours: workingCms.tours.map((t) =>
+          t.id === target.id ? { ...t, image: cdnUrl } : t
+        ),
+      };
+      msg = 'Assigned R2 image to Tour and saved to Firestore.';
+    } else if (target.type === 'stay') {
+      next = {
+        ...workingCms,
+        stays: workingCms.stays.map((s) =>
+          s.id === target.id ? { ...s, image: cdnUrl } : s
+        ),
+      };
+      msg = 'Assigned R2 image to Boutique Stay and saved to Firestore.';
+    } else if (target.type === 'destination') {
+      next = {
+        ...workingCms,
+        destinations: workingCms.destinations.map((d) =>
+          d.id === target.id ? { ...d, image: cdnUrl } : d
+        ),
+      };
+      msg = 'Assigned R2 image to Destination and saved to Firestore.';
+    } else if (target.type === 'review') {
+      next = {
+        ...workingCms,
+        reviews: workingCms.reviews.map((r) =>
+          r.id === target.id ? { ...r, image: cdnUrl } : r
+        ),
+      };
+      msg = 'Assigned R2 portrait to Tourist Thought card and saved to Firestore.';
+    }
+
+    setCmsDraft(next);
+    await saveCmsChanges(next, msg);
   };
 
   const handleResetDefaults = async () => {
@@ -1441,7 +1520,22 @@ export default function AdminDashboardPage() {
                           onChange={(nextUrl) =>
                             updateTour(tour.id, { image: nextUrl })
                           }
-                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Uploaded={async (item) => {
+                            await registerR2MediaInFirebase(item);
+                            const nextCms: SiteCmsData = {
+                              ...workingCms,
+                              tours: workingCms.tours.map((t) =>
+                                t.id === tour.id
+                                  ? { ...t, image: item.cdnUrl }
+                                  : t
+                              ),
+                            };
+                            setCmsDraft(nextCms);
+                            await saveCmsChanges(
+                              nextCms,
+                              `Tour "${tour.name}" R2 image saved to Firebase Firestore.`
+                            );
+                          }}
                           onR2Deleted={(_, docId) =>
                             removeR2MediaFromFirebase(docId)
                           }
@@ -1611,7 +1705,22 @@ export default function AdminDashboardPage() {
                         onChange={(nextUrl) =>
                           updateStay(stay.id, { image: nextUrl })
                         }
-                        onR2Uploaded={registerR2MediaInFirebase}
+                        onR2Uploaded={async (item) => {
+                          await registerR2MediaInFirebase(item);
+                          const nextCms: SiteCmsData = {
+                            ...workingCms,
+                            stays: workingCms.stays.map((s) =>
+                              s.id === stay.id
+                                ? { ...s, image: item.cdnUrl }
+                                : s
+                            ),
+                          };
+                          setCmsDraft(nextCms);
+                          await saveCmsChanges(
+                            nextCms,
+                            `Stay "${stay.name}" R2 image saved to Firebase Firestore.`
+                          );
+                        }}
                         onR2Deleted={(_, docId) =>
                           removeR2MediaFromFirebase(docId)
                         }
@@ -1823,7 +1932,22 @@ export default function AdminDashboardPage() {
                           onChange={(nextUrl) =>
                             updateDestination(dest.id, { image: nextUrl })
                           }
-                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Uploaded={async (item) => {
+                            await registerR2MediaInFirebase(item);
+                            const nextCms: SiteCmsData = {
+                              ...workingCms,
+                              destinations: workingCms.destinations.map((d) =>
+                                d.id === dest.id
+                                  ? { ...d, image: item.cdnUrl }
+                                  : d
+                              ),
+                            };
+                            setCmsDraft(nextCms);
+                            await saveCmsChanges(
+                              nextCms,
+                              `Destination "${dest.name}" R2 image saved to Firebase Firestore.`
+                            );
+                          }}
                           onR2Deleted={(_, docId) =>
                             removeR2MediaFromFirebase(docId)
                           }
@@ -1993,7 +2117,22 @@ export default function AdminDashboardPage() {
                         onChange={(nextUrl) =>
                           updateGalleryPhoto(photo.id, { image: nextUrl })
                         }
-                        onR2Uploaded={registerR2MediaInFirebase}
+                        onR2Uploaded={async (item) => {
+                          await registerR2MediaInFirebase(item);
+                          const nextCms: SiteCmsData = {
+                            ...workingCms,
+                            gallery: workingCms.gallery.map((g) =>
+                              g.id === photo.id
+                                ? { ...g, image: item.cdnUrl }
+                                : g
+                            ),
+                          };
+                          setCmsDraft(nextCms);
+                          await saveCmsChanges(
+                            nextCms,
+                            `Gallery photo "${photo.title}" R2 image saved to Firebase Firestore.`
+                          );
+                        }}
                         onR2Deleted={(_, docId) =>
                           removeR2MediaFromFirebase(docId)
                         }
@@ -2021,9 +2160,11 @@ export default function AdminDashboardPage() {
             {/* TAB 6B: CLOUDFLARE R2 BUCKET & FIREBASE CDN MANAGER */}
             {activeTab === 'r2_storage' && (
               <R2BucketManagerTab
+                cms={workingCms}
                 onR2Uploaded={registerR2MediaInFirebase}
                 onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
                 onR2Renamed={handleR2ObjectRenamed}
+                onQuickAssignToSite={handleQuickAssignFromR2Bucket}
               />
             )}
 
@@ -2166,7 +2307,22 @@ export default function AdminDashboardPage() {
                           onChange={(nextUrl) =>
                             updateReview(rev.id, { image: nextUrl })
                           }
-                          onR2Uploaded={registerR2MediaInFirebase}
+                          onR2Uploaded={async (item) => {
+                            await registerR2MediaInFirebase(item);
+                            const nextCms: SiteCmsData = {
+                              ...workingCms,
+                              reviews: workingCms.reviews.map((r) =>
+                                r.id === rev.id
+                                  ? { ...r, image: item.cdnUrl }
+                                  : r
+                              ),
+                            };
+                            setCmsDraft(nextCms);
+                            await saveCmsChanges(
+                              nextCms,
+                              `Tourist Thought card "${rev.name}" R2 portrait saved to Firebase Firestore.`
+                            );
+                          }}
                           onR2Deleted={(_, docId) =>
                             removeR2MediaFromFirebase(docId)
                           }

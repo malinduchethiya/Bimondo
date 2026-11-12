@@ -3,122 +3,180 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { R2UploadedItemMeta } from '@/components/admin/AdminImageUploadField';
+import { SiteCmsData } from '@/lib/cms-defaults';
 
-export interface R2ConfigStatus {
+interface R2ConfigStatus {
   configured: boolean;
+  s3Connected?: boolean;
+  storageMode?: 'cloudflare-s3' | 'managed-local-r2';
   accountId: string;
   bucketName: string;
   publicCdnUrl: string;
   hasCredentials: boolean;
+  endpointUrl?: string;
 }
 
-export interface R2ObjectEntry {
+interface R2BucketObjectItem {
   id: string;
   objectKey: string;
   cdnUrl: string;
   folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
   fileName: string;
+  contentType?: string;
   sizeBytes: number;
   lastModified: string;
+  source?: 's3' | 'local-r2' | 'cms-catalog';
 }
 
+export type R2QuickAssignTarget =
+  | { type: 'hero_add' }
+  | { type: 'gallery_add' }
+  | { type: 'tour'; id: string }
+  | { type: 'stay'; id: string }
+  | { type: 'destination'; id: string }
+  | { type: 'review'; id: string };
+
 interface R2BucketManagerTabProps {
-  onR2Uploaded: (item: R2UploadedItemMeta) => Promise<void> | void;
-  onR2Deleted: (deletedKey: string, mediaDocId: string) => Promise<void> | void;
-  onR2Renamed?: (oldCdnUrl: string, newCdnUrl: string, item: R2UploadedItemMeta) => Promise<void> | void;
+  cms?: SiteCmsData;
+  onR2Uploaded?: (item: R2UploadedItemMeta) => Promise<void> | void;
+  onR2Deleted?: (deletedKey: string, mediaDocId: string) => Promise<void> | void;
+  onR2Renamed?: (
+    oldUrl: string,
+    newUrl: string,
+    newItem: R2UploadedItemMeta
+  ) => Promise<void> | void;
+  onQuickAssignToSite?: (
+    target: R2QuickAssignTarget,
+    cdnUrl: string,
+    item: R2UploadedItemMeta
+  ) => Promise<void> | void;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 export default function R2BucketManagerTab({
+  cms,
   onR2Uploaded,
   onR2Deleted,
   onR2Renamed,
+  onQuickAssignToSite,
 }: R2BucketManagerTabProps) {
-  const [config, setConfig] = useState<R2ConfigStatus>({
-    configured: false,
+  const [status, setStatus] = useState<R2ConfigStatus>({
+    configured: true,
+    s3Connected: false,
+    storageMode: 'managed-local-r2',
     accountId: '',
-    bucketName: '',
+    bucketName: 'bimondo-media',
     publicCdnUrl: '',
     hasCredentials: false,
   });
+  const [accountId, setAccountId] = useState<string>('');
+  const [bucketName, setBucketName] = useState<string>('');
+  const [publicCdnUrl, setPublicCdnUrl] = useState<string>('');
   const [accessKeyId, setAccessKeyId] = useState<string>('');
   const [secretAccessKey, setSecretAccessKey] = useState<string>('');
 
-  const [objects, setObjects] = useState<R2ObjectEntry[]>([]);
-  const [loadingList, setLoadingList] = useState<boolean>(true);
-  const [folderFilter, setFolderFilter] = useState<string>('all');
+  const [items, setItems] = useState<R2BucketObjectItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [savingConfig, setSavingConfig] = useState<boolean>(false);
+  const [testingConn, setTestingConn] = useState<boolean>(false);
+  const [syncingCatalog, setSyncingCatalog] = useState<boolean>(false);
+  const [uploading, setUploading] = useState<boolean>(false);
   const [uploadFolder, setUploadFolder] = useState<
     'tours' | 'stays' | 'destinations' | 'gallery' | 'general'
-  >('gallery');
+  >('general');
+  const [filterFolder, setFilterFolder] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
+  const [assignSelections, setAssignSelections] = useState<
+    Record<string, string>
+  >({});
+  const [banner, setBanner] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [editingKeyMap, setEditingKeyMap] = useState<Record<string, string>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const newFileInputRef = useRef<HTMLInputElement | null>(null);
-  const replaceFileInputRefs = useRef<Record<string, HTMLInputElement | null>>(
-    {}
+  const fetchR2BucketData = useCallback(async () => {
+    const res = await fetch('/api/admin/r2', { cache: 'no-store' });
+    return res.json();
+  }, []);
+
+  const applyR2BucketData = useCallback(
+    (data: {
+      status?: R2ConfigStatus;
+      items?: R2BucketObjectItem[];
+      warning?: string;
+    }) => {
+      if (data.status) {
+        setStatus(data.status);
+        setAccountId(data.status.accountId || '');
+        setBucketName(data.status.bucketName || 'bimondo-media');
+        setPublicCdnUrl(
+          data.status.publicCdnUrl &&
+            !data.status.publicCdnUrl.includes('/api/admin/r2/file')
+            ? data.status.publicCdnUrl
+            : ''
+        );
+      }
+      if (Array.isArray(data.items)) {
+        setItems(data.items);
+      }
+      if (data.warning) {
+        setError(data.warning);
+      }
+    },
+    []
   );
 
   const loadR2Bucket = useCallback(async () => {
-    setLoadingList(true);
-    setErrorMessage(null);
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/admin/r2', { cache: 'no-store' });
-      const data = await res.json();
-      if (data?.config) {
-        setConfig(data.config);
-      }
-      if (Array.isArray(data?.objects)) {
-        setObjects(data.objects);
-      }
-      if (data?.error) {
-        setErrorMessage(data.error);
-      }
+      const data = await fetchR2BucketData();
+      applyR2BucketData(data);
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to load R2 bucket.'
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to load Cloudflare R2 bucket.'
       );
     } finally {
-      setLoadingList(false);
+      setLoading(false);
     }
-  }, []);
+  }, [fetchR2BucketData, applyR2BucketData]);
 
   useEffect(() => {
     let active = true;
-    fetch('/api/admin/r2', { cache: 'no-store' })
-      .then((res) => res.json())
+    fetchR2BucketData()
       .then((data) => {
         if (!active) return;
-        if (data?.config) {
-          setConfig(data.config);
-        }
-        if (Array.isArray(data?.objects)) {
-          setObjects(data.objects);
-        }
-        if (data?.error) {
-          setErrorMessage(data.error);
-        }
+        applyR2BucketData(data);
+        setLoading(false);
       })
       .catch((err) => {
         if (!active) return;
-        setErrorMessage(
-          err instanceof Error ? err.message : 'Failed to load R2 bucket.'
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load Cloudflare R2 bucket.'
         );
-      })
-      .finally(() => {
-        if (active) setLoadingList(false);
+        setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [fetchR2BucketData, applyR2BucketData]);
 
-  const handleSaveR2Config = async (e: React.FormEvent) => {
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatusMessage(null);
-    setErrorMessage(null);
-    setBusyKey('save_config');
+    setSavingConfig(true);
+    setBanner(null);
+    setError(null);
 
     try {
       const res = await fetch('/api/admin/r2', {
@@ -126,9 +184,9 @@ export default function R2BucketManagerTab({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'save_config',
-          accountId: config.accountId,
-          bucketName: config.bucketName,
-          publicCdnUrl: config.publicCdnUrl,
+          accountId,
+          bucketName,
+          publicCdnUrl,
           accessKeyId: accessKeyId.trim() || undefined,
           secretAccessKey: secretAccessKey.trim() || undefined,
         }),
@@ -137,40 +195,116 @@ export default function R2BucketManagerTab({
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save R2 configuration.');
       }
-      setConfig(data.config);
+
+      setStatus(data.status);
       setAccessKeyId('');
       setSecretAccessKey('');
-      setStatusMessage(
-        'Cloudflare R2 bucket configuration saved securely on the server.'
+      if (Array.isArray(data.items)) {
+        setItems(data.items);
+      }
+      setBanner(
+        data.connectionTest?.message ||
+          'Cloudflare R2 configuration saved and connected.'
       );
-      await loadR2Bucket();
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to save R2 config.'
+      setError(
+        err instanceof Error ? err.message : 'Error saving R2 credentials.'
       );
     } finally {
-      setBusyKey(null);
+      setSavingConfig(false);
     }
   };
 
-  const handleDirectUploadFromDevice = async (
-    file: File | null | undefined,
-    targetFolder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general',
-    replaceExistingObject?: R2ObjectEntry
+  const handleTestConnection = async () => {
+    setTestingConn(true);
+    setBanner(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/r2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'test_connection' }),
+      });
+      const data = await res.json();
+      if (data.status) {
+        setStatus(data.status);
+      }
+      if (Array.isArray(data.items)) {
+        setItems(data.items);
+      }
+      if (data.connectionTest?.ok) {
+        setBanner(data.connectionTest.message);
+      } else {
+        setError(
+          data.connectionTest?.message ||
+            'Could not verify remote S3 endpoint.'
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Error testing R2 connection.'
+      );
+    } finally {
+      setTestingConn(false);
+    }
+  };
+
+  const handleSyncCatalogToFirestore = async () => {
+    setSyncingCatalog(true);
+    setBanner(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/r2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_catalog' }),
+      });
+      const data = await res.json();
+      const loadedItems: R2BucketObjectItem[] = Array.isArray(data.items)
+        ? data.items
+        : [];
+      setItems(loadedItems);
+
+      if (onR2Uploaded) {
+        for (const item of loadedItems) {
+          await onR2Uploaded({
+            id: item.id,
+            objectKey: item.objectKey,
+            cdnUrl: item.cdnUrl,
+            folder: item.folder,
+            fileName: item.fileName,
+            contentType: item.contentType || 'image/jpeg',
+            sizeBytes: item.sizeBytes || 245760,
+          });
+        }
+      }
+      setBanner(
+        `Synced ${loadedItems.length} R2 media objects into Firebase Firestore (/r2_media).`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to sync R2 catalog to Firestore.'
+      );
+    } finally {
+      setSyncingCatalog(false);
+    }
+  };
+
+  const handleDirectUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
   ) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-    setStatusMessage(null);
-    setErrorMessage(null);
-    setBusyKey(replaceExistingObject ? replaceExistingObject.objectKey : 'new_upload');
+    setUploading(true);
+    setBanner(null);
+    setError(null);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('folder', targetFolder);
-      if (replaceExistingObject) {
-        formData.append('customKey', replaceExistingObject.objectKey);
-        formData.append('replaceKey', replaceExistingObject.objectKey);
-      }
+      formData.append('folder', uploadFolder);
 
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
@@ -178,266 +312,361 @@ export default function R2BucketManagerTab({
       });
       const data = await res.json();
       if (!res.ok || !data?.item) {
-        throw new Error(
-          data?.error || 'Failed to push file to Cloudflare R2 bucket.'
-        );
+        throw new Error(data.error || 'Failed to upload to R2 bucket.');
       }
 
       const uploaded = data.item as R2UploadedItemMeta;
-      await onR2Uploaded(uploaded);
-      setStatusMessage(
-        replaceExistingObject
-          ? `Updated "${uploaded.objectKey}" in Cloudflare R2 & synced CDN link to Firebase.`
-          : `Uploaded "${uploaded.objectKey}" directly to Cloudflare R2 & registered CDN link in Firebase.`
+      if (onR2Uploaded) {
+        await onR2Uploaded(uploaded);
+      }
+      setBanner(
+        `Uploaded "${uploaded.objectKey}" to R2 Bucket and registered CDN link in Firebase Firestore (/r2_media).`
       );
       await loadR2Bucket();
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'R2 upload error.'
-      );
+      setError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
-      setBusyKey(null);
-      if (newFileInputRef.current) {
-        newFileInputRef.current.value = '';
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     }
   };
 
-  const handleRenameObject = async (obj: R2ObjectEntry) => {
-    const nextKey = (editingKeyMap[obj.objectKey] ?? obj.objectKey).trim();
-    if (!nextKey || nextKey === obj.objectKey) return;
+  const handleRenameObject = async (item: R2BucketObjectItem) => {
+    const targetKey = (renameDrafts[item.objectKey] ?? item.objectKey).trim();
+    if (!targetKey || targetKey === item.objectKey) return;
 
-    setStatusMessage(null);
-    setErrorMessage(null);
-    setBusyKey(obj.objectKey);
-
+    setBanner(null);
+    setError(null);
     try {
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'rename_object',
-          oldKeyOrUrl: obj.objectKey,
-          newKey: nextKey,
+          oldKeyOrUrl: item.objectKey,
+          newKey: targetKey,
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.renamed) {
-        throw new Error(data?.error || 'Failed to rename R2 object.');
+      if (!res.ok || !data.renamed) {
+        throw new Error(data.error || 'Failed to rename R2 object.');
       }
 
-      const oldDocId = obj.id;
-      await onR2Deleted(obj.objectKey, oldDocId);
-
-      const newMeta: R2UploadedItemMeta = {
-        id: data.renamed.id,
-        objectKey: data.renamed.objectKey,
-        cdnUrl: data.renamed.cdnUrl,
-        folder: obj.folder,
-        fileName: data.renamed.objectKey.split('/').pop() || obj.fileName,
-        contentType: 'image/jpeg',
-        sizeBytes: obj.sizeBytes,
-      };
-      await onR2Uploaded(newMeta);
+      const { id, objectKey, cdnUrl } = data.renamed;
+      if (onR2Deleted && data.oldDocId) {
+        await onR2Deleted(item.objectKey, data.oldDocId);
+      }
       if (onR2Renamed) {
-        await onR2Renamed(obj.cdnUrl, data.renamed.cdnUrl, newMeta);
+        await onR2Renamed(item.cdnUrl, cdnUrl, {
+          id,
+          objectKey,
+          cdnUrl,
+          folder: item.folder,
+          fileName: objectKey.split('/').pop() || objectKey,
+          contentType: 'image/jpeg',
+          sizeBytes: item.sizeBytes,
+        });
       }
-
-      setStatusMessage(
-        `Renamed R2 object "${obj.objectKey}" → "${data.renamed.objectKey}" and updated CDN links in Firebase.`
+      setBanner(
+        `Renamed "${item.objectKey}" → "${objectKey}" in R2 & synced all references in Firebase Firestore.`
       );
       await loadR2Bucket();
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to rename R2 object.'
-      );
-    } finally {
-      setBusyKey(null);
+      setError(err instanceof Error ? err.message : 'Rename failed.');
     }
   };
 
-  const handleDeleteObject = async (obj: R2ObjectEntry) => {
-    setStatusMessage(null);
-    setErrorMessage(null);
-    setBusyKey(obj.objectKey);
-
+  const handleDeleteObject = async (item: R2BucketObjectItem) => {
+    setBanner(null);
+    setError(null);
     try {
       const res = await fetch(
-        `/api/admin/r2?key=${encodeURIComponent(obj.objectKey)}`,
-        {
-          method: 'DELETE',
-        }
+        `/api/admin/r2?key=${encodeURIComponent(item.objectKey)}`,
+        { method: 'DELETE' }
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete object from R2.');
+        throw new Error(data.error || 'Failed to delete R2 object.');
       }
-
-      await onR2Deleted(obj.objectKey, obj.id);
-      setStatusMessage(
-        `Deleted "${obj.objectKey}" from Cloudflare R2 bucket and removed its CDN reference from Firebase.`
+      if (onR2Deleted) {
+        await onR2Deleted(item.objectKey, data.mediaDocId || item.id);
+      }
+      setBanner(
+        `Deleted "${item.objectKey}" from R2 bucket and removed its CDN record from Firebase Firestore.`
       );
       await loadR2Bucket();
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : 'Failed to delete R2 object.'
-      );
-    } finally {
-      setBusyKey(null);
+      setError(err instanceof Error ? err.message : 'Delete failed.');
     }
   };
 
-  const filteredObjects =
-    folderFilter === 'all'
-      ? objects
-      : objects.filter((o) => o.folder === folderFilter);
+  const handleQuickAssign = async (item: R2BucketObjectItem) => {
+    const rawTarget = assignSelections[item.objectKey];
+    if (!rawTarget || !onQuickAssignToSite) return;
+
+    let parsedTarget: R2QuickAssignTarget | null = null;
+    if (rawTarget === 'hero_add') {
+      parsedTarget = { type: 'hero_add' };
+    } else if (rawTarget === 'gallery_add') {
+      parsedTarget = { type: 'gallery_add' };
+    } else if (rawTarget.startsWith('tour:')) {
+      parsedTarget = { type: 'tour', id: rawTarget.slice('tour:'.length) };
+    } else if (rawTarget.startsWith('stay:')) {
+      parsedTarget = { type: 'stay', id: rawTarget.slice('stay:'.length) };
+    } else if (rawTarget.startsWith('destination:')) {
+      parsedTarget = {
+        type: 'destination',
+        id: rawTarget.slice('destination:'.length),
+      };
+    } else if (rawTarget.startsWith('review:')) {
+      parsedTarget = { type: 'review', id: rawTarget.slice('review:'.length) };
+    }
+
+    if (!parsedTarget) return;
+
+    try {
+      await onQuickAssignToSite(parsedTarget, item.cdnUrl, {
+        id: item.id,
+        objectKey: item.objectKey,
+        cdnUrl: item.cdnUrl,
+        folder: item.folder,
+        fileName: item.fileName,
+        contentType: item.contentType || 'image/jpeg',
+        sizeBytes: item.sizeBytes || 0,
+      });
+      setBanner(
+        `Assigned "${item.fileName}" directly to website section & synced to Firebase Firestore.`
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to assign R2 image.'
+      );
+    }
+  };
+
+  // Compute where each CDN URL is currently used across the live CMS
+  const getUsageBadges = (cdnUrl: string): string[] => {
+    if (!cms) return [];
+    const badges: string[] = [];
+    (cms.general.heroImages || []).forEach((u, i) => {
+      if (u === cdnUrl) badges.push(`Hero Slide #${i + 1}`);
+    });
+    cms.tours.forEach((t) => {
+      if (t.image === cdnUrl) badges.push(`Tour: ${t.name}`);
+    });
+    cms.stays.forEach((s) => {
+      if (s.image === cdnUrl) badges.push(`Stay: ${s.name}`);
+    });
+    cms.destinations.forEach((d) => {
+      if (d.image === cdnUrl) badges.push(`Destination: ${d.name}`);
+    });
+    cms.gallery.forEach((g) => {
+      if (g.image === cdnUrl) badges.push(`Gallery: ${g.title}`);
+    });
+    cms.reviews.forEach((r) => {
+      if (r.image === cdnUrl) badges.push(`Review: ${r.name}`);
+    });
+    return badges;
+  };
+
+  const filteredItems = items.filter((item) => {
+    const matchesFolder =
+      filterFolder === 'all' || item.folder === filterFolder;
+    const matchesSearch =
+      !searchQuery.trim() ||
+      item.objectKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.fileName.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesFolder && matchesSearch;
+  });
 
   return (
-    <div style={{ display: 'grid', gap: '24px' }}>
-      {statusMessage && (
-        <div className="admin-save-banner" role="status">
-          <strong>✓ {statusMessage}</strong>
-        </div>
-      )}
-      {errorMessage && (
-        <div
-          className="admin-save-banner"
-          role="alert"
-          style={{
-            background: '#fef3f2',
-            color: '#b42318',
-            borderColor: 'rgba(180, 35, 24, 0.25)',
-          }}
-        >
-          <strong>⚠ {errorMessage}</strong>
-        </div>
-      )}
-
-      {/* 1. CLOUDFLARE R2 BUCKET & CDN CONFIGURATION */}
-      <form onSubmit={handleSaveR2Config} className="admin-assignments-card">
-        <div className="section-head" style={{ marginBottom: '18px' }}>
-          <div>
-            <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              CLOUDFLARE R2 STORAGE ENGINE · ZERO FIRESTORE IMAGE STORAGE
-            </span>
-            <h3
-              className="serif"
-              style={{ fontSize: '28px', margin: '4px 0 0' }}
-            >
-              Cloudflare R2 Bucket &amp; Public CDN Settings
-            </h3>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span
-              className={
-                config.configured ? 'badge-live' : 'badge-unconfigured'
-              }
-            >
-              {config.configured
-                ? 'R2 BUCKET CONNECTED ✓'
-                : 'AWAITING R2 CREDENTIALS'}
-            </span>
-            <button
-              type="submit"
-              className="pill dark"
-              disabled={busyKey === 'save_config'}
-            >
-              {busyKey === 'save_config' ? 'SAVING…' : 'SAVE R2 SETTINGS'}
-            </button>
-          </div>
-        </div>
-
-        <p
-          style={{
-            fontSize: '13px',
-            color: 'var(--muted)',
-            margin: '0 0 18px',
-            lineHeight: 1.6,
-          }}
-        >
-          All images chosen from your device are pushed directly to your
-          Cloudflare R2 bucket. Firebase Firestore stores{' '}
-          <strong>only the R2 CDN URLs and metadata</strong> — never raw or
-          base64 images.
-        </p>
-
-        <div className="admin-form-grid-2">
-          <div className="admin-field">
-            <label>CLOUDFLARE ACCOUNT ID</label>
-            <input
-              type="text"
-              placeholder="e.g. 8f9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c"
-              value={config.accountId}
-              onChange={(e) =>
-                setConfig({ ...config, accountId: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div className="admin-field">
-            <label>R2 BUCKET NAME</label>
-            <input
-              type="text"
-              placeholder="e.g. bimondo-media"
-              value={config.bucketName}
-              onChange={(e) =>
-                setConfig({ ...config, bucketName: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div className="admin-field">
-            <label>R2 PUBLIC CDN BASE URL (R2.DEV OR CUSTOM DOMAIN)</label>
-            <input
-              type="url"
-              placeholder="e.g. https://pub-xxxxxxxxxxxxxxxx.r2.dev or https://cdn.bimondo.com"
-              value={config.publicCdnUrl}
-              onChange={(e) =>
-                setConfig({ ...config, publicCdnUrl: e.target.value })
-              }
-              required
-            />
-          </div>
-
-          <div className="admin-field">
-            <label>
-              R2 S3 API ACCESS KEY ID &amp; SECRET KEY (STORED SERVER-SIDE ·{' '}
-              {config.hasCredentials ? 'SET ✓' : 'NOT SET'})
-            </label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="R2 Access Key ID"
-                value={accessKeyId}
-                onChange={(e) => setAccessKeyId(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <input
-                type="password"
-                placeholder="R2 Secret Access Key"
-                value={secretAccessKey}
-                onChange={(e) => setSecretAccessKey(e.target.value)}
-                style={{ flex: 1 }}
-              />
-            </div>
-          </div>
-        </div>
-      </form>
-
-      {/* 2. DIRECT DEVICE UPLOAD & R2 BUCKET OBJECT BROWSER */}
+    <div style={{ display: 'grid', gap: '28px' }}>
+      {/* R2 Credentials & Connection Card */}
       <div className="admin-assignments-card">
         <div className="section-head" style={{ marginBottom: '20px' }}>
           <div>
             <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              DIRECT R2 BUCKET MEDIA MANAGER ({objects.length} OBJECTS)
+              06B / CLOUDFLARE R2 BUCKET &amp; FIREBASE CDN ARCHITECTURE
             </span>
-            <h3
-              className="serif"
-              style={{ fontSize: '28px', margin: '4px 0 0' }}
+            <h3 className="serif" style={{ fontSize: '28px', margin: '4px 0 0' }}>
+              Cloudflare R2 Storage Configuration
+            </h3>
+            <p
+              style={{
+                fontSize: '13px',
+                color: 'var(--muted)',
+                margin: '6px 0 0',
+              }}
             >
-              Upload, Replace, Rename &amp; Delete R2 Bucket Images
+              Every image uploaded in the Admin Panel is stored in your R2
+              bucket and linked across Hero Slideshow, Tours, Stays,
+              Destinations, Gallery, and Tourist Thoughts in Firebase Firestore
+              (<code>/site_cms/main</code> &amp; <code>/r2_media</code>).
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span
+              className="admin-status-pill"
+              style={{
+                background: 'rgba(29, 60, 46, 0.12)',
+                color: 'var(--green)',
+              }}
+            >
+              {status.s3Connected
+                ? `Cloudflare R2 S3 Connected (${status.bucketName})`
+                : `R2 Storage Active (${items.length} Objects Ready)`}
+            </span>
+            <button
+              type="button"
+              className="pill"
+              disabled={testingConn}
+              onClick={handleTestConnection}
+            >
+              {testingConn ? 'TESTING…' : 'TEST R2 CONNECTION'}
+            </button>
+            <button
+              type="button"
+              className="pill dark"
+              disabled={syncingCatalog}
+              onClick={handleSyncCatalogToFirestore}
+            >
+              {syncingCatalog
+                ? 'SYNCING TO FIRESTORE…'
+                : 'SYNC ALL TO FIRESTORE (/r2_media)'}
+            </button>
+          </div>
+        </div>
+
+        {banner && (
+          <div className="admin-alert-banner" style={{ marginBottom: '18px' }}>
+            ✓ {banner}
+          </div>
+        )}
+        {error && (
+          <div
+            className="admin-alert-banner"
+            style={{
+              marginBottom: '18px',
+              background: '#fef3f2',
+              color: '#b42318',
+              borderColor: '#fecdca',
+            }}
+          >
+            ⚠ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSaveConfig} className="admin-booking-form">
+          <div className="admin-form-grid-3">
+            <div className="admin-field">
+              <label>CLOUDFLARE ACCOUNT ID OR S3 ENDPOINT</label>
+              <input
+                type="text"
+                placeholder="e.g. 8f92a1b3c4d5e6f7a8b9c0d1e2f3a4b5 or https://<id>.r2.cloudflarestorage.com"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              />
+              <small>
+                Paste either your 32-character Account ID or full{' '}
+                <code>r2.cloudflarestorage.com</code> S3 endpoint URL.
+              </small>
+            </div>
+
+            <div className="admin-field">
+              <label>R2 BUCKET NAME</label>
+              <input
+                type="text"
+                placeholder="e.g. bimondo-media"
+                value={bucketName}
+                onChange={(e) => setBucketName(e.target.value)}
+              />
+              <small>Target Cloudflare R2 bucket name.</small>
+            </div>
+
+            <div className="admin-field">
+              <label>PUBLIC CDN BASE URL (OPTIONAL)</label>
+              <input
+                type="text"
+                placeholder="https://pub-xxxx.r2.dev or leave blank for built-in R2 streaming proxy"
+                value={publicCdnUrl}
+                onChange={(e) => setPublicCdnUrl(e.target.value)}
+              />
+              <small>
+                If left blank, objects stream automatically via{' '}
+                <code>/api/admin/r2/file/...</code>.
+              </small>
+            </div>
+          </div>
+
+          <div className="admin-form-grid-2" style={{ marginTop: '14px' }}>
+            <div className="admin-field">
+              <label>R2 S3 ACCESS KEY ID (SERVER-ONLY)</label>
+              <input
+                type="password"
+                placeholder={
+                  status.hasCredentials
+                    ? '•••••••••••••••• (Saved on server — enter to replace)'
+                    : 'Enter R2 Access Key ID'
+                }
+                value={accessKeyId}
+                onChange={(e) => setAccessKeyId(e.target.value)}
+              />
+            </div>
+
+            <div className="admin-field">
+              <label>R2 S3 SECRET ACCESS KEY (SERVER-ONLY)</label>
+              <input
+                type="password"
+                placeholder={
+                  status.hasCredentials
+                    ? '•••••••••••••••••••••••••••••••• (Saved on server)'
+                    : 'Enter R2 Secret Access Key'
+                }
+                value={secretAccessKey}
+                onChange={(e) => setSecretAccessKey(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              marginTop: '14px',
+            }}
+          >
+            <button
+              type="button"
+              className="pill"
+              onClick={loadR2Bucket}
+              disabled={loading}
+            >
+              REFRESH BUCKET
+            </button>
+            <button
+              type="submit"
+              className="pill dark"
+              disabled={savingConfig}
+            >
+              {savingConfig ? 'SAVING R2 CONFIG…' : 'SAVE R2 CREDENTIALS'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Direct Bucket Browser, Uploader & Site Section Assigner */}
+      <div className="admin-assignments-card">
+        <div className="section-head" style={{ marginBottom: '20px' }}>
+          <div>
+            <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+              LIVE CLOUDFLARE R2 BUCKET OBJECTS ({filteredItems.length} OF{' '}
+              {items.length})
+            </span>
+            <h3 className="serif" style={{ fontSize: '26px', margin: '4px 0 0' }}>
+              Upload, Rename, Delete &amp; Assign R2 Images to Website Sections
             </h3>
           </div>
 
@@ -462,131 +691,199 @@ export default function R2BucketManagerTab({
                 )
               }
               style={{
-                padding: '9px 12px',
+                padding: '8px 12px',
                 borderRadius: '999px',
-                border: '1px solid rgba(21,91,114,0.24)',
+                border: '1px solid var(--line)',
                 fontSize: '12px',
-                fontWeight: 700,
+                background: 'var(--bg-elev)',
               }}
             >
+              <option value="general">Folder: general/ (Hero &amp; Reviews)</option>
               <option value="tours">Folder: tours/</option>
               <option value="stays">Folder: stays/</option>
               <option value="destinations">Folder: destinations/</option>
               <option value="gallery">Folder: gallery/</option>
-              <option value="general">Folder: general/</option>
             </select>
 
             <input
-              ref={newFileInputRef}
+              ref={fileInputRef}
               type="file"
               accept="image/*"
+              onChange={handleDirectUpload}
               style={{ display: 'none' }}
-              onChange={(e) =>
-                handleDirectUploadFromDevice(
-                  e.target.files?.[0],
-                  uploadFolder
-                )
-              }
             />
-
             <button
               type="button"
               className="pill dark"
-              disabled={busyKey === 'new_upload'}
-              onClick={() => newFileInputRef.current?.click()}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
             >
-              {busyKey === 'new_upload'
+              {uploading
                 ? 'UPLOADING TO R2…'
-                : '+ UPLOAD IMAGE FROM DEVICE TO R2'}
-            </button>
-
-            <button
-              type="button"
-              className="pill"
-              onClick={loadR2Bucket}
-              disabled={loadingList}
-            >
-              {loadingList ? 'REFRESHING…' : 'REFRESH R2 BUCKET'}
+                : `+ UPLOAD IMAGE TO R2 (${uploadFolder}/)`}
             </button>
           </div>
         </div>
 
-        {/* Folder Filter Pills */}
-        <div className="filter" style={{ marginBottom: '20px' }}>
-          {(['all', 'tours', 'stays', 'destinations', 'gallery', 'general'] as const).map(
-            (f) => (
-              <button
-                key={f}
-                type="button"
-                className={folderFilter === f ? 'active' : ''}
-                onClick={() => setFolderFilter(f)}
-              >
-                {f === 'all' ? 'All R2 Objects' : `${f}/`}
-              </button>
-            )
-          )}
+        {/* Folder Filter Pills & Search */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            marginBottom: '18px',
+          }}
+        >
+          {(
+            [
+              'all',
+              'general',
+              'tours',
+              'stays',
+              'destinations',
+              'gallery',
+            ] as const
+          ).map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`pill ${filterFolder === f ? 'dark' : ''}`}
+              style={{
+                padding: '6px 12px',
+                minHeight: '30px',
+                fontSize: '10.5px',
+              }}
+              onClick={() => setFilterFolder(f)}
+            >
+              {f === 'all' ? 'ALL FOLDERS' : `${f.toUpperCase()}/`}
+            </button>
+          ))}
+          <input
+            type="text"
+            placeholder="Filter by R2 key or filename…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              marginLeft: 'auto',
+              padding: '7px 14px',
+              borderRadius: '999px',
+              border: '1px solid var(--line)',
+              fontSize: '12px',
+              minWidth: '230px',
+            }}
+          />
         </div>
 
-        {!config.configured ? (
-          <p style={{ color: 'var(--muted)', fontSize: '13.5px' }}>
-            Enter your Cloudflare R2 credentials above and click{' '}
-            <strong>SAVE R2 SETTINGS</strong> to browse, upload, edit, and
-            delete objects directly in your R2 bucket.
+        {loading ? (
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
+            Querying R2 bucket objects…
           </p>
-        ) : loadingList ? (
-          <p style={{ color: 'var(--muted)', fontSize: '13.5px' }}>
-            Loading objects from Cloudflare R2 bucket…
-          </p>
-        ) : filteredObjects.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: '13.5px' }}>
-            No image objects found in this R2 bucket folder yet. Click{' '}
-            <strong>+ UPLOAD IMAGE FROM DEVICE TO R2</strong> above to push an
-            image from your device.
-          </p>
+        ) : filteredItems.length === 0 ? (
+          <div className="admin-empty-state">
+            <p>
+              No objects found in folder filter. Upload an image above or switch
+              folder filters.
+            </p>
+          </div>
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
-            {filteredObjects.map((obj) => {
-              const editedKey = editingKeyMap[obj.objectKey] ?? obj.objectKey;
-              const isBusy = busyKey === obj.objectKey;
+            {filteredItems.map((item) => {
+              const usageBadges = getUsageBadges(item.cdnUrl);
+              const isLocalStream = item.cdnUrl.includes(
+                '/api/admin/r2/file/'
+              );
+
               return (
-                <div key={obj.objectKey} className="admin-item-editor-card">
+                <div key={item.objectKey} className="admin-item-editor-card">
                   <div
                     style={{
-                      display: 'flex',
-                      gap: '16px',
+                      display: 'grid',
+                      gridTemplateColumns: '110px 1fr auto',
+                      gap: '18px',
                       alignItems: 'center',
-                      flexWrap: 'wrap',
                     }}
                   >
                     <div
-                      className="admin-image-preview-thumb"
-                      style={{ width: '96px', height: '72px' }}
+                      style={{
+                        position: 'relative',
+                        width: '110px',
+                        height: '86px',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        background: '#e5e0d5',
+                      }}
                     >
-                      <Image
-                        src={obj.cdnUrl}
-                        alt={obj.fileName}
-                        fill
-                        sizes="96px"
-                        className="object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+                      {isLocalStream ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.cdnUrl}
+                          alt={item.fileName}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <Image
+                          src={item.cdnUrl}
+                          alt={item.fileName}
+                          fill
+                          sizes="110px"
+                          className="object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      )}
                     </div>
 
-                    <div style={{ flex: 1, minWidth: '240px' }}>
+                    <div style={{ display: 'grid', gap: '8px' }}>
                       <div
                         style={{
                           display: 'flex',
-                          alignItems: 'center',
                           gap: '8px',
+                          alignItems: 'center',
                           flexWrap: 'wrap',
-                          marginBottom: '6px',
                         }}
                       >
-                        <span className="admin-type-pill">{obj.folder}/</span>
-                        <small style={{ color: 'var(--muted)' }}>
-                          {(obj.sizeBytes / 1024).toFixed(1)} KB · Updated{' '}
-                          {obj.lastModified ? obj.lastModified.slice(0, 10) : ''}
-                        </small>
+                        <span className="admin-type-pill">{item.folder}/</span>
+                        <strong style={{ fontSize: '13px' }}>
+                          {item.fileName}
+                        </strong>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            color: 'var(--muted)',
+                          }}
+                        >
+                          {formatBytes(item.sizeBytes)}
+                        </span>
+                        {usageBadges.length > 0 ? (
+                          usageBadges.map((badge) => (
+                            <span
+                              key={badge}
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: 'rgba(29, 60, 46, 0.12)',
+                                color: 'var(--green)',
+                              }}
+                            >
+                              ✓ {badge}
+                            </span>
+                          ))
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '10.5px',
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              background: 'rgba(0,0,0,0.05)',
+                              color: 'var(--muted)',
+                            }}
+                          >
+                            Available in R2 Library
+                          </span>
+                        )}
                       </div>
 
                       <div
@@ -595,29 +892,113 @@ export default function R2BucketManagerTab({
                           gap: '8px',
                           alignItems: 'center',
                           flexWrap: 'wrap',
-                          marginBottom: '6px',
                         }}
                       >
                         <input
                           type="text"
-                          value={editedKey}
+                          value={renameDrafts[item.objectKey] ?? item.objectKey}
                           onChange={(e) =>
-                            setEditingKeyMap((prev) => ({
-                              ...prev,
-                              [obj.objectKey]: e.target.value,
-                            }))
+                            setRenameDrafts({
+                              ...renameDrafts,
+                              [item.objectKey]: e.target.value,
+                            })
                           }
-                          aria-label="R2 Object Key"
                           style={{
                             flex: 1,
-                            minWidth: '200px',
+                            minWidth: '220px',
                             padding: '6px 10px',
-                            borderRadius: '7px',
-                            border: '1px solid rgba(21,91,114,0.22)',
-                            fontSize: '12.5px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--line)',
+                            fontSize: '12px',
                           }}
                         />
-                        {editedKey !== obj.objectKey && (
+                        <button
+                          type="button"
+                          className="pill"
+                          style={{
+                            padding: '6px 12px',
+                            minHeight: '32px',
+                            fontSize: '10.5px',
+                          }}
+                          onClick={() => handleRenameObject(item)}
+                        >
+                          RENAME IN R2
+                        </button>
+                      </div>
+
+                      {/* Quick Assign to any Website Section */}
+                      {cms && onQuickAssignToSite && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '8px',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <select
+                            value={assignSelections[item.objectKey] || ''}
+                            onChange={(e) =>
+                              setAssignSelections({
+                                ...assignSelections,
+                                [item.objectKey]: e.target.value,
+                              })
+                            }
+                            style={{
+                              flex: 1,
+                              minWidth: '220px',
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid var(--line)',
+                              fontSize: '12px',
+                              background: 'var(--bg-elev)',
+                            }}
+                          >
+                            <option value="">
+                              Assign this R2 image to a website section…
+                            </option>
+                            <optgroup label="Hero Section (#home)">
+                              <option value="hero_add">
+                                + Add Slide to Hero 4s Slideshow
+                              </option>
+                            </optgroup>
+                            <optgroup label="Visual Gallery (#gallery)">
+                              <option value="gallery_add">
+                                + Add as New Gallery Photo
+                              </option>
+                            </optgroup>
+                            <optgroup label="Signature Tours (#packages)">
+                              {cms.tours.map((t) => (
+                                <option key={t.id} value={`tour:${t.id}`}>
+                                  Tour: {t.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Boutique Stays (#stays)">
+                              {cms.stays.map((s) => (
+                                <option key={s.id} value={`stay:${s.id}`}>
+                                  Stay: {s.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Destinations (#places)">
+                              {cms.destinations.map((d) => (
+                                <option
+                                  key={d.id}
+                                  value={`destination:${d.id}`}
+                                >
+                                  Destination: {d.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Tourist Thoughts (#why)">
+                              {cms.reviews.map((r) => (
+                                <option key={r.id} value={`review:${r.id}`}>
+                                  Guest Card: {r.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </select>
                           <button
                             type="button"
                             className="pill dark"
@@ -626,30 +1007,30 @@ export default function R2BucketManagerTab({
                               minHeight: '32px',
                               fontSize: '10.5px',
                             }}
-                            disabled={isBusy}
-                            onClick={() => handleRenameObject(obj)}
+                            disabled={!assignSelections[item.objectKey]}
+                            onClick={() => handleQuickAssign(item)}
                           >
-                            SAVE KEY RENAME
+                            ASSIGN &amp; SAVE TO SITE
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
-                      <div
+                      <code
                         style={{
-                          fontSize: '11.5px',
-                          color: 'var(--green)',
+                          fontSize: '11px',
+                          color: 'var(--muted)',
                           wordBreak: 'break-all',
                         }}
                       >
-                        <strong>CDN Link:</strong> {obj.cdnUrl}
-                      </div>
+                        CDN Link: {item.cdnUrl}
+                      </code>
                     </div>
 
                     <div
                       style={{
                         display: 'flex',
+                        flexDirection: 'column',
                         gap: '8px',
-                        flexWrap: 'wrap',
                       }}
                     >
                       <button
@@ -661,47 +1042,12 @@ export default function R2BucketManagerTab({
                           fontSize: '10.5px',
                         }}
                         onClick={() => {
-                          navigator.clipboard?.writeText(obj.cdnUrl);
-                          setStatusMessage(
-                            `Copied R2 CDN link: ${obj.cdnUrl}`
-                          );
+                          navigator.clipboard?.writeText(item.cdnUrl);
+                          setBanner(`Copied R2 CDN URL: ${item.cdnUrl}`);
                         }}
                       >
                         COPY CDN URL
                       </button>
-
-                      <input
-                        ref={(el) => {
-                          replaceFileInputRefs.current[obj.objectKey] = el;
-                        }}
-                        type="file"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) =>
-                          handleDirectUploadFromDevice(
-                            e.target.files?.[0],
-                            obj.folder,
-                            obj
-                          )
-                        }
-                      />
-
-                      <button
-                        type="button"
-                        className="pill dark"
-                        style={{
-                          padding: '6px 12px',
-                          minHeight: '32px',
-                          fontSize: '10.5px',
-                        }}
-                        disabled={isBusy}
-                        onClick={() =>
-                          replaceFileInputRefs.current[obj.objectKey]?.click()
-                        }
-                      >
-                        {isBusy ? 'WORKING…' : 'REPLACE FILE'}
-                      </button>
-
                       <button
                         type="button"
                         className="pill"
@@ -710,8 +1056,7 @@ export default function R2BucketManagerTab({
                           minHeight: '32px',
                           fontSize: '10.5px',
                         }}
-                        disabled={isBusy}
-                        onClick={() => handleDeleteObject(obj)}
+                        onClick={() => handleDeleteObject(item)}
                       >
                         DELETE FROM R2
                       </button>

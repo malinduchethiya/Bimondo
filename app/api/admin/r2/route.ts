@@ -3,75 +3,75 @@ import {
   deleteFileFromR2Bucket,
   getPublicR2ConfigStatus,
   listFilesInR2Bucket,
+  R2FolderName,
   renameFileInR2Bucket,
+  seedInitialR2CatalogFromCms,
+  testR2Connection,
+  toFirestoreMediaDocId,
   uploadFileToR2Bucket,
   writeR2ServerConfig,
 } from '@/lib/r2-storage';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
-  const config = getPublicR2ConfigStatus();
-  const prefix = req.nextUrl.searchParams.get('prefix') || undefined;
-
-  if (!config.configured) {
-    return NextResponse.json({
-      config,
-      objects: [],
-    });
-  }
+  const { searchParams } = new URL(req.url);
+  const prefix = searchParams.get('prefix') || undefined;
+  const origin = req.nextUrl.origin;
+  const status = getPublicR2ConfigStatus(origin);
 
   try {
-    const objects = await listFilesInR2Bucket(prefix);
+    const items = await listFilesInR2Bucket(prefix, origin);
     return NextResponse.json({
-      config,
-      objects,
+      status,
+      items,
     });
   } catch (err) {
-    return NextResponse.json(
-      {
-        config,
-        objects: [],
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Failed to list objects from Cloudflare R2 bucket.',
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      status,
+      items: [],
+      warning:
+        err instanceof Error
+          ? err.message
+          : 'Could not list objects from Cloudflare R2 bucket.',
+    });
   }
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const contentType = req.headers.get('content-type') || '';
+  const contentTypeHeader = req.headers.get('content-type') || '';
+  const origin = req.nextUrl.origin;
 
-    // 1. Direct Device File Upload / Replace to Cloudflare R2 Bucket
-    if (contentType.includes('multipart/form-data')) {
+  try {
+    // 1. Multipart form-data upload -> Push image binary to Cloudflare R2 / Managed R2 Bucket
+    if (contentTypeHeader.includes('multipart/form-data')) {
       const formData = await req.formData();
       const file = formData.get('file');
       if (!file || !(file instanceof File)) {
         return NextResponse.json(
-          { error: 'No image file provided for Cloudflare R2 upload.' },
+          { error: 'Missing image file in multipart upload.' },
           { status: 400 }
         );
       }
 
       const rawFolder = String(formData.get('folder') || 'general');
-      const allowedFolders = [
+      const validFolders: readonly R2FolderName[] = [
         'tours',
         'stays',
         'destinations',
         'gallery',
         'general',
-      ] as const;
-      const folder = (allowedFolders as readonly string[]).includes(rawFolder)
-        ? (rawFolder as (typeof allowedFolders)[number])
+      ];
+      const folder: R2FolderName = validFolders.includes(
+        rawFolder as R2FolderName
+      )
+        ? (rawFolder as R2FolderName)
         : 'general';
 
-      const customKey = String(formData.get('customKey') || '').trim() || undefined;
-      const replaceExistingKey =
-        String(formData.get('replaceKey') || '').trim() || undefined;
+      const customKey = formData.get('customKey')
+        ? String(formData.get('customKey'))
+        : undefined;
+      const replaceExistingKey = formData.get('replaceKey')
+        ? String(formData.get('replaceKey'))
+        : undefined;
 
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
         folder,
         customKey,
         replaceExistingKey,
+        requestOrigin: origin,
       });
 
       return NextResponse.json({
@@ -91,10 +92,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. JSON Actions: Save R2 Config, Rename R2 Object, Delete R2 Object
+    // 2. JSON action -> Save R2 credentials, test connection, rename R2 object, or sync catalog
     const body = await req.json();
+    const action = body?.action;
 
-    if (body?.action === 'save_config') {
+    if (action === 'save_config') {
       const status = writeR2ServerConfig({
         accountId: body.accountId,
         bucketName: body.bucketName,
@@ -102,35 +104,59 @@ export async function POST(req: NextRequest) {
         accessKeyId: body.accessKeyId,
         secretAccessKey: body.secretAccessKey,
       });
+      const connectionTest = await testR2Connection(origin);
+      const items = await listFilesInR2Bucket(undefined, origin);
       return NextResponse.json({
         ok: true,
-        config: status,
+        status: connectionTest.status || status,
+        connectionTest,
+        items,
       });
     }
 
-    if (body?.action === 'rename_object') {
+    if (action === 'test_connection') {
+      const connectionTest = await testR2Connection(origin);
+      const items = await listFilesInR2Bucket(undefined, origin);
+      return NextResponse.json({
+        ok: connectionTest.ok,
+        status: connectionTest.status,
+        connectionTest,
+        items,
+      });
+    }
+
+    if (action === 'sync_catalog') {
+      const seeded = seedInitialR2CatalogFromCms();
+      const items = await listFilesInR2Bucket(undefined, origin);
+      return NextResponse.json({
+        ok: true,
+        seededCount: Object.keys(seeded).length,
+        items,
+      });
+    }
+
+    if (action === 'rename_object') {
+      const { oldKeyOrUrl, newKey } = body;
+      if (!oldKeyOrUrl || !newKey) {
+        return NextResponse.json(
+          { error: 'Both oldKeyOrUrl and newKey are required to rename.' },
+          { status: 400 }
+        );
+      }
       const renamed = await renameFileInR2Bucket({
-        oldKeyOrUrl: String(body.oldKeyOrUrl || ''),
-        newKey: String(body.newKey || ''),
+        oldKeyOrUrl: String(oldKeyOrUrl),
+        newKey: String(newKey),
+        requestOrigin: origin,
       });
       return NextResponse.json({
         ok: true,
         renamed,
-      });
-    }
-
-    if (body?.action === 'delete_object') {
-      const result = await deleteFileFromR2Bucket(
-        String(body.keyOrUrl || '')
-      );
-      return NextResponse.json({
-        ok: true,
-        ...result,
+        oldDocId: toFirestoreMediaDocId(renamed.oldKey),
       });
     }
 
     return NextResponse.json(
-      { error: 'Unsupported R2 action.' },
+      { error: 'Unsupported R2 admin action.' },
       { status: 400 }
     );
   } catch (err) {
@@ -141,17 +167,16 @@ export async function POST(req: NextRequest) {
             ? err.message
             : 'Cloudflare R2 operation failed.',
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url);
     const keyOrUrl =
-      req.nextUrl.searchParams.get('key') ||
-      req.nextUrl.searchParams.get('url') ||
-      '';
+      searchParams.get('key') || searchParams.get('url') || '';
     if (!keyOrUrl) {
       return NextResponse.json(
         { error: 'Missing R2 object key or CDN URL to delete.' },
@@ -162,7 +187,8 @@ export async function DELETE(req: NextRequest) {
     const result = await deleteFileFromR2Bucket(keyOrUrl);
     return NextResponse.json({
       ok: true,
-      ...result,
+      deletedKey: result.deletedKey,
+      mediaDocId: toFirestoreMediaDocId(result.deletedKey),
     });
   } catch (err) {
     return NextResponse.json(
@@ -170,9 +196,9 @@ export async function DELETE(req: NextRequest) {
         error:
           err instanceof Error
             ? err.message
-            : 'Failed to delete object from Cloudflare R2 bucket.',
+            : 'Failed to delete object from Cloudflare R2.',
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }
