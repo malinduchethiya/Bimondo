@@ -49,22 +49,6 @@ export default function Header() {
       return Math.max(120, window.innerHeight * 0.85);
     };
 
-    const isAtOrBelowDiscoverSection = () => {
-      const horizWrap = document.getElementById('horizontal-scroll-wrap');
-      const discoverEl = document.getElementById('discover');
-      const targetEl = horizWrap || discoverEl;
-      if (!targetEl) return false;
-
-      // Check the pin-spacer if GSAP has wrapped #horizontal-scroll-wrap
-      const containerEl =
-        (targetEl.parentElement?.classList.contains('pin-spacer')
-          ? targetEl.parentElement
-          : targetEl) as HTMLElement;
-
-      const rect = containerEl.getBoundingClientRect();
-      return rect.top <= 4;
-    };
-
     const handleScroll = () => {
       const currentY = Math.max(0, window.scrollY);
       const prevY = lastScrollYRef.current;
@@ -75,10 +59,6 @@ export default function Header() {
 
       if (currentY <= heroThreshold) {
         setIsHidden(false);
-      } else if (isAtOrBelowDiscoverSection()) {
-        // Keep header hidden while in or below #discover, even when scrolling upward
-        setIsHidden(true);
-        setIsOpen(false);
       } else if (delta > 5) {
         setIsHidden(true);
         setIsOpen(false);

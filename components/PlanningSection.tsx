@@ -99,113 +99,144 @@ export default function PlanningSection() {
   const { cms } = useSiteCms();
   const faqsList = cms.faqs && cms.faqs.length > 0 ? cms.faqs : FAQS;
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(
+    faqsList[0]?.id || 'who-is-bimondo'
+  );
 
   const filteredFaqs = (
     activeCategory === 'all'
       ? faqsList
       : faqsList.filter((item) => item.category === activeCategory)
-  ).slice(0, 5);
+  ).slice(0, 6);
 
   const toggleFAQ = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   };
 
   return (
-    <section className="section wrap planning-faq-wrapper" id="planning-faq">
-      <div className="planning-top-split">
-        <div className="planning-intro-col">
-          <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-            06 / HOW A BIMONDO JOURNEY WORKS
-          </div>
-          <h2 className="big-heading serif">
-            Seven clear steps.
-            <br />
-            <em style={{ color: 'var(--terracotta)' }}>Personal from day one.</em>
-          </h2>
-          <p className="planning-intro-lead">
-            From your first message to your departure flight, every itinerary is
-            designed around your pace with clear written arrangements and
-            24-hour local support.
-          </p>
+    <section className="section planning-faq-wrapper" id="planning-faq">
+      <div className="wrap planning-faq-grid">
+        <div className="planning-top-split">
+          <div className="planning-intro-col">
+            <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+              06 / HOW A BIMONDO JOURNEY WORKS
+            </div>
+            <h2 className="big-heading serif">
+              Seven clear steps.
+              <br />
+              <em style={{ color: 'var(--terracotta)' }}>
+                Personal from day one.
+              </em>
+            </h2>
+            <p className="planning-intro-lead">
+              From your first message to your departure flight, every itinerary
+              is designed around your pace with clear written arrangements and
+              24-hour local support.
+            </p>
 
-          <div className="planning-steps-compact-grid">
-            {GUEST_JOURNEY_STEPS.map((step) => (
-              <div key={step.num} className="planning-step-chip">
-                <div className="planning-step-chip-head">
-                  <span className="planning-step-num">{step.num}</span>
-                  <strong className="planning-step-title">{step.title}</strong>
+            <div className="planning-steps-compact-grid">
+              {GUEST_JOURNEY_STEPS.map((step) => (
+                <div key={step.num} className="planning-step-chip">
+                  <div className="planning-step-chip-head">
+                    <span className="planning-step-num">{step.num}</span>
+                    <strong className="planning-step-title">
+                      {step.title}
+                    </strong>
+                  </div>
+                  <p className="planning-step-desc">{step.desc}</p>
                 </div>
-                <p className="planning-step-desc">{step.desc}</p>
-              </div>
-            ))}
-            <Link
-              className="planning-step-cta-card"
-              href="/contact"
-              prefetch={false}
+              ))}
+              <Link
+                className="planning-step-cta-card"
+                href="/contact"
+                prefetch={false}
+              >
+                <span>START YOUR JOURNEY</span>
+                <strong>Step 01 — Enquire ↗</strong>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Clean Pill-Filtered FAQ Card */}
+        <div className="minimal-faq-block" id="faq">
+          <div style={{ marginBottom: '16px' }}>
+            <span
+              className="eyebrow"
+              style={{
+                color: 'var(--terracotta)',
+                display: 'block',
+                marginBottom: '4px',
+              }}
             >
-              <span>START YOUR JOURNEY</span>
-              <strong>Step 01 — Enquire ↗</strong>
-            </Link>
+              COMMON QUESTIONS
+            </span>
+            <h3
+              className="serif"
+              style={{
+                fontSize: 'clamp(22px, 2.4vw, 30px)',
+                margin: 0,
+                color: 'var(--ink)',
+              }}
+            >
+              Planning Your Private Journey
+            </h3>
           </div>
-        </div>
-      </div>
 
-      {/* Minimalist Pill-Filtered Hairline FAQ Block (No internal scroll capture so horizontal scroll is seamless) */}
-      <div className="minimal-faq-block" id="faq">
-        <div
-          className="minimal-faq-pills"
-          role="tablist"
-          aria-label="FAQ Categories"
-        >
-          {FAQ_CATEGORIES.map((cat) => {
-            const isActive = activeCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`minimal-faq-pill ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat.id)}
-              >
-                {cat.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="minimal-faq-list">
-          {filteredFaqs.map((item) => {
-            const isOpen = openId === item.id;
-            return (
-              <div
-                key={item.id}
-                className={`minimal-faq-row ${isOpen ? 'is-open' : ''}`}
-              >
+          <div
+            className="minimal-faq-pills"
+            role="tablist"
+            aria-label="FAQ Categories"
+          >
+            {FAQ_CATEGORIES.map((cat) => {
+              const isActive = activeCategory === cat.id;
+              return (
                 <button
+                  key={cat.id}
                   type="button"
-                  className="minimal-faq-trigger"
-                  onClick={() => toggleFAQ(item.id)}
-                  aria-expanded={isOpen}
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`minimal-faq-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(cat.id)}
                 >
-                  <span className="minimal-faq-question">{item.q}</span>
-                  <span className="minimal-faq-plus" aria-hidden="true">
-                    {isOpen ? '−' : '+'}
-                  </span>
+                  {cat.label}
                 </button>
+              );
+            })}
+          </div>
+
+          <div className="minimal-faq-list">
+            {filteredFaqs.map((item) => {
+              const isOpen = openId === item.id;
+              return (
                 <div
-                  className="minimal-faq-panel"
-                  style={{
-                    maxHeight: isOpen ? '160px' : '0px',
-                    opacity: isOpen ? 1 : 0,
-                  }}
+                  key={item.id}
+                  className={`minimal-faq-row ${isOpen ? 'is-open' : ''}`}
                 >
-                  <p className="minimal-faq-answer">{item.a}</p>
+                  <button
+                    type="button"
+                    className="minimal-faq-trigger"
+                    onClick={() => toggleFAQ(item.id)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className="minimal-faq-question">{item.q}</span>
+                    <span className="minimal-faq-plus" aria-hidden="true">
+                      {isOpen ? '−' : '+'}
+                    </span>
+                  </button>
+                  <div
+                    className="minimal-faq-panel"
+                    style={{
+                      maxHeight: isOpen ? '240px' : '0px',
+                      opacity: isOpen ? 1 : 0,
+                    }}
+                  >
+                    <p className="minimal-faq-answer">{item.a}</p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>

@@ -1881,7 +1881,7 @@ footer {
   margin-top: 20px;
 }
 
-/* Mobile-First Flyover Section Stack (After #story) */
+/* Vertical Downward Flyover Section Stack (#story through #contact) */
 .flyover-anchor-section {
   position: relative;
   z-index: 10;
@@ -1891,8 +1891,9 @@ footer {
 .flyover-panel {
   position: relative;
   margin-top: -24px;
-  border-radius: 22px 22px 0 0;
-  box-shadow: 0 -18px 42px rgba(5, 22, 34, 0.2);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -14px 36px rgba(5, 22, 34, 0.14);
+  border-top: 1px solid rgba(21, 91, 114, 0.12);
   will-change: transform;
   overflow: hidden;
 }
@@ -1900,12 +1901,115 @@ footer {
 .flyover-panel.wrap {
   width: 100%;
   max-width: 100%;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding-left: max(16px, calc((100vw - 1280px) / 2));
+  padding-right: max(16px, calc((100vw - 1280px) / 2));
 }
 
 #destinations-slider.flyover-panel {
-  border-top: 1px solid rgba(21, 91, 114, 0.14);
+  background: var(--bg);
+}
+
+#discover.flyover-panel {
+  background: linear-gradient(135deg, #d7ebf1 0%, #c2e0ea 100%);
+  padding-bottom: clamp(72px, 9vw, 110px);
+}
+
+#places.flyover-panel {
+  background: #f5fafc;
+  padding-bottom: clamp(72px, 9vw, 110px);
+}
+
+#why.flyover-panel {
+  padding-bottom: clamp(72px, 9vw, 110px);
+}
+
+#planning-faq,
+#planning-faq.flyover-panel,
+main:nth-of-type(1) > section#planning-faq:nth-of-type(8) {
+  background: linear-gradient(135deg, #e5f1f6 0%, #d6e9f1 100%);
+  display: block;
+  padding-top: clamp(64px, 7.5vw, 96px);
+  padding-bottom: clamp(80px, 9.5vw, 118px);
+}
+
+.planning-faq-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(28px, 4vw, 56px);
+  align-items: start;
+}
+
+#planning-faq .planning-top-split,
+#planning-faq .planning-intro-col {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+#planning-faq .planning-steps-compact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+#planning-faq .planning-step-chip {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(21, 91, 114, 0.16);
+  background: rgba(255, 255, 255, 0.82);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#planning-faq .planning-step-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+#planning-faq .planning-step-desc {
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  color: var(--muted) !important;
+  margin: 0 !important;
+}
+
+#planning-faq .planning-step-cta-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+#planning-faq .minimal-faq-block {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 20px;
+  padding: clamp(24px, 3vw, 36px);
+  border: 1px solid rgba(21, 91, 114, 0.15);
+  box-shadow: 0 16px 40px rgba(12, 45, 62, 0.06);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#planning-faq .minimal-faq-pills {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 900px) {
+  .planning-faq-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+
+@media (max-width: 560px) {
+  #planning-faq .planning-steps-compact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* Horizontal Scroll Track (From #discover and beyond — Right to Left, Full-Screen Fit) */
@@ -3123,9 +3227,10 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
 
   /* Tablet Planning, Tourist Reviews & FAQ */
   .planning-top-split {
-    grid-template-columns: 1fr 1.05fr;
-    gap: 32px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
   }
 
   .planning-intro-lead {
@@ -3516,9 +3621,10 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   }
 
   .planning-top-split {
-    grid-template-columns: 0.95fr 1.05fr;
-    gap: 6%;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
   }
 
   .tourist-reviews-widget {

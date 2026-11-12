@@ -204,8 +204,8 @@ export default function SiteGsapAnimations() {
           }
         }
 
-        // 4A. Flyover stack ONLY for direct sections from #story up to #destinations-slider
-        // Uses pure GPU transform (y, scale) with ZERO CSS filter repaints
+        // 4. VERTICAL FLYOVER SECTION STACK (From #story through #contact)
+        // Subtle, clean downward flyover effect across all homepage sections
         if (storySection && storySection.parentElement) {
           const allDirectSections = Array.from(
             storySection.parentElement.querySelectorAll(':scope > section')
@@ -216,6 +216,7 @@ export default function SiteGsapAnimations() {
             const flyoverSections = allDirectSections.slice(storyIndex);
 
             flyoverSections.forEach((sec, idx) => {
+              sec.classList.remove('horizontal-panel-section');
               if (idx === 0) {
                 sec.classList.add('flyover-anchor-section');
                 sec.style.zIndex = '10';
@@ -229,6 +230,7 @@ export default function SiteGsapAnimations() {
               const prevSec = flyoverSections[i];
               const nextSec = flyoverSections[i + 1];
 
+              // Previous section gently recedes as the next section flies over it
               gsap.fromTo(
                 prevSec,
                 {
@@ -236,135 +238,44 @@ export default function SiteGsapAnimations() {
                   scale: 1,
                 },
                 {
-                  y: isMobile ? 36 : isTablet ? 56 : 80,
-                  scale: isMobile ? 0.97 : isTablet ? 0.96 : 0.95,
+                  y: isMobile ? 24 : isTablet ? 36 : 48,
+                  scale: isMobile ? 0.985 : isTablet ? 0.98 : 0.975,
                   transformOrigin: 'center bottom',
                   ease: 'none',
                   force3D: true,
                   scrollTrigger: {
                     trigger: nextSec,
-                    start: 'top 95%',
-                    end: 'top 15%',
+                    start: 'top 96%',
+                    end: 'top 20%',
                     scrub: true,
                   },
                 }
               );
-            }
-          }
-        }
 
-        // 4B. Alternating Horizontal Scroll Sequence (Right -> Left -> Right -> Left)
-        const horizontalWrap = document.getElementById(
-          'horizontal-scroll-wrap'
-        ) as HTMLElement | null;
-        const horizontalTrack = document.getElementById(
-          'horizontal-scroll-track'
-        ) as HTMLElement | null;
-
-        if (horizontalWrap && horizontalTrack) {
-          const panels = Array.from(
-            horizontalTrack.querySelectorAll(':scope > section')
-          ) as HTMLElement[];
-
-          panels.forEach((sec, idx) => {
-            sec.classList.remove('flyover-panel', 'flyover-anchor-section');
-            sec.classList.add('horizontal-panel-section');
-            sec.style.zIndex = String(10 + idx);
-          });
-
-          if (panels.length > 1) {
-            // idx 0 (#discover): centered at xPercent: 0
-            // idx 1 (#places): starts on RIGHT (+100%) -> slides to 0
-            // idx 2 (#why): starts on LEFT (-100%) -> slides to 0
-            // idx 3 (#planning-faq): starts on RIGHT (+100%) -> slides to 0
-            // idx 4 (#contact): starts on LEFT (-100%) -> slides to 0
-            gsap.set(panels[0], { xPercent: 0, force3D: true });
-            for (let i = 1; i < panels.length; i++) {
-              const comesFromRight = i % 2 === 1;
-              gsap.set(panels[i], {
-                xPercent: comesFromRight ? 100 : -100,
-                force3D: true,
-              });
-            }
-
-            const holdDuration = 0.42;
-            const slideDuration = 1;
-            const getPanelHoldDistance = () =>
-              Math.round(window.innerHeight * 0.48);
-            const getTransitionDistance = () =>
-              (panels.length - 1) * window.innerWidth;
-
-            const horizTl = gsap.timeline({
-              scrollTrigger: {
-                trigger: horizontalWrap,
-                pin: true,
-                pinSpacing: true,
-                start: 'top top',
-                end: () =>
-                  `+=${
-                    panels.length * getPanelHoldDistance() +
-                    getTransitionDistance()
-                  }`,
-                scrub: true,
-                invalidateOnRefresh: true,
-                anticipatePin: 1,
-                fastScrollEnd: true,
-              },
-            });
-
-            // 1. Initial full-screen hold on #discover before sliding to #places
-            horizTl.to(panels[0], {
-              xPercent: 0,
-              ease: 'none',
-              duration: holdDuration,
-            });
-
-            // 2. Alternating GPU-composited horizontal panel transitions
-            for (let i = 0; i < panels.length - 1; i++) {
-              const currentPanel = panels[i];
-              const nextPanel = panels[i + 1];
-              const nextIndex = i + 1;
-              const nextComesFromRight = nextIndex % 2 === 1;
-              const stepLabel = `panelStep_${nextIndex}`;
-
-              horizTl.addLabel(stepLabel);
-
-              horizTl.fromTo(
-                currentPanel,
-                { xPercent: 0 },
-                {
-                  xPercent: nextComesFromRight ? -100 : 100,
-                  ease: 'none',
-                  duration: slideDuration,
-                  force3D: true,
-                  immediateRender: false,
-                },
-                stepLabel
-              );
-
-              horizTl.fromTo(
-                nextPanel,
-                { xPercent: nextComesFromRight ? 100 : -100 },
-                {
-                  xPercent: 0,
-                  ease: 'none',
-                  duration: slideDuration,
-                  force3D: true,
-                  immediateRender: false,
-                },
-                stepLabel
-              );
-
-              horizTl.to(
-                nextPanel,
-                {
-                  xPercent: 0,
-                  ease: 'none',
-                  duration: holdDuration,
-                  immediateRender: false,
-                },
-                `${stepLabel}+=${slideDuration}`
-              );
+              // Subtle flyover lift on the incoming section's inner content
+              const innerTarget =
+                (nextSec.querySelector(':scope > .wrap') as HTMLElement) ||
+                (nextSec.querySelector(
+                  ':scope > .planning-top-split'
+                ) as HTMLElement);
+              if (innerTarget) {
+                gsap.fromTo(
+                  innerTarget,
+                  { y: isMobile ? 18 : 26, opacity: 0.92 },
+                  {
+                    y: 0,
+                    opacity: 1,
+                    duration: 0.65,
+                    ease: 'power2.out',
+                    force3D: true,
+                    scrollTrigger: {
+                      trigger: nextSec,
+                      start: 'top 88%',
+                      once: true,
+                    },
+                  }
+                );
+              }
             }
           }
         }

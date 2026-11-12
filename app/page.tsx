@@ -16,16 +16,11 @@ export default function HomePage() {
       <HeroTransitionSection />
       <StorySection />
       <BentoDestinationSlider />
-      <div className="horizontal-scroll-pin-wrap" id="horizontal-scroll-wrap">
-        <div className="horizontal-scroll-track" id="horizontal-scroll-track">
-          <ExperienceSection />
-          <PlacesSection />
-          <ValuesSection />
-          <PlanningSection />
-          <ContactSection />
-        </div>
-      </div>
+      <ExperienceSection />
+      <PlacesSection />
+      <ValuesSection />
+      <PlanningSection />
+      <ContactSection />
     </main>
   );
 }
-

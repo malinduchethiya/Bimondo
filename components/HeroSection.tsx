@@ -100,10 +100,10 @@ export default function HeroSection() {
             </span>
           </h1>
           <p>
-            Private, tailor-made journeys across Sri Lanka—spanning adventure,
-            culture and heritage, sea and sand, and hiking and wildlife—planned
-            personally by our local team in Battaramulla since{' '}
-            {cms.general.foundedYear || '2022'}.
+            {cms.general.tagline ||
+              `Private, tailor-made journeys across Sri Lanka—spanning adventure, culture and heritage, sea and sand, and hiking and wildlife—planned personally by our local team in Battaramulla since ${
+                cms.general.foundedYear || '2022'
+              }.`}
           </p>
           <div className="hero-actions">
             <Link className="pill dark" href="/packages" prefetch={false}>
