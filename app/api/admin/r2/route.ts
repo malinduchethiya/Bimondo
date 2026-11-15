@@ -8,7 +8,6 @@ import {
   persistR2ConfigToFirestoreServer,
   R2FolderName,
   renameFileInR2Bucket,
-  seedInitialR2CatalogFromCms,
   testR2Connection,
   toFirestoreMediaDocId,
   uploadFileToR2Bucket,
@@ -21,11 +20,10 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const prefix = searchParams.get('prefix') || undefined;
-  const origin = req.nextUrl.origin;
-  const status = getPublicR2ConfigStatus(origin);
+  const status = getPublicR2ConfigStatus();
 
   try {
-    const items = await listFilesInR2Bucket(prefix, origin);
+    const items = await listFilesInR2Bucket(prefix);
     return NextResponse.json({
       status,
       items,
@@ -47,14 +45,12 @@ export async function POST(req: NextRequest) {
   await ensureR2ConfigHydratedFromFirestore();
 
   const contentTypeHeader = req.headers.get('content-type') || '';
-  const origin = req.nextUrl.origin;
 
   try {
     // 1. Multipart form-data upload -> Push image binary directly to Cloudflare R2 Bucket
     if (contentTypeHeader.includes('multipart/form-data')) {
       const formData = await req.formData();
 
-      // Accept R2 config overrides inside multipart formData if provided
       const fAccount = String(formData.get('accountId') || '').trim();
       const fBucket = String(formData.get('bucketName') || '').trim();
       const fCdn = String(formData.get('publicCdnUrl') || '').trim();
@@ -74,7 +70,7 @@ export async function POST(req: NextRequest) {
       const file = formData.get('file');
       if (!file || !(file instanceof File)) {
         return NextResponse.json(
-          { error: 'Missing image file in multipart upload.' },
+          { error: 'Missing image file in upload.' },
           { status: 400 }
         );
       }
@@ -110,7 +106,6 @@ export async function POST(req: NextRequest) {
         folder,
         customKey,
         replaceExistingKey,
-        requestOrigin: origin,
       });
 
       return NextResponse.json({
@@ -119,7 +114,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. JSON action -> Save R2 credentials, test connection, rename R2 object, or sync catalog
+    // 2. JSON action -> Save R2 credentials, test connection, or rename R2 object
     const body = await req.json();
     const action = body?.action;
 
@@ -132,8 +127,8 @@ export async function POST(req: NextRequest) {
         secretAccessKey: body.secretAccessKey,
       });
       await persistR2ConfigToFirestoreServer();
-      const connectionTest = await testR2Connection(origin);
-      const items = await listFilesInR2Bucket(undefined, origin);
+      const connectionTest = await testR2Connection();
+      const items = await listFilesInR2Bucket(undefined);
       return NextResponse.json({
         ok: true,
         status: connectionTest.status || status,
@@ -143,22 +138,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'test_connection') {
-      const connectionTest = await testR2Connection(origin);
-      const items = await listFilesInR2Bucket(undefined, origin);
+      const connectionTest = await testR2Connection();
+      const items = await listFilesInR2Bucket(undefined);
       return NextResponse.json({
         ok: connectionTest.ok,
         status: connectionTest.status,
         connectionTest,
-        items,
-      });
-    }
-
-    if (action === 'sync_catalog') {
-      const seeded = seedInitialR2CatalogFromCms();
-      const items = await listFilesInR2Bucket(undefined, origin);
-      return NextResponse.json({
-        ok: true,
-        seededCount: Object.keys(seeded).length,
         items,
       });
     }
@@ -174,7 +159,6 @@ export async function POST(req: NextRequest) {
       const renamed = await renameFileInR2Bucket({
         oldKeyOrUrl: String(oldKeyOrUrl),
         newKey: String(newKey),
-        requestOrigin: origin,
       });
       return NextResponse.json({
         ok: true,

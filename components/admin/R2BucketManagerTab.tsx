@@ -1,202 +1,168 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import { R2UploadedItemMeta } from '@/components/admin/AdminImageUploadField';
-import { SiteCmsData } from '@/lib/cms-defaults';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Cloud,
+  Upload,
+  RefreshCw,
+  Trash2,
+  Copy,
+  Check,
+  ExternalLink,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Settings,
+  Database,
+  Image as ImageIcon,
+} from 'lucide-react';
 import {
   getR2RequestHeaders,
   getStoredR2Config,
   loadR2ConfigFromFirestore,
   normalizeR2PublicDomain,
-  resolveCmsImageUrl,
   saveR2ConfigToFirestore,
-  shouldUseDirectImgTag,
 } from '@/lib/r2-client';
 
-interface R2ConfigStatus {
-  configured: boolean;
-  s3Connected?: boolean;
-  storageMode?: 'cloudflare-s3' | 'managed-local-r2';
-  accountId: string;
-  bucketName: string;
-  publicCdnUrl: string;
-  hasCredentials: boolean;
-  endpointUrl?: string;
+export interface R2QuickAssignTarget {
+  id: string;
+  group: string;
+  label: string;
+  currentUrl?: string;
 }
 
-interface R2BucketObjectItem {
+export interface R2BucketItem {
   id: string;
   objectKey: string;
   cdnUrl: string;
   folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
   fileName: string;
-  contentType?: string;
+  contentType: string;
   sizeBytes: number;
   lastModified: string;
-  source?: 's3' | 'local-r2' | 'cms-catalog';
 }
 
-export type R2QuickAssignTarget =
-  | { type: 'hero_add' }
-  | { type: 'gallery_add' }
-  | { type: 'tour'; id: string }
-  | { type: 'stay'; id: string }
-  | { type: 'destination'; id: string }
-  | { type: 'review'; id: string };
+export interface R2StatusInfo {
+  accountId: string;
+  bucketName: string;
+  publicCdnUrl: string;
+  s3Connected: boolean;
+  storageMode: string;
+  lastS3Error?: string;
+}
 
 interface R2BucketManagerTabProps {
-  cms?: SiteCmsData;
-  onR2Uploaded?: (item: R2UploadedItemMeta) => Promise<void> | void;
-  onR2Deleted?: (deletedKey: string, mediaDocId: string) => Promise<void> | void;
-  onR2Renamed?: (
-    oldUrl: string,
-    newUrl: string,
-    newItem: R2UploadedItemMeta
-  ) => Promise<void> | void;
-  onQuickAssignToSite?: (
-    target: R2QuickAssignTarget,
-    cdnUrl: string,
-    item: R2UploadedItemMeta
-  ) => Promise<void> | void;
-  onR2DomainUpdated?: (publicCdnUrl: string) => Promise<void> | void;
+  onAssignUrlToHero?: (url: string) => void;
+  onAssignUrlToGallery?: (url: string, title?: string) => void;
+  quickAssignTargets?: R2QuickAssignTarget[];
+  onAssignToTarget?: (targetId: string, url: string, label?: string) => void;
+  onRegisterMediaInFirestore?: (item: {
+    id: string;
+    objectKey: string;
+    cdnUrl: string;
+    folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
+    fileName: string;
+    contentType: string;
+    sizeBytes: number;
+  }) => Promise<void> | void;
+  onRemoveMediaFromFirestore?: (mediaId: string) => Promise<void> | void;
 }
 
-function formatBytes(bytes: number): string {
-  if (!bytes || bytes <= 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
+const FOLDERS: { id: 'all' | 'general' | 'destinations' | 'tours' | 'stays' | 'gallery'; label: string }[] = [
+  { id: 'all', label: 'All Folders' },
+  { id: 'general', label: 'general/' },
+  { id: 'destinations', label: 'destinations/' },
+  { id: 'tours', label: 'tours/' },
+  { id: 'stays', label: 'stays/' },
+  { id: 'gallery', label: 'gallery/' },
+];
 
 export default function R2BucketManagerTab({
-  cms,
-  onR2Uploaded,
-  onR2Deleted,
-  onR2Renamed,
-  onQuickAssignToSite,
-  onR2DomainUpdated,
+  onAssignUrlToHero,
+  onAssignUrlToGallery,
+  quickAssignTargets = [],
+  onAssignToTarget,
+  onRegisterMediaInFirestore,
+  onRemoveMediaFromFirestore,
 }: R2BucketManagerTabProps) {
-  const [status, setStatus] = useState<R2ConfigStatus>({
-    configured: true,
-    s3Connected: false,
-    storageMode: 'managed-local-r2',
-    accountId: '',
-    bucketName: 'bimondo-media',
-    publicCdnUrl: '',
-    hasCredentials: false,
-  });
-  const [accountId, setAccountId] = useState<string>('');
-  const [bucketName, setBucketName] = useState<string>('');
-  const [publicCdnUrl, setPublicCdnUrl] = useState<string>('');
-  const [accessKeyId, setAccessKeyId] = useState<string>('');
-  const [secretAccessKey, setSecretAccessKey] = useState<string>('');
-
-  const [items, setItems] = useState<R2BucketObjectItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [savingConfig, setSavingConfig] = useState<boolean>(false);
-  const [testingConn, setTestingConn] = useState<boolean>(false);
-  const [syncingCatalog, setSyncingCatalog] = useState<boolean>(false);
-  const [uploading, setUploading] = useState<boolean>(false);
-  const [uploadFolder, setUploadFolder] = useState<
-    'tours' | 'stays' | 'destinations' | 'gallery' | 'general'
-  >('general');
+  const [items, setItems] = useState<R2BucketItem[]>([]);
+  const [status, setStatus] = useState<R2StatusInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadFolder, setUploadFolder] = useState<'general' | 'destinations' | 'tours' | 'stays' | 'gallery'>('general');
   const [filterFolder, setFilterFolder] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
-  const [assignSelections, setAssignSelections] = useState<
-    Record<string, string>
-  >({});
-  const [banner, setBanner] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [selectedTargets, setSelectedTargets] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // R2 Credentials Form
+  const [showConfigForm, setShowConfigForm] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+  const [accountId, setAccountId] = useState('');
+  const [accessKeyId, setAccessKeyId] = useState('');
+  const [secretAccessKey, setSecretAccessKey] = useState('');
+  const [bucketName, setBucketName] = useState('bimondo-media');
+  const [publicCdnUrl, setPublicCdnUrl] = useState('');
 
-  const fetchR2BucketData = useCallback(async () => {
-    await loadR2ConfigFromFirestore();
-    const res = await fetch('/api/admin/r2', {
-      cache: 'no-store',
-      headers: getR2RequestHeaders(),
-    });
-    return res.json();
-  }, []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const applyR2BucketData = useCallback(
-    (data: {
-      status?: R2ConfigStatus;
-      items?: R2BucketObjectItem[];
-      warning?: string;
-    }) => {
-      const localCfg = getStoredR2Config();
-      if (data.status) {
-        setStatus(data.status);
-        setAccountId(data.status.accountId || localCfg.accountId || '');
-        setBucketName(
-          data.status.bucketName || localCfg.bucketName || 'bimondo-media'
-        );
-        const serverCdn = normalizeR2PublicDomain(data.status.publicCdnUrl);
-        setPublicCdnUrl(serverCdn || localCfg.publicCdnUrl || '');
-      }
-      if (Array.isArray(data.items)) {
-        setItems(data.items);
-      }
-      if (data.warning) {
-        setError(data.warning);
-      }
-    },
-    []
-  );
-
-  const loadR2Bucket = useCallback(async () => {
+  const refreshBucket = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      const data = await fetchR2BucketData();
-      applyR2BucketData(data);
+      const cfg = await loadR2ConfigFromFirestore();
+      setAccountId(cfg.accountId || '');
+      setBucketName(cfg.bucketName || 'bimondo-media');
+      setPublicCdnUrl(cfg.publicCdnUrl || '');
+      setAccessKeyId(cfg.accessKeyId || '');
+      setSecretAccessKey(cfg.secretAccessKey || '');
+
+      const res = await fetch('/api/admin/r2', {
+        cache: 'no-store',
+        headers: getR2RequestHeaders(cfg),
+      });
+      const data = await res.json();
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      setStatus(data?.status || null);
+
+      if (data?.status) {
+        if (data.status.accountId && !cfg.accountId) setAccountId(data.status.accountId);
+        if (data.status.bucketName) setBucketName(data.status.bucketName);
+        const srvCdn = normalizeR2PublicDomain(data.status.publicCdnUrl);
+        if (srvCdn && !cfg.publicCdnUrl) setPublicCdnUrl(srvCdn);
+        if (!data.status.s3Connected) {
+          setShowConfigForm(true);
+        }
+      }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to load Cloudflare R2 bucket.'
-      );
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to load R2 bucket',
+      });
     } finally {
       setLoading(false);
     }
-  }, [fetchR2BucketData, applyR2BucketData]);
+  }, []);
 
   useEffect(() => {
     let active = true;
-    fetchR2BucketData()
-      .then((data) => {
-        if (!active) return;
-        applyR2BucketData(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Failed to load Cloudflare R2 bucket.'
-        );
-        setLoading(false);
-      });
+    (async () => {
+      if (!active) return;
+      await refreshBucket();
+    })();
     return () => {
       active = false;
     };
-  }, [fetchR2BucketData, applyR2BucketData]);
+  }, [refreshBucket]);
 
-  const handleSaveConfig = async (e: React.FormEvent) => {
+  const handleSaveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingConfig(true);
-    setBanner(null);
-    setError(null);
-
+    setFeedback(null);
     try {
-      const savedLocal = await saveR2ConfigToFirestore({
-        accountId,
-        bucketName: bucketName || 'bimondo-media',
-        publicCdnUrl,
+      const saved = await saveR2ConfigToFirestore({
+        accountId: accountId.trim(),
+        bucketName: bucketName.trim() || 'bimondo-media',
+        publicCdnUrl: publicCdnUrl.trim(),
         accessKeyId: accessKeyId.trim() || undefined,
         secretAccessKey: secretAccessKey.trim() || undefined,
       });
@@ -205,258 +171,119 @@ export default function R2BucketManagerTab({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getR2RequestHeaders(savedLocal),
+          ...getR2RequestHeaders(saved),
         },
         body: JSON.stringify({
           action: 'save_config',
-          accountId: savedLocal.accountId,
-          bucketName: savedLocal.bucketName,
-          publicCdnUrl: savedLocal.publicCdnUrl,
-          accessKeyId: savedLocal.accessKeyId || undefined,
-          secretAccessKey: savedLocal.secretAccessKey || undefined,
+          accountId: saved.accountId,
+          bucketName: saved.bucketName,
+          publicCdnUrl: saved.publicCdnUrl,
+          accessKeyId: saved.accessKeyId || undefined,
+          secretAccessKey: saved.secretAccessKey || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to save R2 configuration.');
+        throw new Error(data?.error || 'Could not save R2 configuration.');
       }
 
-      setStatus(data.status);
-      setAccountId(savedLocal.accountId);
-      setBucketName(savedLocal.bucketName);
-      setPublicCdnUrl(savedLocal.publicCdnUrl);
-      setAccessKeyId('');
-      setSecretAccessKey('');
-      if (Array.isArray(data.items)) {
-        setItems(data.items);
-      }
-      if (savedLocal.publicCdnUrl && onR2DomainUpdated) {
-        await onR2DomainUpdated(savedLocal.publicCdnUrl);
-      }
-      if (data.connectionTest && !data.connectionTest.ok) {
-        setError(data.connectionTest.message);
+      setStatus(data?.status || null);
+      setItems(Array.isArray(data?.items) ? data.items : []);
+
+      if (data?.connectionTest?.ok || data?.status?.s3Connected) {
+        setFeedback({
+          type: 'success',
+          message:
+            data?.connectionTest?.message ||
+            `Connected to Cloudflare R2 bucket "${saved.bucketName}".`,
+        });
+        setShowConfigForm(false);
       } else {
-        setBanner(
-          data.connectionTest?.message ||
-            'Cloudflare R2 configuration saved to Firestore & connected.'
-        );
+        setFeedback({
+          type: 'error',
+          message:
+            data?.connectionTest?.message ||
+            data?.status?.lastS3Error ||
+            'Saved credentials, but R2 connection check failed.',
+        });
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Error saving R2 credentials.'
-      );
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Failed to save R2 configuration',
+      });
     } finally {
       setSavingConfig(false);
     }
   };
 
-  const handleTestConnection = async () => {
-    setTestingConn(true);
-    setBanner(null);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getR2RequestHeaders(),
-        },
-        body: JSON.stringify({ action: 'test_connection' }),
-      });
-      const data = await res.json();
-      if (data.status) {
-        setStatus(data.status);
-      }
-      if (Array.isArray(data.items)) {
-        setItems(data.items);
-      }
-      if (data.connectionTest?.ok) {
-        setBanner(data.connectionTest.message);
-      } else {
-        setError(
-          data.connectionTest?.message ||
-            'Could not verify remote S3 endpoint.'
-        );
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Error testing R2 connection.'
-      );
-    } finally {
-      setTestingConn(false);
-    }
-  };
+  const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-  const handleSyncCatalogToFirestore = async () => {
-    setSyncingCatalog(true);
-    setBanner(null);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getR2RequestHeaders(),
-        },
-        body: JSON.stringify({ action: 'sync_catalog' }),
-      });
-      const data = await res.json();
-      const loadedItems: R2BucketObjectItem[] = Array.isArray(data.items)
-        ? data.items
-        : [];
-      setItems(loadedItems);
+    setUploading(true);
+    setFeedback(null);
+    let uploadedCount = 0;
 
-      if (onR2Uploaded) {
-        for (const item of loadedItems) {
-          await onR2Uploaded({
-            id: item.id,
-            objectKey: item.objectKey,
-            cdnUrl: item.cdnUrl,
-            folder: item.folder,
-            fileName: item.fileName,
-            contentType: item.contentType || 'image/jpeg',
-            sizeBytes: item.sizeBytes || 245760,
+    try {
+      const stored = getStoredR2Config();
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', uploadFolder);
+        if (stored.accountId) formData.append('accountId', stored.accountId);
+        if (stored.bucketName) formData.append('bucketName', stored.bucketName);
+        if (stored.publicCdnUrl) formData.append('publicCdnUrl', stored.publicCdnUrl);
+        if (stored.accessKeyId) formData.append('accessKeyId', stored.accessKeyId);
+        if (stored.secretAccessKey) formData.append('secretAccessKey', stored.secretAccessKey);
+
+        const res = await fetch('/api/admin/r2', {
+          method: 'POST',
+          headers: getR2RequestHeaders(stored),
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.item?.cdnUrl) {
+          throw new Error(data?.error || 'Upload to R2 failed.');
+        }
+
+        const uploaded = data.item as R2BucketItem;
+        if (onRegisterMediaInFirestore) {
+          await onRegisterMediaInFirestore({
+            id: uploaded.id,
+            objectKey: uploaded.objectKey,
+            cdnUrl: uploaded.cdnUrl,
+            folder: uploaded.folder,
+            fileName: uploaded.fileName,
+            contentType: uploaded.contentType,
+            sizeBytes: uploaded.sizeBytes,
           });
         }
-      }
-      setBanner(
-        `Synced ${loadedItems.length} R2 media objects into Firebase Firestore (/r2_media).`
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Failed to sync R2 catalog to Firestore.'
-      );
-    } finally {
-      setSyncingCatalog(false);
-    }
-  };
-
-  const handleDirectUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setBanner(null);
-    setError(null);
-
-    try {
-      let storedCfg = getStoredR2Config();
-      if (
-        accountId.trim() ||
-        publicCdnUrl.trim() ||
-        accessKeyId.trim() ||
-        secretAccessKey.trim()
-      ) {
-        storedCfg = await saveR2ConfigToFirestore({
-          accountId: accountId.trim() || storedCfg.accountId,
-          bucketName:
-            bucketName.trim() || storedCfg.bucketName || 'bimondo-media',
-          publicCdnUrl: publicCdnUrl.trim() || storedCfg.publicCdnUrl,
-          accessKeyId: accessKeyId.trim() || storedCfg.accessKeyId,
-          secretAccessKey: secretAccessKey.trim() || storedCfg.secretAccessKey,
-        });
+        uploadedCount++;
       }
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', uploadFolder);
-      if (storedCfg.accountId) formData.append('accountId', storedCfg.accountId);
-      if (storedCfg.bucketName) formData.append('bucketName', storedCfg.bucketName);
-      if (storedCfg.publicCdnUrl) {
-        formData.append('publicCdnUrl', storedCfg.publicCdnUrl);
-      }
-      if (storedCfg.accessKeyId) {
-        formData.append('accessKeyId', storedCfg.accessKeyId);
-      }
-      if (storedCfg.secretAccessKey) {
-        formData.append('secretAccessKey', storedCfg.secretAccessKey);
-      }
-
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: getR2RequestHeaders(storedCfg),
-        body: formData,
+      setFeedback({
+        type: 'success',
+        message: `Uploaded ${uploadedCount} image${uploadedCount > 1 ? 's' : ''} to R2 (${uploadFolder}/) and saved link in Firestore.`,
       });
-      const data = await res.json();
-      if (!res.ok || !data?.item) {
-        throw new Error(data.error || 'Failed to upload to R2 bucket.');
-      }
-
-      const uploaded = data.item as R2UploadedItemMeta;
-      if (onR2Uploaded) {
-        await onR2Uploaded(uploaded);
-      }
-      setBanner(
-        `Uploaded "${uploaded.objectKey}" directly to R2 Bucket and saved R2 domain link (${uploaded.cdnUrl}) in Firebase Firestore (/r2_media).`
-      );
-      await loadR2Bucket();
+      await refreshBucket();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.');
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Upload failed',
+      });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleRenameObject = async (item: R2BucketObjectItem) => {
-    const targetKey = (renameDrafts[item.objectKey] ?? item.objectKey).trim();
-    if (!targetKey || targetKey === item.objectKey) return;
-
-    setBanner(null);
-    setError(null);
-    try {
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getR2RequestHeaders(),
-        },
-        body: JSON.stringify({
-          action: 'rename_object',
-          oldKeyOrUrl: item.objectKey,
-          newKey: targetKey,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.renamed) {
-        throw new Error(data.error || 'Failed to rename R2 object.');
-      }
-
-      const { id, objectKey, cdnUrl } = data.renamed;
-      if (onR2Deleted && data.oldDocId) {
-        await onR2Deleted(item.objectKey, data.oldDocId);
-      }
-      if (onR2Renamed) {
-        await onR2Renamed(item.cdnUrl, cdnUrl, {
-          id,
-          objectKey,
-          cdnUrl,
-          folder: item.folder,
-          fileName: objectKey.split('/').pop() || objectKey,
-          contentType: 'image/jpeg',
-          sizeBytes: item.sizeBytes,
-        });
-      }
-      setBanner(
-        `Renamed "${item.objectKey}" → "${objectKey}" in R2 & synced all references in Firebase Firestore.`
-      );
-      await loadR2Bucket();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rename failed.');
-    }
-  };
-
-  const handleDeleteObject = async (item: R2BucketObjectItem) => {
-    setBanner(null);
-    setError(null);
+  const handleDeleteObject = async (obj: R2BucketItem) => {
+    setFeedback(null);
     try {
       const res = await fetch(
-        `/api/admin/r2?key=${encodeURIComponent(item.objectKey)}`,
+        `/api/admin/r2?key=${encodeURIComponent(obj.objectKey)}`,
         {
           method: 'DELETE',
           headers: getR2RequestHeaders(),
@@ -464,689 +291,458 @@ export default function R2BucketManagerTab({
       );
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to delete R2 object.');
+        throw new Error(data?.error || 'Failed to delete from R2');
       }
-      if (onR2Deleted) {
-        await onR2Deleted(item.objectKey, data.mediaDocId || item.id);
+      if (onRemoveMediaFromFirestore && data?.mediaDocId) {
+        await onRemoveMediaFromFirestore(String(data.mediaDocId));
       }
-      setBanner(
-        `Deleted "${item.objectKey}" from R2 bucket and removed its CDN record from Firebase Firestore.`
-      );
-      await loadR2Bucket();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delete failed.');
-    }
-  };
-
-  const handleQuickAssign = async (item: R2BucketObjectItem) => {
-    const rawTarget = assignSelections[item.objectKey];
-    if (!rawTarget || !onQuickAssignToSite) return;
-
-    let parsedTarget: R2QuickAssignTarget | null = null;
-    if (rawTarget === 'hero_add') {
-      parsedTarget = { type: 'hero_add' };
-    } else if (rawTarget === 'gallery_add') {
-      parsedTarget = { type: 'gallery_add' };
-    } else if (rawTarget.startsWith('tour:')) {
-      parsedTarget = { type: 'tour', id: rawTarget.slice('tour:'.length) };
-    } else if (rawTarget.startsWith('stay:')) {
-      parsedTarget = { type: 'stay', id: rawTarget.slice('stay:'.length) };
-    } else if (rawTarget.startsWith('destination:')) {
-      parsedTarget = {
-        type: 'destination',
-        id: rawTarget.slice('destination:'.length),
-      };
-    } else if (rawTarget.startsWith('review:')) {
-      parsedTarget = { type: 'review', id: rawTarget.slice('review:'.length) };
-    }
-
-    if (!parsedTarget) return;
-
-    try {
-      await onQuickAssignToSite(parsedTarget, item.cdnUrl, {
-        id: item.id,
-        objectKey: item.objectKey,
-        cdnUrl: item.cdnUrl,
-        folder: item.folder,
-        fileName: item.fileName,
-        contentType: item.contentType || 'image/jpeg',
-        sizeBytes: item.sizeBytes || 0,
+      setItems((prev) => prev.filter((item) => item.objectKey !== obj.objectKey));
+      setFeedback({
+        type: 'success',
+        message: `Deleted ${obj.objectKey} from R2 and removed its record from Firestore.`,
       });
-      setBanner(
-        `Assigned "${item.fileName}" directly to website section & synced to Firebase Firestore.`
-      );
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to assign R2 image.'
-      );
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Delete failed',
+      });
     }
   };
 
-  // Compute where each CDN URL is currently used across the live CMS
-  const getUsageBadges = (cdnUrl: string): string[] => {
-    if (!cms) return [];
-    const badges: string[] = [];
-    (cms.general.heroImages || []).forEach((u, i) => {
-      if (u === cdnUrl) badges.push(`Hero Slide #${i + 1}`);
-    });
-    cms.tours.forEach((t) => {
-      if (t.image === cdnUrl) badges.push(`Tour: ${t.name}`);
-    });
-    cms.stays.forEach((s) => {
-      if (s.image === cdnUrl) badges.push(`Stay: ${s.name}`);
-    });
-    cms.destinations.forEach((d) => {
-      if (d.image === cdnUrl) badges.push(`Destination: ${d.name}`);
-    });
-    cms.gallery.forEach((g) => {
-      if (g.image === cdnUrl) badges.push(`Gallery: ${g.title}`);
-    });
-    cms.reviews.forEach((r) => {
-      if (r.image === cdnUrl) badges.push(`Review: ${r.name}`);
-    });
-    return badges;
+  const handleCopyUrl = (url: string, key: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const filteredItems = items.filter((item) => {
-    const matchesFolder =
-      filterFolder === 'all' || item.folder === filterFolder;
-    const matchesSearch =
-      !searchQuery.trim() ||
-      item.objectKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.fileName.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFolder && matchesSearch;
+  const filteredObjects = items.filter((obj) => {
+    if (filterFolder === 'all') return true;
+    return obj.objectKey.startsWith(`${filterFolder}/`);
   });
 
+  const isConnected = Boolean(status?.s3Connected);
+
   return (
-    <div style={{ display: 'grid', gap: '28px' }}>
-      {/* R2 Credentials & Connection Card */}
-      <div className="admin-assignments-card">
-        <div className="section-head" style={{ marginBottom: '20px' }}>
-          <div>
-            <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              06B / CLOUDFLARE R2 BUCKET &amp; FIREBASE CDN ARCHITECTURE
-            </span>
-            <h3 className="serif" style={{ fontSize: '28px', margin: '4px 0 0' }}>
-              Cloudflare R2 Storage Configuration
-            </h3>
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--muted)',
-                margin: '6px 0 0',
-              }}
-            >
-              Every image uploaded in the Admin Panel is stored in your R2
-              bucket and linked across Hero Slideshow, Tours, Stays,
-              Destinations, Gallery, and Tourist Thoughts in Firebase Firestore
-              (<code>/site_cms/main</code> &amp; <code>/r2_media</code>).
+    <div className="space-y-6">
+      {/* Connection Status Header */}
+      <div className="border border-stone-200 bg-white p-5 rounded-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Cloud className="w-5 h-5 text-stone-700" />
+              <h2 className="text-base font-semibold text-stone-900">
+                Cloudflare R2 Storage &amp; Firestore Media Index
+              </h2>
+              {isConnected ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Connected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Not Connected
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-stone-500">
+              Bucket:{' '}
+              <span className="font-mono text-stone-700">
+                {status?.bucketName || bucketName || 'Not set'}
+              </span>
+              {' · '}
+              Public R2 Domain:{' '}
+              <span className="font-mono text-stone-700">
+                {status?.publicCdnUrl || publicCdnUrl || 'Not set'}
+              </span>
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <span
-              className="admin-status-pill"
-              style={{
-                background: status.s3Connected
-                  ? 'rgba(29, 60, 46, 0.12)'
-                  : 'rgba(180, 35, 24, 0.1)',
-                color: status.s3Connected ? 'var(--green)' : '#b42318',
-              }}
-            >
-              {status.s3Connected
-                ? `✓ Cloudflare R2 Connected (${status.bucketName})`
-                : '⚠ Enter R2 Credentials Below to Enable Direct R2 Upload'}
-            </span>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="pill"
-              disabled={testingConn}
-              onClick={handleTestConnection}
+              onClick={() => setShowConfigForm((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded hover:bg-stone-50"
             >
-              {testingConn ? 'TESTING…' : 'TEST R2 CONNECTION'}
+              <Settings className="w-3.5 h-3.5" />
+              {showConfigForm ? 'Hide R2 Credentials' : 'Configure R2'}
             </button>
             <button
               type="button"
-              className="pill dark"
-              disabled={syncingCatalog}
-              onClick={handleSyncCatalogToFirestore}
+              onClick={refreshBucket}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded hover:bg-stone-50 disabled:opacity-50"
             >
-              {syncingCatalog
-                ? 'SYNCING TO FIRESTORE…'
-                : 'SYNC ALL TO FIRESTORE (/r2_media)'}
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
           </div>
         </div>
 
-        {banner && (
-          <div className="admin-alert-banner" style={{ marginBottom: '18px' }}>
-            ✓ {banner}
+        {/* Feedback Banner */}
+        {feedback && (
+          <div
+            className={`mt-4 p-3 rounded border text-xs flex items-start gap-2 ${
+              feedback.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            )}
+            <span>{feedback.message}</span>
           </div>
         )}
-        {error && (
-          <div
-            className="admin-alert-banner"
-            style={{
-              marginBottom: '18px',
-              background: '#fef3f2',
-              color: '#b42318',
-              borderColor: '#fecdca',
-            }}
-          >
-            ⚠ {error}
+
+        {/* Connection Error */}
+        {!isConnected && status?.lastS3Error && !feedback && (
+          <div className="mt-4 p-3 rounded border bg-amber-50 border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{status.lastS3Error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSaveConfig} className="admin-booking-form">
-          <div className="admin-form-grid-3">
-            <div className="admin-field">
-              <label>CLOUDFLARE ACCOUNT ID OR S3 ENDPOINT</label>
-              <input
-                type="text"
-                placeholder="e.g. 8f92a1b3c4d5e6f7a8b9c0d1e2f3a4b5 or https://<id>.r2.cloudflarestorage.com"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-              />
-              <small>
-                Paste either your 32-character Account ID or full{' '}
-                <code>r2.cloudflarestorage.com</code> S3 endpoint URL.
-              </small>
+        {/* R2 Configuration Form */}
+        {showConfigForm && (
+          <form onSubmit={handleSaveCredentials} className="mt-5 pt-5 border-t border-stone-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-700">
+                Cloudflare R2 S3 API Credentials &amp; Public Domain
+              </h3>
+              <span className="text-[11px] text-stone-500">
+                Saved to Firestore (<code className="font-mono">faqs/r2_system_config</code>)
+              </span>
             </div>
 
-            <div className="admin-field">
-              <label>R2 BUCKET NAME</label>
-              <input
-                type="text"
-                placeholder="e.g. bimondo-media"
-                value={bucketName}
-                onChange={(e) => setBucketName(e.target.value)}
-              />
-              <small>Target Cloudflare R2 bucket name.</small>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1">
+                  Cloudflare Account ID
+                </label>
+                <input
+                  type="text"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  placeholder="e.g. 8f9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c"
+                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono focus:outline-none focus:border-stone-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1">
+                  R2 Bucket Name
+                </label>
+                <input
+                  type="text"
+                  value={bucketName}
+                  onChange={(e) => setBucketName(e.target.value)}
+                  placeholder="e.g. bimondo-media"
+                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono focus:outline-none focus:border-stone-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1">
+                  R2 S3 Access Key ID
+                </label>
+                <input
+                  type="text"
+                  value={accessKeyId}
+                  onChange={(e) => setAccessKeyId(e.target.value)}
+                  placeholder="R2 API Token Access Key ID"
+                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono focus:outline-none focus:border-stone-900"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-700 mb-1">
+                  R2 S3 Secret Access Key
+                </label>
+                <input
+                  type="password"
+                  value={secretAccessKey}
+                  onChange={(e) => setSecretAccessKey(e.target.value)}
+                  placeholder="R2 API Token Secret Access Key"
+                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono focus:outline-none focus:border-stone-900"
+                  required
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-stone-700 mb-1">
+                  R2 Public Domain URL (<code className="font-mono">https://pub-xxx.r2.dev</code> or custom domain)
+                </label>
+                <input
+                  type="url"
+                  value={publicCdnUrl}
+                  onChange={(e) => setPublicCdnUrl(e.target.value)}
+                  placeholder="https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev"
+                  className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono focus:outline-none focus:border-stone-900"
+                  required
+                />
+                <p className="mt-1 text-[11px] text-stone-500">
+                  Every uploaded file URL is constructed as{' '}
+                  <code className="font-mono">{'{publicUrl}/{folder}/{filename}'}</code> and stored directly in Firestore.
+                </p>
+              </div>
             </div>
 
-            <div className="admin-field">
-              <label>PUBLIC CDN BASE URL (OPTIONAL)</label>
-              <input
-                type="text"
-                placeholder="https://pub-xxxx.r2.dev or leave blank for built-in R2 streaming proxy"
-                value={publicCdnUrl}
-                onChange={(e) => setPublicCdnUrl(e.target.value)}
-              />
-              <small>
-                If left blank, objects stream automatically via{' '}
-                <code>/api/admin/r2/file/...</code>.
-              </small>
+            <div className="flex justify-end gap-2">
+              <button
+                type="submit"
+                disabled={savingConfig}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
+              >
+                {savingConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                Save &amp; Connect R2
+              </button>
             </div>
-          </div>
-
-          <div className="admin-form-grid-2" style={{ marginTop: '14px' }}>
-            <div className="admin-field">
-              <label>R2 S3 ACCESS KEY ID (SERVER-ONLY)</label>
-              <input
-                type="password"
-                placeholder={
-                  status.hasCredentials
-                    ? '•••••••••••••••• (Saved on server — enter to replace)'
-                    : 'Enter R2 Access Key ID'
-                }
-                value={accessKeyId}
-                onChange={(e) => setAccessKeyId(e.target.value)}
-              />
-            </div>
-
-            <div className="admin-field">
-              <label>R2 S3 SECRET ACCESS KEY (SERVER-ONLY)</label>
-              <input
-                type="password"
-                placeholder={
-                  status.hasCredentials
-                    ? '•••••••••••••••••••••••••••••••• (Saved on server)'
-                    : 'Enter R2 Secret Access Key'
-                }
-                value={secretAccessKey}
-                onChange={(e) => setSecretAccessKey(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '12px',
-              marginTop: '14px',
-            }}
-          >
-            <button
-              type="button"
-              className="pill"
-              onClick={loadR2Bucket}
-              disabled={loading}
-            >
-              REFRESH BUCKET
-            </button>
-            <button
-              type="submit"
-              className="pill dark"
-              disabled={savingConfig}
-            >
-              {savingConfig ? 'SAVING R2 CONFIG…' : 'SAVE R2 CREDENTIALS'}
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </div>
 
-      {/* Direct Bucket Browser, Uploader & Site Section Assigner */}
-      <div className="admin-assignments-card">
-        <div className="section-head" style={{ marginBottom: '20px' }}>
-          <div>
-            <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              LIVE CLOUDFLARE R2 BUCKET OBJECTS ({filteredItems.length} OF{' '}
-              {items.length})
-            </span>
-            <h3 className="serif" style={{ fontSize: '26px', margin: '4px 0 0' }}>
-              Upload, Rename, Delete &amp; Assign R2 Images to Website Sections
-            </h3>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-            }}
+      {/* Upload & Folder Filter Bar */}
+      <div className="border border-stone-200 bg-white p-4 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs font-medium text-stone-600">Target Folder:</label>
+          <select
+            value={uploadFolder}
+            onChange={(e) =>
+              setUploadFolder(
+                e.target.value as 'general' | 'destinations' | 'tours' | 'stays' | 'gallery'
+              )
+            }
+            className="px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white text-stone-800"
           >
-            <select
-              value={uploadFolder}
-              onChange={(e) =>
-                setUploadFolder(
-                  e.target.value as
-                    | 'tours'
-                    | 'stays'
-                    | 'destinations'
-                    | 'gallery'
-                    | 'general'
-                )
-              }
-              style={{
-                padding: '8px 12px',
-                borderRadius: '999px',
-                border: '1px solid var(--line)',
-                fontSize: '12px',
-                background: 'var(--bg-elev)',
-              }}
-            >
-              <option value="general">Folder: general/ (Hero &amp; Reviews)</option>
-              <option value="tours">Folder: tours/</option>
-              <option value="stays">Folder: stays/</option>
-              <option value="destinations">Folder: destinations/</option>
-              <option value="gallery">Folder: gallery/</option>
-            </select>
+            {FOLDERS.filter((f) => f.id !== 'all').map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleDirectUpload}
-              style={{ display: 'none' }}
-            />
-            <button
-              type="button"
-              className="pill dark"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading
-                ? 'UPLOADING TO R2…'
-                : `+ UPLOAD IMAGE TO R2 (${uploadFolder}/)`}
-            </button>
-          </div>
-        </div>
-
-        {/* Folder Filter Pills & Search */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            marginBottom: '18px',
-          }}
-        >
-          {(
-            [
-              'all',
-              'general',
-              'tours',
-              'stays',
-              'destinations',
-              'gallery',
-            ] as const
-          ).map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`pill ${filterFolder === f ? 'dark' : ''}`}
-              style={{
-                padding: '6px 12px',
-                minHeight: '30px',
-                fontSize: '10.5px',
-              }}
-              onClick={() => setFilterFolder(f)}
-            >
-              {f === 'all' ? 'ALL FOLDERS' : `${f.toUpperCase()}/`}
-            </button>
-          ))}
           <input
-            type="text"
-            placeholder="Filter by R2 key or filename…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              marginLeft: 'auto',
-              padding: '7px 14px',
-              borderRadius: '999px',
-              border: '1px solid var(--line)',
-              fontSize: '12px',
-              minWidth: '230px',
-            }}
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleUploadFiles}
+            className="hidden"
           />
+          <button
+            type="button"
+            disabled={uploading || !isConnected}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
+          >
+            {uploading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Upload className="w-3.5 h-3.5" />
+            )}
+            {uploading ? 'Uploading to R2...' : `Upload to R2 (${uploadFolder}/)`}
+          </button>
         </div>
 
-        {loading ? (
-          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
-            Querying R2 bucket objects…
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">Filter:</span>
+          <select
+            value={filterFolder}
+            onChange={(e) => setFilterFolder(e.target.value)}
+            className="px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white text-stone-800"
+          >
+            {FOLDERS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-stone-500 font-mono">
+            ({filteredObjects.length} file{filteredObjects.length === 1 ? '' : 's'})
+          </span>
+        </div>
+      </div>
+
+      {/* Objects Grid */}
+      {loading ? (
+        <div className="border border-stone-200 bg-white p-12 rounded-md flex items-center justify-center gap-2 text-xs text-stone-500">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Loading objects from Cloudflare R2...
+        </div>
+      ) : filteredObjects.length === 0 ? (
+        <div className="border border-stone-200 bg-white p-12 rounded-md text-center space-y-2">
+          <ImageIcon className="w-6 h-6 text-stone-400 mx-auto" />
+          <p className="text-sm font-medium text-stone-700">No R2 objects found</p>
+          <p className="text-xs text-stone-500">
+            {isConnected
+              ? 'Upload an image above or inside any section tab to store it in your Cloudflare R2 bucket.'
+              : 'Configure your Cloudflare R2 credentials above to list and upload images.'}
           </p>
-        ) : filteredItems.length === 0 ? (
-          <div className="admin-empty-state">
-            <p>
-              No objects found in folder filter. Upload an image above or switch
-              folder filters.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gap: '14px' }}>
-            {filteredItems.map((item) => {
-              const displayUrl = resolveCmsImageUrl(item.cdnUrl, publicCdnUrl);
-              const usageBadges = getUsageBadges(displayUrl).length
-                ? getUsageBadges(displayUrl)
-                : getUsageBadges(item.cdnUrl);
-              const isLocalStream = shouldUseDirectImgTag(displayUrl);
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredObjects.map((obj) => {
+            const assignTargetId = selectedTargets[obj.objectKey] || '';
+            return (
+              <div
+                key={obj.objectKey}
+                className="border border-stone-200 bg-white rounded-md overflow-hidden flex flex-col"
+              >
+                <div className="aspect-video bg-stone-100 relative overflow-hidden border-b border-stone-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={obj.cdnUrl}
+                    alt={obj.objectKey}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
 
-              return (
-                <div key={item.objectKey} className="admin-item-editor-card">
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '110px 1fr auto',
-                      gap: '18px',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: 'relative',
-                        width: '110px',
-                        height: '86px',
-                        borderRadius: '10px',
-                        overflow: 'hidden',
-                        background: '#e5e0d5',
-                      }}
+                <div className="p-3 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1">
+                    <p
+                      className="text-xs font-mono font-medium text-stone-800 truncate"
+                      title={obj.objectKey}
                     >
-                      {isLocalStream ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={displayUrl}
-                          alt={item.fileName}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <Image
-                          src={displayUrl}
-                          alt={item.fileName}
-                          fill
-                          sizes="110px"
-                          className="object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                    </div>
+                      {obj.objectKey}
+                    </p>
+                    <p
+                      className="text-[11px] font-mono text-stone-500 truncate"
+                      title={obj.cdnUrl}
+                    >
+                      {obj.cdnUrl}
+                    </p>
+                    <p className="text-[10px] text-stone-400">
+                      {(obj.sizeBytes / 1024).toFixed(1)} KB ·{' '}
+                      {new Date(obj.lastModified).toLocaleDateString()}
+                    </p>
+                  </div>
 
-                    <div style={{ display: 'grid', gap: '8px' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '8px',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <span className="admin-type-pill">{item.folder}/</span>
-                        <strong style={{ fontSize: '13px' }}>
-                          {item.fileName}
-                        </strong>
-                        <span
-                          style={{
-                            fontSize: '12px',
-                            color: 'var(--muted)',
-                          }}
-                        >
-                          {formatBytes(item.sizeBytes)}
-                        </span>
-                        {usageBadges.length > 0 ? (
-                          usageBadges.map((badge) => (
-                            <span
-                              key={badge}
-                              style={{
-                                fontSize: '10.5px',
-                                fontWeight: 700,
-                                padding: '2px 8px',
-                                borderRadius: '999px',
-                                background: 'rgba(29, 60, 46, 0.12)',
-                                color: 'var(--green)',
-                              }}
-                            >
-                              ✓ {badge}
-                            </span>
-                          ))
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: '10.5px',
-                              padding: '2px 8px',
-                              borderRadius: '999px',
-                              background: 'rgba(0,0,0,0.05)',
-                              color: 'var(--muted)',
-                            }}
-                          >
-                            Available in R2 Library
-                          </span>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: '8px',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={renameDrafts[item.objectKey] ?? item.objectKey}
+                  {/* Assign directly to a site section */}
+                  {(onAssignToTarget || onAssignUrlToHero || onAssignUrlToGallery) && (
+                    <div className="pt-2 border-t border-stone-100 space-y-1.5">
+                      <label className="block text-[10px] font-medium uppercase tracking-wider text-stone-500">
+                        Assign to Website Slot (Saves to Firestore)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={assignTargetId}
                           onChange={(e) =>
-                            setRenameDrafts({
-                              ...renameDrafts,
-                              [item.objectKey]: e.target.value,
-                            })
+                            setSelectedTargets((prev) => ({
+                              ...prev,
+                              [obj.objectKey]: e.target.value,
+                            }))
                           }
-                          style={{
-                            flex: 1,
-                            minWidth: '220px',
-                            padding: '6px 10px',
-                            borderRadius: '8px',
-                            border: '1px solid var(--line)',
-                            fontSize: '12px',
-                          }}
-                        />
+                          className="flex-1 min-w-0 px-2 py-1 text-xs border border-stone-300 rounded bg-white text-stone-800"
+                        >
+                          <option value="">Select section slot...</option>
+                          {onAssignUrlToHero && (
+                            <option value="__hero__">Hero Slideshow (Add Slide)</option>
+                          )}
+                          {onAssignUrlToGallery && (
+                            <option value="__gallery__">Visual Gallery (Add Item)</option>
+                          )}
+                          {quickAssignTargets.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              [{t.group}] {t.label}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
-                          className="pill"
-                          style={{
-                            padding: '6px 12px',
-                            minHeight: '32px',
-                            fontSize: '10.5px',
+                          disabled={!assignTargetId}
+                          onClick={async () => {
+                            if (!assignTargetId) return;
+                            if (assignTargetId === '__hero__' && onAssignUrlToHero) {
+                              onAssignUrlToHero(obj.cdnUrl);
+                            } else if (
+                              assignTargetId === '__gallery__' &&
+                              onAssignUrlToGallery
+                            ) {
+                              onAssignUrlToGallery(obj.cdnUrl, obj.fileName);
+                            } else if (onAssignToTarget) {
+                              const target = quickAssignTargets.find(
+                                (t) => t.id === assignTargetId
+                              );
+                              onAssignToTarget(assignTargetId, obj.cdnUrl, target?.label);
+                            }
+                            if (onRegisterMediaInFirestore) {
+                              await onRegisterMediaInFirestore({
+                                id: obj.id,
+                                objectKey: obj.objectKey,
+                                cdnUrl: obj.cdnUrl,
+                                folder: obj.folder,
+                                fileName: obj.fileName,
+                                contentType: obj.contentType || 'image/jpeg',
+                                sizeBytes: obj.sizeBytes || 0,
+                              });
+                            }
+                            setFeedback({
+                              type: 'success',
+                              message: `Assigned ${obj.objectKey} to website slot and saved link in Firestore.`,
+                            });
                           }}
-                          onClick={() => handleRenameObject(item)}
+                          className="px-2.5 py-1 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-40"
                         >
-                          RENAME IN R2
+                          Apply
                         </button>
                       </div>
+                    </div>
+                  )}
 
-                      {/* Quick Assign to any Website Section */}
-                      {cms && onQuickAssignToSite && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: '8px',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                          }}
-                        >
-                          <select
-                            value={assignSelections[item.objectKey] || ''}
-                            onChange={(e) =>
-                              setAssignSelections({
-                                ...assignSelections,
-                                [item.objectKey]: e.target.value,
-                              })
-                            }
-                            style={{
-                              flex: 1,
-                              minWidth: '220px',
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--line)',
-                              fontSize: '12px',
-                              background: 'var(--bg-elev)',
-                            }}
-                          >
-                            <option value="">
-                              Assign this R2 image to a website section…
-                            </option>
-                            <optgroup label="Hero Section (#home)">
-                              <option value="hero_add">
-                                + Add Slide to Hero 4s Slideshow
-                              </option>
-                            </optgroup>
-                            <optgroup label="Visual Gallery (#gallery)">
-                              <option value="gallery_add">
-                                + Add as New Gallery Photo
-                              </option>
-                            </optgroup>
-                            <optgroup label="Signature Tours (#packages)">
-                              {cms.tours.map((t) => (
-                                <option key={t.id} value={`tour:${t.id}`}>
-                                  Tour: {t.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Boutique Stays (#stays)">
-                              {cms.stays.map((s) => (
-                                <option key={s.id} value={`stay:${s.id}`}>
-                                  Stay: {s.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Destinations (#places)">
-                              {cms.destinations.map((d) => (
-                                <option
-                                  key={d.id}
-                                  value={`destination:${d.id}`}
-                                >
-                                  Destination: {d.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Tourist Thoughts (#why)">
-                              {cms.reviews.map((r) => (
-                                <option key={r.id} value={`review:${r.id}`}>
-                                  Guest Card: {r.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
-                          <button
-                            type="button"
-                            className="pill dark"
-                            style={{
-                              padding: '6px 12px',
-                              minHeight: '32px',
-                              fontSize: '10.5px',
-                            }}
-                            disabled={!assignSelections[item.objectKey]}
-                            onClick={() => handleQuickAssign(item)}
-                          >
-                            ASSIGN &amp; SAVE TO SITE
-                          </button>
-                        </div>
-                      )}
-
-                      <code
-                        style={{
-                          fontSize: '11px',
-                          color: 'var(--muted)',
-                          wordBreak: 'break-all',
-                        }}
+                  {/* Actions */}
+                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUrl(obj.cdnUrl, obj.objectKey)}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-stone-700 bg-stone-100 rounded hover:bg-stone-200"
                       >
-                        CDN Link: {item.cdnUrl}
-                      </code>
+                        {copiedKey === obj.objectKey ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            Copy R2 URL
+                          </>
+                        )}
+                      </button>
+                      <a
+                        href={obj.cdnUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-stone-600 hover:text-stone-900"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Open
+                      </a>
                     </div>
 
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteObject(obj)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 rounded"
                     >
-                      <button
-                        type="button"
-                        className="pill"
-                        style={{
-                          padding: '6px 12px',
-                          minHeight: '32px',
-                          fontSize: '10.5px',
-                        }}
-                        onClick={() => {
-                          navigator.clipboard?.writeText(item.cdnUrl);
-                          setBanner(`Copied R2 CDN URL: ${item.cdnUrl}`);
-                        }}
-                      >
-                        COPY CDN URL
-                      </button>
-                      <button
-                        type="button"
-                        className="pill"
-                        style={{
-                          padding: '6px 12px',
-                          minHeight: '32px',
-                          fontSize: '10.5px',
-                        }}
-                        onClick={() => handleDeleteObject(item)}
-                      >
-                        DELETE FROM R2
-                      </button>
-                    </div>
+                      <Trash2 className="w-3 h-3" />
+                      Delete
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

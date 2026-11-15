@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { getDefaultCmsData } from '@/lib/cms-defaults';
 import firebaseConfig from '@/firebase-applet-config.json';
 
 export type R2FolderName =
@@ -23,7 +22,7 @@ export interface R2ServerConfig {
 export interface PublicR2ConfigStatus {
   configured: boolean;
   s3Connected: boolean;
-  storageMode: 'cloudflare-s3' | 'managed-local-r2';
+  storageMode: 'cloudflare-s3' | 'unconfigured';
   accountId: string;
   bucketName: string;
   publicCdnUrl: string;
@@ -41,7 +40,7 @@ export interface R2BucketObjectItem {
   contentType?: string;
   sizeBytes: number;
   lastModified: string;
-  source?: 's3' | 'local-r2' | 'cms-catalog';
+  source?: 's3';
 }
 
 interface CloudflareR2BucketBinding {
@@ -70,11 +69,6 @@ interface CloudflareR2BucketBinding {
 }
 
 const R2_CONFIG_FILE = path.join(process.cwd(), '.aistudio-r2-config.json');
-const LOCAL_R2_BUCKET_DIR = path.join(process.cwd(), '.aistudio-r2-bucket');
-const LOCAL_R2_INDEX_FILE = path.join(
-  process.cwd(),
-  '.aistudio-r2-index.json'
-);
 
 const VALID_FOLDERS: readonly R2FolderName[] = [
   'tours',
@@ -85,19 +79,14 @@ const VALID_FOLDERS: readonly R2FolderName[] = [
 ];
 
 let memoryR2Config: Partial<R2ServerConfig> | null = null;
-let memoryR2Index: Record<string, R2BucketObjectItem> | null = null;
 let lastFirestoreHydrationMs = 0;
 
-/**
- * Inspects OpenNext / Cloudflare Workers runtime context (`Symbol.for("__cloudflare-context__")`)
- * for environment variables and native R2Bucket bindings.
- */
 function getCloudflareRuntimeEnv(): Record<string, unknown> {
   try {
     const sym = Symbol.for('__cloudflare-context__');
-    const ctx = (globalThis as Record<symbol, { env?: Record<string, unknown> }>)[
-      sym
-    ];
+    const ctx = (
+      globalThis as Record<symbol, { env?: Record<string, unknown> }>
+    )[sym];
     if (ctx?.env && typeof ctx.env === 'object') {
       return ctx.env;
     }
@@ -138,16 +127,6 @@ function getEnvString(keys: string[]): string {
   return '';
 }
 
-function ensureLocalBucketDir() {
-  try {
-    if (!fs.existsSync(LOCAL_R2_BUCKET_DIR)) {
-      fs.mkdirSync(LOCAL_R2_BUCKET_DIR, { recursive: true });
-    }
-  } catch {
-    // Ignore if read-only fs (e.g. Cloudflare Workers)
-  }
-}
-
 export function parseAccountAndBucketFromInput(
   rawAccountOrEndpoint: string,
   rawBucketName: string
@@ -158,9 +137,6 @@ export function parseAccountAndBucketFromInput(
     return { accountId: '', endpointUrl: '', inferredBucket };
   }
 
-  // Handle full S3 endpoint URLs like:
-  // https://<account_id>.r2.cloudflarestorage.com/<optional_bucket>
-  // https://<account_id>.eu.r2.cloudflarestorage.com/<optional_bucket>
   const match = trimmed.match(
     /^https?:\/\/([a-z0-9]+)(?:\.[a-z0-9-]+)?\.r2\.cloudflarestorage\.com(?:\/([^/?#]+))?/i
   );
@@ -203,20 +179,10 @@ export function normalizePublicCdnUrl(raw: string): string {
     ? trimmed
     : `https://${trimmed}`;
 
-  // *.r2.cloudflarestorage.com without SigV4 query parameters is the private S3 API endpoint.
   if (/\.r2\.cloudflarestorage\.com(\/|$)/i.test(withProto)) {
     return '';
   }
   return withProto;
-}
-
-export function resolveAppOrigin(requestOrigin?: string): string {
-  if (requestOrigin && /^https?:\/\//i.test(requestOrigin)) {
-    return requestOrigin.replace(/\/+$/, '');
-  }
-  const envUrl =
-    getEnvString(['APP_URL', 'NEXT_PUBLIC_APP_URL']) || 'http://localhost:3000';
-  return envUrl.replace(/\/+$/, '');
 }
 
 function getR2EndpointHost(config: R2ServerConfig): string {
@@ -235,10 +201,7 @@ function hmacSha256(key: Buffer | string, data: string): Buffer {
 }
 
 function sha256Hex(data: Buffer | string): string {
-  return crypto
-    .createHash('sha256')
-    .update(data)
-    .digest('hex');
+  return crypto.createHash('sha256').update(data).digest('hex');
 }
 
 function deriveSigningKey(
@@ -262,8 +225,6 @@ function encodeRfc3986(str: string): string {
 
 /**
  * Pure `crypto` + native `fetch` AWS Signature V4 request to Cloudflare R2 S3 API.
- * Works natively in both Cloudflare Workers (`@opennextjs/cloudflare`) and Node.js
- * without `@smithy/node-http-handler` stream or CRC32 checksum issues.
  */
 async function r2S3SignedFetch(params: {
   config: R2ServerConfig;
@@ -422,7 +383,7 @@ export function createPresignedR2ReadUrl(
     return `${config.publicCdnUrl}/${cleanKey}`;
   }
   if (!config.accountId || !config.accessKeyId || !config.secretAccessKey) {
-    return `/api/admin/r2/file/${cleanKey}`;
+    return '';
   }
 
   const host = getR2EndpointHost(config);
@@ -484,8 +445,7 @@ export function createPresignedR2ReadUrl(
 
 export function buildServedCdnUrl(
   objectKey: string,
-  config: R2ServerConfig,
-  requestOrigin?: string
+  config: R2ServerConfig
 ): string {
   const cleanKey = objectKey.replace(/^\/+/, '');
   if (config.publicCdnUrl) {
@@ -494,14 +454,9 @@ export function buildServedCdnUrl(
   if (config.accountId && config.accessKeyId && config.secretAccessKey) {
     return createPresignedR2ReadUrl(cleanKey, config);
   }
-  const origin = resolveAppOrigin(requestOrigin);
-  return `${origin}/api/admin/r2/file/${cleanKey}`;
+  return '';
 }
 
-/**
- * Applies R2 configuration headers (`x-r2-*`) sent by the Admin Panel client
- * so stateless Cloudflare Workers / Cloud Run instances always have active R2 credentials.
- */
 export function applyIncomingR2Headers(headers: Headers): void {
   const hAccount = headers.get('x-r2-account-id')?.trim() || '';
   const hBucket = headers.get('x-r2-bucket-name')?.trim() || '';
@@ -521,10 +476,6 @@ export function applyIncomingR2Headers(headers: Headers): void {
   }
 }
 
-/**
- * Persists R2 configuration directly to Firestore (`/faqs/r2_system_config`) from the server
- * via the Firestore REST `:commit` endpoint so stateless Cloudflare Worker isolates stay in sync.
- */
 export async function persistR2ConfigToFirestoreServer(
   cfg?: R2ServerConfig
 ): Promise<void> {
@@ -596,10 +547,6 @@ export async function persistR2ConfigToFirestoreServer(
   }
 }
 
-/**
- * Hydrates R2 configuration from Firestore (`/faqs/r2_system_config` and `/site_cms/main`)
- * if this Worker/container instance does not yet have complete R2 credentials in memory.
- */
 export async function ensureR2ConfigHydratedFromFirestore(): Promise<R2ServerConfig> {
   const current = readR2ServerConfig();
   if (
@@ -651,7 +598,6 @@ export async function ensureR2ConfigHydratedFromFirestore(): Promise<R2ServerCon
       }
     }
 
-    // Also check /site_cms/main general fields for r2PublicCdnUrl / r2AccountId / r2BucketName
     const afterFaq = readR2ServerConfig();
     if (!afterFaq.publicCdnUrl || !afterFaq.accountId) {
       const cmsRes = await fetch(`${baseUrl}/site_cms/main`, {
@@ -675,7 +621,7 @@ export async function ensureR2ConfigHydratedFromFirestore(): Promise<R2ServerCon
       }
     }
   } catch {
-    // Ignore network errors during background hydration
+    // Ignore network errors
   }
 
   return readR2ServerConfig();
@@ -818,7 +764,6 @@ export function writeR2ServerConfig(
       ? patch.bucketName
       : current.bucketName;
 
-  // Also check if user pasted their S3 endpoint URL into publicCdnUrl
   let candidateAccountRaw = nextAccountRaw;
   let candidateBucketRaw = nextBucketRaw;
   if (
@@ -862,7 +807,7 @@ export function writeR2ServerConfig(
   try {
     fs.writeFileSync(R2_CONFIG_FILE, JSON.stringify(next, null, 2), 'utf-8');
   } catch {
-    // Keep in memory if filesystem is read-only
+    // Read-only fs on Cloudflare Workers
   }
 
   return getPublicR2ConfigStatus();
@@ -872,9 +817,7 @@ function hasS3CredentialsConfigured(cfg: R2ServerConfig): boolean {
   return Boolean(cfg.accountId && cfg.accessKeyId && cfg.secretAccessKey);
 }
 
-export function getPublicR2ConfigStatus(
-  requestOrigin?: string
-): PublicR2ConfigStatus {
+export function getPublicR2ConfigStatus(): PublicR2ConfigStatus {
   const cfg = readR2ServerConfig();
   const nativeBinding = getNativeR2BucketBinding();
   const hasCredentials =
@@ -883,19 +826,14 @@ export function getPublicR2ConfigStatus(
     Boolean(cfg.accountId && cfg.bucketName && hasCredentials) ||
     Boolean(nativeBinding);
   const hasPublicDomain = Boolean(cfg.publicCdnUrl);
-  const effectiveCdnUrl =
-    cfg.publicCdnUrl ||
-    (hasS3CredentialsConfigured(cfg)
-      ? `https://${cfg.accountId}.r2.cloudflarestorage.com/${cfg.bucketName}`
-      : `${resolveAppOrigin(requestOrigin)}/api/admin/r2/file`);
 
   return {
     configured: s3Connected,
     s3Connected,
-    storageMode: s3Connected ? 'cloudflare-s3' : 'managed-local-r2',
+    storageMode: s3Connected ? 'cloudflare-s3' : 'unconfigured',
     accountId: cfg.accountId,
     bucketName: cfg.bucketName || 'bimondo-media',
-    publicCdnUrl: effectiveCdnUrl,
+    publicCdnUrl: cfg.publicCdnUrl,
     hasCredentials,
     hasPublicDomain,
     endpointUrl:
@@ -906,15 +844,15 @@ export function getPublicR2ConfigStatus(
   };
 }
 
-export async function testR2Connection(requestOrigin?: string): Promise<{
+export async function testR2Connection(): Promise<{
   ok: boolean;
-  mode: 'cloudflare-s3' | 'managed-local-r2';
+  mode: 'cloudflare-s3' | 'unconfigured';
   message: string;
   objectCount: number;
   status: PublicR2ConfigStatus;
 }> {
   await ensureR2ConfigHydratedFromFirestore();
-  const status = getPublicR2ConfigStatus(requestOrigin);
+  const status = getPublicR2ConfigStatus();
   const cfg = readR2ServerConfig();
   const nativeBinding = getNativeR2BucketBinding();
 
@@ -946,9 +884,9 @@ export async function testR2Connection(requestOrigin?: string): Promise<{
   if (!hasS3CredentialsConfigured(cfg)) {
     return {
       ok: false,
-      mode: 'managed-local-r2',
+      mode: 'unconfigured',
       message:
-        'Cloudflare R2 S3 credentials are not entered yet. Please enter your Cloudflare Account ID, Bucket Name, Public R2.dev Domain (https://pub-xxx.r2.dev), Access Key ID, and Secret Access Key and click Save.',
+        'Enter your Public R2 Domain (https://pub-xxx.r2.dev), Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key.',
       objectCount: 0,
       status,
     };
@@ -966,7 +904,7 @@ export async function testR2Connection(requestOrigin?: string): Promise<{
       const items = parseS3ListXml(xml);
       const domainNote = cfg.publicCdnUrl
         ? `Public R2 Domain: ${cfg.publicCdnUrl}`
-        : 'Using direct R2 S3 signed URLs (add your https://pub-xxx.r2.dev domain for permanent public links)';
+        : 'Connected via R2 S3 signed URLs (set Public R2 Domain for pub-xxx.r2.dev links)';
       return {
         ok: true,
         mode: 'cloudflare-s3',
@@ -985,7 +923,7 @@ export async function testR2Connection(requestOrigin?: string): Promise<{
     return {
       ok: false,
       mode: 'cloudflare-s3',
-      message: `Cloudflare R2 S3 Error (${detail}). Please check your Account ID ("${cfg.accountId}"), Bucket Name ("${cfg.bucketName}"), Access Key ID, and Secret Access Key.`,
+      message: `Cloudflare R2 S3 Error (${detail}). Verify Account ID ("${cfg.accountId}"), Bucket Name ("${cfg.bucketName}"), Access Key ID, and Secret Access Key.`,
       objectCount: 0,
       status,
     };
@@ -997,7 +935,7 @@ export async function testR2Connection(requestOrigin?: string): Promise<{
     return {
       ok: false,
       mode: 'cloudflare-s3',
-      message: `Cloudflare R2 S3 Connection Error: ${msg}. Please verify your Account ID ("${cfg.accountId}") and Bucket Name ("${cfg.bucketName}").`,
+      message: `Cloudflare R2 S3 Connection Error: ${msg}`,
       objectCount: 0,
       status,
     };
@@ -1067,102 +1005,7 @@ export function extractR2KeyFromCdnUrl(cdnUrlOrKey: string): string | null {
     return null;
   }
 
-  const index = readLocalR2Index();
-  for (const item of Object.values(index)) {
-    if (item.cdnUrl === trimmed) {
-      return item.objectKey;
-    }
-  }
   return null;
-}
-
-function readLocalR2Index(): Record<string, R2BucketObjectItem> {
-  if (memoryR2Index) return memoryR2Index;
-  try {
-    if (fs.existsSync(LOCAL_R2_INDEX_FILE)) {
-      const raw = fs.readFileSync(LOCAL_R2_INDEX_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        memoryR2Index = parsed;
-        return parsed;
-      }
-    }
-  } catch {
-    // Ignore parse error
-  }
-  memoryR2Index = seedInitialR2CatalogFromCms();
-  writeLocalR2Index(memoryR2Index);
-  return memoryR2Index;
-}
-
-function writeLocalR2Index(index: Record<string, R2BucketObjectItem>) {
-  memoryR2Index = index;
-  try {
-    fs.writeFileSync(
-      LOCAL_R2_INDEX_FILE,
-      JSON.stringify(index, null, 2),
-      'utf-8'
-    );
-  } catch {
-    // Ignore read-only fs
-  }
-}
-
-export function seedInitialR2CatalogFromCms(): Record<
-  string,
-  R2BucketObjectItem
-> {
-  const cms = getDefaultCmsData();
-  const catalog: Record<string, R2BucketObjectItem> = {};
-  const now = new Date().toISOString();
-
-  const registerUrl = (
-    url: string | undefined,
-    folder: R2FolderName,
-    slugHint: string
-  ) => {
-    if (!url || !url.startsWith('http')) return;
-    const cleanSlug = sanitizeR2FileName(slugHint);
-    const ext = url.includes('.png') ? 'png' : 'jpg';
-    const fileName = cleanSlug.endsWith(`.${ext}`)
-      ? cleanSlug
-      : `${cleanSlug}.${ext}`;
-    const objectKey = `${folder}/${fileName}`;
-    if (catalog[objectKey]) return;
-
-    catalog[objectKey] = {
-      id: toFirestoreMediaDocId(objectKey),
-      objectKey,
-      cdnUrl: url,
-      folder,
-      fileName,
-      contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
-      sizeBytes: 245760,
-      lastModified: now,
-      source: 'cms-catalog',
-    };
-  };
-
-  (cms.general.heroImages || []).forEach((url, idx) => {
-    registerUrl(url, 'general', `hero-slide-${idx + 1}`);
-  });
-  cms.tours.forEach((t) => {
-    registerUrl(t.image, 'tours', t.id || t.name);
-  });
-  cms.stays.forEach((s) => {
-    registerUrl(s.image, 'stays', s.id || s.name);
-  });
-  cms.destinations.forEach((d) => {
-    registerUrl(d.image, 'destinations', d.id || d.name);
-  });
-  cms.gallery.forEach((g) => {
-    registerUrl(g.image, 'gallery', `${g.id}-${g.title}`);
-  });
-  cms.reviews.forEach((r) => {
-    registerUrl(r.image, 'general', `guest-${r.id}-${r.name}`);
-  });
-
-  return catalog;
 }
 
 export async function uploadFileToR2Bucket(params: {
@@ -1172,7 +1015,6 @@ export async function uploadFileToR2Bucket(params: {
   folder?: R2FolderName;
   customKey?: string;
   replaceExistingKey?: string;
-  requestOrigin?: string;
 }): Promise<{
   id: string;
   objectKey: string;
@@ -1181,7 +1023,7 @@ export async function uploadFileToR2Bucket(params: {
   fileName: string;
   contentType: string;
   sizeBytes: number;
-  storageMode: 'cloudflare-s3' | 'managed-local-r2';
+  storageMode: 'cloudflare-s3';
 }> {
   await ensureR2ConfigHydratedFromFirestore();
 
@@ -1200,40 +1042,16 @@ export async function uploadFileToR2Bucket(params: {
   const hasS3 = hasS3CredentialsConfigured(config);
   let uploadedToR2 = false;
 
-  // 1. Write to local disk cache when available
-  try {
-    ensureLocalBucketDir();
-    const targetFilePath = path.join(
-      LOCAL_R2_BUCKET_DIR,
-      ...objectKey.split('/')
-    );
-    const parentDir = path.dirname(targetFilePath);
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true });
-    }
-    fs.writeFileSync(targetFilePath, params.buffer);
-  } catch {
-    // Ignore on read-only fs (Cloudflare Workers)
-  }
-
-  // 2. Upload via native Cloudflare R2 Bucket binding if available
   if (nativeBinding) {
-    try {
-      await nativeBinding.put(objectKey, params.buffer, {
-        httpMetadata: {
-          contentType: params.contentType || 'image/jpeg',
-          cacheControl: 'public, max-age=31536000, immutable',
-        },
-      });
-      uploadedToR2 = true;
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Native R2 binding put failed';
-      throw new Error(`Cloudflare R2 binding upload failed: ${msg}`);
-    }
+    await nativeBinding.put(objectKey, params.buffer, {
+      httpMetadata: {
+        contentType: params.contentType || 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    uploadedToR2 = true;
   }
 
-  // 3. Upload directly to Cloudflare R2 S3 endpoint via pure SigV4 fetch
   if (!uploadedToR2 && hasS3) {
     const putRes = await r2S3SignedFetch({
       config,
@@ -1255,20 +1073,18 @@ export async function uploadFileToR2Bucket(params: {
         codeMatch?.[1] ||
         `HTTP ${putRes.status} ${putRes.statusText}`;
       throw new Error(
-        `Cloudflare R2 S3 upload failed for bucket "${config.bucketName}": ${detail}. Please verify your R2 Account ID ("${config.accountId}"), Bucket Name ("${config.bucketName}"), Access Key ID, and Secret Access Key.`
+        `Cloudflare R2 upload failed for bucket "${config.bucketName}": ${detail}. Check your Account ID, Bucket Name, Access Key ID, and Secret Access Key.`
       );
     }
     uploadedToR2 = true;
   }
 
-  // 4. Never silently fake an R2 upload when R2 credentials are not configured!
   if (!uploadedToR2) {
     throw new Error(
-      'Cloudflare R2 credentials are not connected yet. Please enter your Public R2 Domain (https://pub-xxx.r2.dev), Cloudflare Account ID, Bucket Name, R2 S3 Access Key ID, and Secret Access Key in the R2 setup box above, then upload.'
+      'Cloudflare R2 is not connected yet. Enter your Public R2 Domain (https://pub-xxx.r2.dev), Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key first.'
     );
   }
 
-  // 5. Handle replacing an existing key
   if (params.replaceExistingKey) {
     const oldKey = extractR2KeyFromCdnUrl(params.replaceExistingKey);
     if (oldKey && oldKey !== objectKey) {
@@ -1276,35 +1092,18 @@ export async function uploadFileToR2Bucket(params: {
     }
   }
 
-  // 6. Build the direct R2 domain URL (`https://pub-xxx.r2.dev/<key>` or custom R2 domain,
-  // or a direct `https://<accountId>.r2.cloudflarestorage.com/<bucket>/<key>?X-Amz-...` signed URL)
-  let cdnUrl: string;
-  if (config.publicCdnUrl) {
-    cdnUrl = `${config.publicCdnUrl}/${objectKey}`;
-  } else if (hasS3) {
-    cdnUrl = createPresignedR2ReadUrl(objectKey, config);
-  } else {
-    cdnUrl = `${resolveAppOrigin(params.requestOrigin)}/api/admin/r2/file/${objectKey}`;
+  const cdnUrl = config.publicCdnUrl
+    ? `${config.publicCdnUrl}/${objectKey}`
+    : createPresignedR2ReadUrl(objectKey, config);
+
+  if (!cdnUrl) {
+    throw new Error(
+      'Uploaded to R2 bucket, but Public R2 Domain (https://pub-xxx.r2.dev) is missing. Please set your Public R2 Domain.'
+    );
   }
 
-  const itemMeta: R2BucketObjectItem = {
-    id: toFirestoreMediaDocId(objectKey),
-    objectKey,
-    cdnUrl,
-    folder,
-    fileName: safeName,
-    contentType: params.contentType || 'image/jpeg',
-    sizeBytes: params.buffer.byteLength,
-    lastModified: new Date().toISOString(),
-    source: 's3',
-  };
-
-  const index = readLocalR2Index();
-  index[objectKey] = itemMeta;
-  writeLocalR2Index(index);
-
   return {
-    id: itemMeta.id,
+    id: toFirestoreMediaDocId(objectKey),
     objectKey,
     cdnUrl,
     folder,
@@ -1328,39 +1127,16 @@ export async function deleteFileFromR2Bucket(
 
   const nativeBinding = getNativeR2BucketBinding();
   if (nativeBinding) {
-    try {
-      await nativeBinding.delete(resolvedKey);
-    } catch {
-      // Ignore if not found
-    }
+    await nativeBinding.delete(resolvedKey).catch(() => {});
   }
 
   const cfg = readR2ServerConfig();
   if (hasS3CredentialsConfigured(cfg)) {
-    try {
-      await r2S3SignedFetch({
-        config: cfg,
-        method: 'DELETE',
-        objectKey: resolvedKey,
-      });
-    } catch {
-      // Ignore if object was only in catalog
-    }
-  }
-
-  try {
-    const localPath = path.join(LOCAL_R2_BUCKET_DIR, ...resolvedKey.split('/'));
-    if (fs.existsSync(localPath)) {
-      fs.unlinkSync(localPath);
-    }
-  } catch {
-    // Ignore fs cleanup error
-  }
-
-  const index = readLocalR2Index();
-  if (index[resolvedKey]) {
-    delete index[resolvedKey];
-    writeLocalR2Index(index);
+    await r2S3SignedFetch({
+      config: cfg,
+      method: 'DELETE',
+      objectKey: resolvedKey,
+    }).catch(() => {});
   }
 
   return { deletedKey: resolvedKey };
@@ -1369,7 +1145,6 @@ export async function deleteFileFromR2Bucket(
 export async function renameFileInR2Bucket(params: {
   oldKeyOrUrl: string;
   newKey: string;
-  requestOrigin?: string;
 }): Promise<{
   id: string;
   oldKey: string;
@@ -1391,104 +1166,41 @@ export async function renameFileInR2Bucket(params: {
   const config = readR2ServerConfig();
   const hasS3 = hasS3CredentialsConfigured(config);
   const nativeBinding = getNativeR2BucketBinding();
-  let renamedInS3 = false;
 
   if (oldKey !== cleanNewKey) {
     if (nativeBinding) {
-      try {
-        const obj = await nativeBinding.get(oldKey);
-        if (obj) {
-          const ab = await obj.arrayBuffer();
-          await nativeBinding.put(cleanNewKey, ab, {
-            httpMetadata: obj.httpMetadata,
-          });
-          await nativeBinding.delete(oldKey);
-          renamedInS3 = true;
-        }
-      } catch {
-        // Fall through
-      }
-    }
-
-    if (!renamedInS3 && hasS3) {
-      try {
-        const copySource = `/${encodeRfc3986(config.bucketName)}/${oldKey
-          .split('/')
-          .map(encodeRfc3986)
-          .join('/')}`;
-        const copyRes = await r2S3SignedFetch({
-          config,
-          method: 'PUT',
-          objectKey: cleanNewKey,
-          extraHeaders: {
-            'x-amz-copy-source': copySource,
-          },
+      const obj = await nativeBinding.get(oldKey);
+      if (obj) {
+        const ab = await obj.arrayBuffer();
+        await nativeBinding.put(cleanNewKey, ab, {
+          httpMetadata: obj.httpMetadata,
         });
-        if (copyRes.ok) {
-          await r2S3SignedFetch({
-            config,
-            method: 'DELETE',
-            objectKey: oldKey,
-          });
-          renamedInS3 = true;
-        }
-      } catch {
-        // Fallback to local mirror rename if object wasn't in remote S3
+        await nativeBinding.delete(oldKey);
+      }
+    } else if (hasS3) {
+      const copySource = `/${encodeRfc3986(config.bucketName)}/${oldKey
+        .split('/')
+        .map(encodeRfc3986)
+        .join('/')}`;
+      const copyRes = await r2S3SignedFetch({
+        config,
+        method: 'PUT',
+        objectKey: cleanNewKey,
+        extraHeaders: {
+          'x-amz-copy-source': copySource,
+        },
+      });
+      if (copyRes.ok) {
+        await r2S3SignedFetch({
+          config,
+          method: 'DELETE',
+          objectKey: oldKey,
+        });
       }
     }
-
-    try {
-      const oldLocalPath = path.join(LOCAL_R2_BUCKET_DIR, ...oldKey.split('/'));
-      const newLocalPath = path.join(
-        LOCAL_R2_BUCKET_DIR,
-        ...cleanNewKey.split('/')
-      );
-      if (fs.existsSync(oldLocalPath)) {
-        const parentDir = path.dirname(newLocalPath);
-        if (!fs.existsSync(parentDir)) {
-          fs.mkdirSync(parentDir, { recursive: true });
-        }
-        fs.renameSync(oldLocalPath, newLocalPath);
-      }
-    } catch {
-      // Ignore disk error
-    }
   }
 
-  const index = readLocalR2Index();
-  const existingEntry = index[oldKey];
-  const newFolder = inferFolderFromKey(cleanNewKey);
-  const newFileName = cleanNewKey.split('/').pop() || cleanNewKey;
-
-  let cdnUrl: string;
-  if (
-    existingEntry?.source === 'cms-catalog' &&
-    existingEntry.cdnUrl.startsWith('https://images.unsplash.com')
-  ) {
-    cdnUrl = existingEntry.cdnUrl;
-  } else if (renamedInS3 || hasS3) {
-    cdnUrl = buildServedCdnUrl(cleanNewKey, config, params.requestOrigin);
-  } else if (config.publicCdnUrl) {
-    cdnUrl = `${config.publicCdnUrl}/${cleanNewKey}`;
-  } else {
-    cdnUrl = `${resolveAppOrigin(params.requestOrigin)}/api/admin/r2/file/${cleanNewKey}`;
-  }
-
-  if (oldKey !== cleanNewKey) {
-    delete index[oldKey];
-  }
-  index[cleanNewKey] = {
-    id: toFirestoreMediaDocId(cleanNewKey),
-    objectKey: cleanNewKey,
-    cdnUrl,
-    folder: newFolder,
-    fileName: newFileName,
-    contentType: existingEntry?.contentType || 'image/jpeg',
-    sizeBytes: existingEntry?.sizeBytes || 0,
-    lastModified: new Date().toISOString(),
-    source: renamedInS3 ? 's3' : existingEntry?.source || 'local-r2',
-  };
-  writeLocalR2Index(index);
+  const cdnUrl = buildServedCdnUrl(cleanNewKey, config);
 
   return {
     id: toFirestoreMediaDocId(cleanNewKey),
@@ -1505,7 +1217,6 @@ export async function getFileBufferFromR2Bucket(objectKey: string): Promise<{
   await ensureR2ConfigHydratedFromFirestore();
   const cleanKey = objectKey.replace(/^\/+/, '');
 
-  // 1. Check native Cloudflare R2 binding first if available
   const nativeBinding = getNativeR2BucketBinding();
   if (nativeBinding) {
     try {
@@ -1522,31 +1233,6 @@ export async function getFileBufferFromR2Bucket(objectKey: string): Promise<{
     }
   }
 
-  // 2. Check local R2 bucket disk cache
-  try {
-    const localPath = path.join(LOCAL_R2_BUCKET_DIR, ...cleanKey.split('/'));
-    if (fs.existsSync(localPath)) {
-      const buffer = fs.readFileSync(localPath);
-      const ext = path.extname(cleanKey).toLowerCase();
-      const contentType =
-        ext === '.png'
-          ? 'image/png'
-          : ext === '.webp'
-          ? 'image/webp'
-          : ext === '.avif'
-          ? 'image/avif'
-          : ext === '.gif'
-          ? 'image/gif'
-          : ext === '.svg'
-          ? 'image/svg+xml'
-          : 'image/jpeg';
-      return { buffer, contentType };
-    }
-  } catch {
-    // Continue to S3
-  }
-
-  // 3. Fetch from remote Cloudflare R2 S3 via pure SigV4 fetch
   const config = readR2ServerConfig();
   if (hasS3CredentialsConfigured(config)) {
     try {
@@ -1567,7 +1253,6 @@ export async function getFileBufferFromR2Bucket(objectKey: string): Promise<{
     }
   }
 
-  // 4. Check if publicCdnUrl is configured and fetch from there
   if (config.publicCdnUrl) {
     try {
       const remoteRes = await fetch(`${config.publicCdnUrl}/${cleanKey}`);
@@ -1586,69 +1271,16 @@ export async function getFileBufferFromR2Bucket(objectKey: string): Promise<{
   return null;
 }
 
+/**
+ * Lists ONLY actual objects stored in the connected Cloudflare R2 bucket.
+ */
 export async function listFilesInR2Bucket(
-  prefix?: string,
-  requestOrigin?: string
+  prefix?: string
 ): Promise<R2BucketObjectItem[]> {
   await ensureR2ConfigHydratedFromFirestore();
   const merged = new Map<string, R2BucketObjectItem>();
-  const index = readLocalR2Index();
-  const origin = resolveAppOrigin(requestOrigin);
   const config = readR2ServerConfig();
 
-  // 1. Load indexed items (local uploads + seeded CMS catalog)
-  for (const item of Object.values(index)) {
-    if (prefix && !item.objectKey.startsWith(prefix)) continue;
-    let resolvedUrl = item.cdnUrl;
-    if (item.source === 'local-r2') {
-      resolvedUrl = config.publicCdnUrl
-        ? `${config.publicCdnUrl}/${item.objectKey}`
-        : `${origin}/api/admin/r2/file/${item.objectKey}`;
-    } else if (item.source === 's3') {
-      resolvedUrl = buildServedCdnUrl(item.objectKey, config, requestOrigin);
-    }
-    merged.set(item.objectKey, {
-      ...item,
-      cdnUrl: resolvedUrl,
-    });
-  }
-
-  // 2. Scan local disk directory `.aistudio-r2-bucket` for any unindexed files
-  try {
-    ensureLocalBucketDir();
-    const walkDir = (dir: string, relPrefix = '') => {
-      if (!fs.existsSync(dir)) return;
-      const entries = fs.readdirSync(dir, withFileTypesOption);
-      for (const entry of entries) {
-        const relKey = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) {
-          walkDir(path.join(dir, entry.name), relKey);
-        } else if (entry.isFile()) {
-          if (prefix && !relKey.startsWith(prefix)) continue;
-          const stat = fs.statSync(path.join(dir, entry.name));
-          const folder = inferFolderFromKey(relKey);
-          merged.set(relKey, {
-            id: toFirestoreMediaDocId(relKey),
-            objectKey: relKey,
-            cdnUrl: config.publicCdnUrl
-              ? `${config.publicCdnUrl}/${relKey}`
-              : `${origin}/api/admin/r2/file/${relKey}`,
-            folder,
-            fileName: entry.name,
-            sizeBytes: stat.size,
-            lastModified: stat.mtime.toISOString(),
-            source: 'local-r2',
-          });
-        }
-      }
-    };
-    const withFileTypesOption = { withFileTypes: true as const };
-    walkDir(LOCAL_R2_BUCKET_DIR);
-  } catch {
-    // Ignore disk scan errors
-  }
-
-  // 3. Query native Cloudflare R2 binding if present
   const nativeBinding = getNativeR2BucketBinding();
   if (nativeBinding) {
     try {
@@ -1661,10 +1293,12 @@ export async function listFilesInR2Bucket(
         const objectKey = obj.key;
         const folder = inferFolderFromKey(objectKey);
         const fileName = objectKey.split('/').pop() || objectKey;
+        const cdnUrl = buildServedCdnUrl(objectKey, config);
+        if (!cdnUrl) continue;
         merged.set(objectKey, {
           id: toFirestoreMediaDocId(objectKey),
           objectKey,
-          cdnUrl: buildServedCdnUrl(objectKey, config, requestOrigin),
+          cdnUrl,
           folder,
           fileName,
           sizeBytes: obj.size ?? 0,
@@ -1679,7 +1313,6 @@ export async function listFilesInR2Bucket(
     }
   }
 
-  // 4. Query remote Cloudflare R2 S3 bucket via pure SigV4 fetch if credentials are configured
   if (hasS3CredentialsConfigured(config)) {
     try {
       const query: Record<string, string> = {
@@ -1703,10 +1336,12 @@ export async function listFilesInR2Bucket(
           const folder = inferFolderFromKey(objectKey);
           const parts = objectKey.split('/');
           const fileName = parts[parts.length - 1] || objectKey;
+          const cdnUrl = buildServedCdnUrl(objectKey, config);
+          if (!cdnUrl) continue;
           merged.set(objectKey, {
             id: toFirestoreMediaDocId(objectKey),
             objectKey,
-            cdnUrl: buildServedCdnUrl(objectKey, config, requestOrigin),
+            cdnUrl,
             folder,
             fileName,
             sizeBytes: item.Size,
@@ -1716,10 +1351,7 @@ export async function listFilesInR2Bucket(
         }
       }
     } catch (err) {
-      console.warn(
-        'Cloudflare R2 S3 ListObjectsV2 fallback to local index:',
-        err
-      );
+      console.warn('Cloudflare R2 S3 ListObjectsV2 error:', err);
     }
   }
 
