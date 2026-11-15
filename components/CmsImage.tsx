@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { resolveCmsImageUrl } from '@/lib/r2-client';
 
@@ -15,76 +14,49 @@ interface CmsImageProps {
   fallbackSrc?: string;
 }
 
-function isDirectR2OrCustomDomainUrl(url: string): boolean {
-  if (!url) return false;
-  if (url.startsWith('/images/')) return false;
-  if (url.includes('images.unsplash.com') || url.includes('picsum.photos')) {
-    return false;
-  }
-  return true;
-}
-
 /**
- * Renders an image in its assigned website section directly from the Cloudflare R2 domain
- * link saved in Firestore (while keeping Next.js <Image> for local/stock assets).
+ * Renders an image directly from the Cloudflare R2 domain URL saved in Firestore.
+ * Never falls back to mock or stock images. If no R2 image is assigned yet, renders a clean neutral surface.
  */
 export default function CmsImage({
   src,
   alt,
   fill = true,
-  sizes = '100vw',
   priority = false,
   className = 'object-cover',
-  fallbackSrc,
 }: CmsImageProps) {
   const { cms } = useSiteCms();
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
-  const primaryResolved = resolveCmsImageUrl(
-    src,
-    cms.general.r2PublicCdnUrl
-  );
-  const effectiveSrc =
-    failedSrc === primaryResolved && fallbackSrc
-      ? fallbackSrc
-      : primaryResolved || fallbackSrc || '/images/hero-vibrant-srilanka.jpg';
+  const resolvedUrl = resolveCmsImageUrl(src, cms.general.r2PublicCdnUrl);
 
-  // Serve R2 domain URLs directly from Cloudflare R2 edge without /_next/image rewriting
-  if (isDirectR2OrCustomDomainUrl(effectiveSrc)) {
+  if (!resolvedUrl || failedSrc === resolvedUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={effectiveSrc}
-        alt={alt}
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        referrerPolicy="no-referrer"
-        onError={() => {
-          if (failedSrc !== primaryResolved) {
-            setFailedSrc(primaryResolved);
-          }
-        }}
+      <div
+        aria-label={alt}
         className={`${
-          fill ? 'absolute inset-0 w-full h-full' : ''
-        } ${className}`.trim()}
+          fill ? 'absolute inset-0 w-full h-full' : 'w-full h-full'
+        } bg-stone-200/70 ${className}`.trim()}
       />
     );
   }
 
   return (
-    <Image
-      src={effectiveSrc}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={resolvedUrl}
       alt={alt}
-      fill={fill}
-      sizes={sizes}
-      priority={priority}
-      className={className}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
       referrerPolicy="no-referrer"
       onError={() => {
-        if (failedSrc !== primaryResolved) {
-          setFailedSrc(primaryResolved);
+        if (failedSrc !== resolvedUrl) {
+          setFailedSrc(resolvedUrl);
         }
       }}
+      className={`${
+        fill ? 'absolute inset-0 w-full h-full' : ''
+      } ${className}`.trim()}
     />
   );
 }

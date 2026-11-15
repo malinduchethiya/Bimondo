@@ -1,8 +1,14 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { useSiteCms } from '@/hooks/useSiteCms';
+import CmsImage from '@/components/CmsImage';
 
 export default function ExperienceSection() {
+  const { cms } = useSiteCms();
+  const experienceImg = cms.general.experienceImage || '';
+
   const experiences = [
     {
       num: '01',
@@ -56,13 +62,12 @@ export default function ExperienceSection() {
           </div>
 
           <div className="experience-photo" style={{ position: 'relative' }}>
-            <Image
+            <CmsImage
               alt="Sri Lanka coastal and highland landscapes"
-              src="https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1100&q=85"
+              src={experienceImg}
               fill
               sizes="(max-width: 720px) 100vw, 50vw"
               className="object-cover"
-              referrerPolicy="no-referrer"
             />
           </div>
         </div>

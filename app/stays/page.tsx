@@ -178,9 +178,6 @@ export default function StaysPage() {
                   <div className="dest-img-wrap">
                     <CmsImage
                       src={stay.image}
-                      fallbackSrc={
-                        ACCOMMODATIONS[idx % ACCOMMODATIONS.length]?.image
-                      }
                       alt={stay.name}
                       fill
                       priority={idx < 2}

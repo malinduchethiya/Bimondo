@@ -81,9 +81,6 @@ export default function GalleryPage() {
             >
               <CmsImage
                 src={photo.image}
-                fallbackSrc={
-                  DEFAULT_GALLERY[i % DEFAULT_GALLERY.length]?.image
-                }
                 alt={photo.title}
                 fill
                 priority={i < 2}

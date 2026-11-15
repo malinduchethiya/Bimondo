@@ -86,6 +86,9 @@ export interface CmsGeneralSettings {
   websiteUrl?: string;
   primaryMarkets?: string;
   heroImages?: string[];
+  storyMainImage?: string;
+  storySecondaryImage?: string;
+  experienceImage?: string;
   tripadvisorEnabled?: boolean;
   tripadvisorBrand?: string;
   tripadvisorRating?: string;
@@ -95,12 +98,7 @@ export interface CmsGeneralSettings {
   r2PublicCdnUrl?: string;
 }
 
-export const DEFAULT_HERO_IMAGES: string[] = [
-  '/images/hero-vibrant-srilanka.jpg',
-  'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1920&q=85',
-  'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1920&q=85',
-  'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1920&q=85',
-];
+export const DEFAULT_HERO_IMAGES: string[] = [];
 
 export interface SiteCmsData {
   updatedAt: string;
@@ -129,8 +127,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Anuradhapura & Polonnaruwa ancient capitals',
       'Dambulla Cave Temple & Cultural Triangle heritage',
     ],
-    image:
-      'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'tall-up',
   },
   {
@@ -147,8 +144,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Respectful cultural visits & local traditions',
       'Starting point for highland rail & trail journeys',
     ],
-    image:
-      'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'compact-mid',
   },
   {
@@ -165,8 +161,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Horton Plains & World’s End plateau walk',
       'Little Adam’s Peak, Ella Rock & scenic hill train',
     ],
-    image:
-      'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'low-down',
   },
   {
@@ -183,8 +178,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Seasonal Minneriya elephant gathering',
       'Sinharaja rainforest walks & endemic birdwatching',
     ],
-    image:
-      'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'mid-up',
   },
   {
@@ -201,8 +195,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Highland waterfalls & cloud forest trails',
       'Horton Plains & World’s End escarpment',
     ],
-    image:
-      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'tall-deep',
   },
   {
@@ -219,8 +212,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Surfing at Weligama (Nov–Apr) & Arugam Bay (May–Oct)',
       'Kalpitiya Bar Reef diving, kite surfing & Bentota paramotoring',
     ],
-    image:
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'mid-up',
   },
   {
@@ -237,8 +229,7 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Uncrowded game drives in Wilpattu National Park',
       'Private 4x4 jeeps with experienced naturalists',
     ],
-    image:
-      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'low-down',
   },
   {
@@ -255,113 +246,13 @@ export const DEFAULT_DESTINATIONS: CmsDestination[] = [
       'Colombo City Highlights & Colombo Food Trail',
       'Kelaniya Temple Visit & Negombo Lagoon Day',
     ],
-    image:
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=85',
+    image: '',
     staggerVariant: 'compact-mid',
   },
 ];
 
-export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [
-  {
-    id: 'dancer-welcome',
-    title: 'Living Heritage in Kandy',
-    location: 'Kandy · Culture and Heritage',
-    category: 'culture',
-    categoryLabel: 'Culture & Heritage',
-    image: '/images/kandyan-ves-dancer.jpg',
-    description:
-      'Traditional Kandyan cultural heritage—visited with respect for local customs, dress, and living traditions.',
-  },
-  {
-    id: 'sigiriya-citadel',
-    title: 'Sigiriya & Pidurangala at First Light',
-    location: 'Sigiriya · Cultural Triangle',
-    category: 'culture',
-    categoryLabel: 'Culture & Heritage',
-    image:
-      'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Morning mist over Sigiriya Rock Fortress and the surrounding forests of the Cultural Triangle.',
-  },
-  {
-    id: 'nine-arch-bridge',
-    title: 'Hill Country Rail & Tea Trails',
-    location: 'Ella & Nuwara Eliya · Hill Country',
-    category: 'highlands',
-    categoryLabel: 'Hill Country & Hiking',
-    image:
-      'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'The scenic mountain railway and walking routes linking Kandy, Nuwara Eliya, and Ella.',
-  },
-  {
-    id: 'kandy-temple-dance',
-    title: 'Sacred Traditions of the Island',
-    location: 'Kandy & Kelaniya',
-    category: 'culture',
-    categoryLabel: 'Culture & Heritage',
-    image: '/images/sri-lankan-dancer-matching.jpg',
-    description:
-      'Sacred temples, historic shrines, and centuries of Buddhist art and craftsmanship across Sri Lanka.',
-  },
-  {
-    id: 'galle-lighthouse',
-    title: 'Galle Fort & The Southern Coast',
-    location: 'Galle, Unawatuna & Mirissa',
-    category: 'coast',
-    categoryLabel: 'Sea & Sand',
-    image:
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Historic ramparts at Galle Fort and relaxed coastal days along the southern shores.',
-  },
-  {
-    id: 'wild-elephant-lake',
-    title: 'Elephants in Open National Parks',
-    location: 'Minneriya & Udawalawe',
-    category: 'wildlife',
-    categoryLabel: 'Wildlife & Nature',
-    image:
-      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Responsible wildlife safaris observing wild elephant herds across Minneriya and Udawalawe.',
-  },
-  {
-    id: 'leopard-safari',
-    title: 'Wilderness Tracks of Yala & Wilpattu',
-    location: 'Yala & Wilpattu National Parks',
-    category: 'wildlife',
-    categoryLabel: 'Wildlife & Nature',
-    image:
-      'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Early morning safaris with operators who respect park rules and animal welfare.',
-  },
-  {
-    id: 'ceylon-tea-valleys',
-    title: 'Walking The Pekoe Trail',
-    location: 'Kandy, Nuwara Eliya & Ella',
-    category: 'highlands',
-    categoryLabel: 'Hill Country & Hiking',
-    image:
-      'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Walking through working tea estates, highland villages, and cool mountain ridges.',
-  },
-  {
-    id: 'coastal-slow-living',
-    title: 'Surf Bays & Coastal Escapes',
-    location: 'Weligama, Arugam Bay & Kalpitiya',
-    category: 'coast',
-    categoryLabel: 'Sea & Sand',
-    image:
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=85',
-    description:
-      'Warm Indian Ocean swells and quiet sandy bays planned around the best coastal seasons.',
-  },
-];
+export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [];
 
-// Default Tourist Thoughts cards displayed in the Homepage #why train slider and editable in /admin
 export const DEFAULT_REVIEWS: CmsReviewItem[] = [
   {
     id: 'thought-1',
@@ -372,8 +263,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
-    image:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-2',
@@ -384,8 +274,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
-    image:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-3',
@@ -396,8 +285,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
-    image:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-4',
@@ -408,8 +296,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
-    image:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-5',
@@ -420,8 +307,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
-    image:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-6',
@@ -432,8 +318,7 @@ export const DEFAULT_REVIEWS: CmsReviewItem[] = [
     date: 'Visited 2026',
     quote:
       '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
-    image:
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
 ];
 

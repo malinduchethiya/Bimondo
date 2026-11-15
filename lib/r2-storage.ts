@@ -1,6 +1,4 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import firebaseConfig from '@/firebase-applet-config.json';
 
 export type R2FolderName =
@@ -67,8 +65,6 @@ interface CloudflareR2BucketBinding {
     }>;
   }>;
 }
-
-const R2_CONFIG_FILE = path.join(process.cwd(), '.aistudio-r2-config.json');
 
 const VALID_FOLDERS: readonly R2FolderName[] = [
   'tours',
@@ -174,7 +170,6 @@ export function parseAccountAndBucketFromInput(
 export function normalizePublicCdnUrl(raw: string): string {
   const trimmed = (raw || '').trim().replace(/\/+$/, '');
   if (!trimmed) return '';
-  if (trimmed.includes('/api/admin/r2/file')) return '';
   const withProto = /^https?:\/\//i.test(trimmed)
     ? trimmed
     : `https://${trimmed}`;
@@ -369,10 +364,6 @@ function parseS3ListXml(xml: string): Array<{
   return results;
 }
 
-/**
- * Generates a direct Cloudflare R2 S3 presigned GET URL (`https://<accountId>.r2.cloudflarestorage.com/<bucket>/<key>?X-Amz-...`)
- * valid for 7 days when a public `pub-xxx.r2.dev` domain is not yet configured.
- */
 export function createPresignedR2ReadUrl(
   objectKey: string,
   config: R2ServerConfig,
@@ -513,9 +504,10 @@ export async function persistR2ConfigToFirestoreServer(
                         stringValue: (active.accountId || '').slice(0, 200),
                       },
                       bucketName: {
-                        stringValue: (
-                          active.bucketName || 'bimondo-media'
-                        ).slice(0, 120),
+                        stringValue: (active.bucketName || 'bimondo').slice(
+                          0,
+                          120
+                        ),
                       },
                       publicCdnUrl: {
                         stringValue: (active.publicCdnUrl || '').slice(0, 300),
@@ -628,29 +620,10 @@ export async function ensureR2ConfigHydratedFromFirestore(): Promise<R2ServerCon
 }
 
 export function readR2ServerConfig(): R2ServerConfig {
-  let fileConfig: Partial<R2ServerConfig> = {};
-  try {
-    if (fs.existsSync(R2_CONFIG_FILE)) {
-      const raw = fs.readFileSync(R2_CONFIG_FILE, 'utf-8');
-      fileConfig = JSON.parse(raw);
-    } else if (memoryR2Config) {
-      fileConfig = memoryR2Config;
-    }
-  } catch {
-    if (memoryR2Config) {
-      fileConfig = memoryR2Config;
-    }
-  }
-
-  if (memoryR2Config) {
-    fileConfig = {
-      ...fileConfig,
-      ...memoryR2Config,
-    };
-  }
+  const mem = memoryR2Config || {};
 
   const rawAccountId =
-    fileConfig.accountId ||
+    mem.accountId ||
     getEnvString([
       'R2_ACCOUNT_ID',
       'CLOUDFLARE_R2_ACCOUNT_ID',
@@ -665,7 +638,7 @@ export function readR2ServerConfig(): R2ServerConfig {
     ]);
 
   const rawAccessKeyId =
-    fileConfig.accessKeyId ||
+    mem.accessKeyId ||
     getEnvString([
       'R2_ACCESS_KEY_ID',
       'CLOUDFLARE_R2_ACCESS_KEY_ID',
@@ -677,7 +650,7 @@ export function readR2ServerConfig(): R2ServerConfig {
     ]);
 
   const rawSecretAccessKey =
-    fileConfig.secretAccessKey ||
+    mem.secretAccessKey ||
     getEnvString([
       'R2_SECRET_ACCESS_KEY',
       'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
@@ -689,7 +662,7 @@ export function readR2ServerConfig(): R2ServerConfig {
     ]);
 
   const rawBucketName =
-    fileConfig.bucketName ||
+    mem.bucketName ||
     getEnvString([
       'R2_BUCKET_NAME',
       'R2_BUCKET',
@@ -704,7 +677,7 @@ export function readR2ServerConfig(): R2ServerConfig {
     ]);
 
   const rawPublicCdnUrl =
-    fileConfig.publicCdnUrl ||
+    mem.publicCdnUrl ||
     getEnvString([
       'R2_PUBLIC_CDN_URL',
       'R2_PUBLIC_URL',
@@ -744,7 +717,7 @@ export function readR2ServerConfig(): R2ServerConfig {
     accountId: finalAccount,
     accessKeyId: rawAccessKeyId.trim(),
     secretAccessKey: rawSecretAccessKey.trim(),
-    bucketName: finalBucket || 'bimondo-media',
+    bucketName: finalBucket || 'bimondo',
     publicCdnUrl: normalizePublicCdnUrl(rawPublicCdnUrl),
     endpointUrl: finalEndpoint,
   };
@@ -787,7 +760,7 @@ export function writeR2ServerConfig(
 
   const next: R2ServerConfig = {
     accountId,
-    bucketName: inferredBucket || 'bimondo-media',
+    bucketName: inferredBucket || 'bimondo',
     publicCdnUrl:
       patch.publicCdnUrl !== undefined
         ? normalizePublicCdnUrl(patch.publicCdnUrl)
@@ -804,12 +777,6 @@ export function writeR2ServerConfig(
   };
 
   memoryR2Config = next;
-  try {
-    fs.writeFileSync(R2_CONFIG_FILE, JSON.stringify(next, null, 2), 'utf-8');
-  } catch {
-    // Read-only fs on Cloudflare Workers
-  }
-
   return getPublicR2ConfigStatus();
 }
 
@@ -832,7 +799,7 @@ export function getPublicR2ConfigStatus(): PublicR2ConfigStatus {
     s3Connected,
     storageMode: s3Connected ? 'cloudflare-s3' : 'unconfigured',
     accountId: cfg.accountId,
-    bucketName: cfg.bucketName || 'bimondo-media',
+    bucketName: cfg.bucketName || 'bimondo',
     publicCdnUrl: cfg.publicCdnUrl,
     hasCredentials,
     hasPublicDomain,
@@ -886,7 +853,7 @@ export async function testR2Connection(): Promise<{
       ok: false,
       mode: 'unconfigured',
       message:
-        'Enter your Public R2 Domain (https://pub-xxx.r2.dev), Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key.',
+        'Enter your Public R2 Domain, Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key.',
       objectCount: 0,
       status,
     };
@@ -904,7 +871,7 @@ export async function testR2Connection(): Promise<{
       const items = parseS3ListXml(xml);
       const domainNote = cfg.publicCdnUrl
         ? `Public R2 Domain: ${cfg.publicCdnUrl}`
-        : 'Connected via R2 S3 signed URLs (set Public R2 Domain for pub-xxx.r2.dev links)';
+        : 'Connected via R2 S3 signed URLs';
       return {
         ok: true,
         mode: 'cloudflare-s3',
@@ -970,9 +937,7 @@ export function extractR2KeyFromCdnUrl(cdnUrlOrKey: string): string | null {
   if (!cdnUrlOrKey) return null;
   const trimmed = cdnUrlOrKey.trim();
   if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-    const stripped = trimmed
-      .replace(/^\/api\/admin\/r2\/file\//, '')
-      .replace(/^\/+/, '');
+    const stripped = trimmed.replace(/^\/+/, '');
     return stripped || null;
   }
 
@@ -986,12 +951,10 @@ export function extractR2KeyFromCdnUrl(cdnUrlOrKey: string): string | null {
 
   try {
     const parsed = new URL(trimmed);
-    if (parsed.pathname.startsWith('/api/admin/r2/file/')) {
-      return decodeURIComponent(
-        parsed.pathname.slice('/api/admin/r2/file/'.length).replace(/^\/+/, '')
-      );
-    }
-    if (parsed.hostname.endsWith('.r2.dev')) {
+    if (
+      parsed.hostname.endsWith('.r2.dev') ||
+      parsed.hostname.includes('bimondotours.com')
+    ) {
       return decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
     }
     if (parsed.hostname.endsWith('.r2.cloudflarestorage.com')) {
@@ -1081,7 +1044,7 @@ export async function uploadFileToR2Bucket(params: {
 
   if (!uploadedToR2) {
     throw new Error(
-      'Cloudflare R2 is not connected yet. Enter your Public R2 Domain (https://pub-xxx.r2.dev), Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key first.'
+      'Cloudflare R2 is not connected yet. Enter your Public R2 Domain, Cloudflare Account ID, Bucket Name, Access Key ID, and Secret Access Key first.'
     );
   }
 
@@ -1098,7 +1061,7 @@ export async function uploadFileToR2Bucket(params: {
 
   if (!cdnUrl) {
     throw new Error(
-      'Uploaded to R2 bucket, but Public R2 Domain (https://pub-xxx.r2.dev) is missing. Please set your Public R2 Domain.'
+      'Uploaded to R2 bucket, but Public R2 Domain is missing. Please set your Public R2 Domain.'
     );
   }
 
@@ -1210,70 +1173,6 @@ export async function renameFileInR2Bucket(params: {
   };
 }
 
-export async function getFileBufferFromR2Bucket(objectKey: string): Promise<{
-  buffer: Buffer;
-  contentType: string;
-} | null> {
-  await ensureR2ConfigHydratedFromFirestore();
-  const cleanKey = objectKey.replace(/^\/+/, '');
-
-  const nativeBinding = getNativeR2BucketBinding();
-  if (nativeBinding) {
-    try {
-      const obj = await nativeBinding.get(cleanKey);
-      if (obj) {
-        const ab = await obj.arrayBuffer();
-        return {
-          buffer: Buffer.from(ab),
-          contentType: obj.httpMetadata?.contentType || 'image/jpeg',
-        };
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  const config = readR2ServerConfig();
-  if (hasS3CredentialsConfigured(config)) {
-    try {
-      const res = await r2S3SignedFetch({
-        config,
-        method: 'GET',
-        objectKey: cleanKey,
-      });
-      if (res.ok) {
-        const arr = await res.arrayBuffer();
-        return {
-          buffer: Buffer.from(arr),
-          contentType: res.headers.get('content-type') || 'image/jpeg',
-        };
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  if (config.publicCdnUrl) {
-    try {
-      const remoteRes = await fetch(`${config.publicCdnUrl}/${cleanKey}`);
-      if (remoteRes.ok) {
-        const arr = await remoteRes.arrayBuffer();
-        return {
-          buffer: Buffer.from(arr),
-          contentType: remoteRes.headers.get('content-type') || 'image/jpeg',
-        };
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  return null;
-}
-
-/**
- * Lists ONLY actual objects stored in the connected Cloudflare R2 bucket.
- */
 export async function listFilesInR2Bucket(
   prefix?: string
 ): Promise<R2BucketObjectItem[]> {

@@ -111,7 +111,6 @@ export default function PackagesPage() {
                   <div className="package-img-wrap">
                     <CmsImage
                       src={tour.image}
-                      fallbackSrc={TOURS[i % TOURS.length]?.image}
                       alt={tour.name}
                       fill
                       priority={i < 2}

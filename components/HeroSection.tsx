@@ -3,7 +3,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSiteCms } from '@/hooks/useSiteCms';
-import { DEFAULT_HERO_IMAGES } from '@/lib/cms-defaults';
 import CmsImage from '@/components/CmsImage';
 
 const HERO_SLIDESHOW_INTERVAL_MS = 4000;
@@ -16,14 +15,11 @@ export default function HeroSection() {
   const taReviewsText =
     cms.general.tripadvisorReviewsText || 'Based on 165 reviews';
 
-  const rawSlides =
-    Array.isArray(cms.general.heroImages) && cms.general.heroImages.length > 0
-      ? cms.general.heroImages
-          .map((s) => String(s || '').trim())
-          .filter(Boolean)
-      : DEFAULT_HERO_IMAGES;
-
-  const heroSlides = rawSlides.length > 0 ? rawSlides : DEFAULT_HERO_IMAGES;
+  const heroSlides = Array.isArray(cms.general.heroImages)
+    ? cms.general.heroImages
+        .map((s) => String(s || '').trim())
+        .filter(Boolean)
+    : [];
 
   const [activeSlide, setActiveSlide] = useState<number>(0);
   const heroRef = useRef<HTMLElement | null>(null);
@@ -55,32 +51,43 @@ export default function HeroSection() {
     };
   }, [heroSlides.length]);
 
-  const safeActiveIndex = activeSlide % heroSlides.length;
+  const safeActiveIndex =
+    heroSlides.length > 0 ? activeSlide % heroSlides.length : 0;
 
   return (
     <section ref={heroRef} className="hero" id="home">
       <div className="hero-photo" aria-hidden="true">
-        {heroSlides.map((imgSrc, idx) => {
-          const isActive = idx === safeActiveIndex;
-          return (
-            <div
-              key={`${imgSrc}-${idx}`}
-              className={`hero-slide-layer ${isActive ? 'is-active' : ''}`}
-            >
-              <CmsImage
-                src={imgSrc}
-                fallbackSrc={
-                  DEFAULT_HERO_IMAGES[idx % DEFAULT_HERO_IMAGES.length]
-                }
-                alt={`Sri Lanka Hero Slide ${idx + 1}`}
-                fill
-                sizes="100vw"
-                priority={idx === 0}
-                className="object-cover"
-              />
-            </div>
-          );
-        })}
+        {heroSlides.length > 0 ? (
+          heroSlides.map((imgSrc, idx) => {
+            const isActive = idx === safeActiveIndex;
+            return (
+              <div
+                key={`${imgSrc}-${idx}`}
+                className={`hero-slide-layer ${isActive ? 'is-active' : ''}`}
+              >
+                <CmsImage
+                  src={imgSrc}
+                  alt={`Sri Lanka Hero Slide ${idx + 1}`}
+                  fill
+                  sizes="100vw"
+                  priority={idx === 0}
+                  className="object-cover"
+                />
+              </div>
+            );
+          })
+        ) : (
+          <div className="hero-slide-layer is-active">
+            <CmsImage
+              src=""
+              alt="Hero Background"
+              fill
+              sizes="100vw"
+              priority
+              className="object-cover"
+            />
+          </div>
+        )}
       </div>
 
       <div className="wrap hero-inner">
@@ -140,7 +147,6 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* Bottom-Right Frosted Tripadvisor Rating Card (Managed in /admin -> Site Settings) */}
       {showTripadvisor && (
         <div
           className="hero-tripadvisor-card"

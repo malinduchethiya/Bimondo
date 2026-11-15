@@ -84,9 +84,6 @@ export default function DestinationsPage() {
               <div className="dest-img-wrap">
                 <CmsImage
                   src={dest.image}
-                  fallbackSrc={
-                    DEFAULT_DESTINATIONS[i % DEFAULT_DESTINATIONS.length]?.image
-                  }
                   alt={dest.name}
                   fill
                   priority={i < 2}

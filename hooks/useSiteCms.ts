@@ -29,8 +29,8 @@ import {
 import {
   ensureClientR2ConfigHydrated,
   getStoredR2Config,
+  resolveCmsImageUrl,
   saveStoredR2Config,
-  upgradeCmsUrlsToR2Domain,
 } from '@/lib/r2-client';
 
 export interface R2MediaFirestoreRecord {
@@ -44,17 +44,11 @@ export interface R2MediaFirestoreRecord {
   uploadedBy: string;
 }
 
-// ============================================================================
-// Shared Module-Level Singleton Store
-// Ensures all components share one Firestore listener and every Admin save
-// writes directly to Firestore (/site_cms/main + individual collections).
-// ============================================================================
 let sharedCmsState: SiteCmsData = getDefaultCmsData();
 let sharedLoadingState = true;
 let sharedFirebaseUser: User | null = null;
 let sharedAuthReady = false;
 let storeInitialized = false;
-let firestoreHasLoaded = false;
 
 type StoreListener = () => void;
 const listeners = new Set<StoreListener>();
@@ -70,15 +64,38 @@ function sanitizeDocId(rawId: string, fallbackPrefix: string): string {
   return cleaned || `${fallbackPrefix}_${Date.now()}`;
 }
 
-async function fetchServerFallbackOnce(): Promise<SiteCmsData | null> {
-  try {
-    const res = await fetch('/api/admin/cms', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return (data?.cms as SiteCmsData) || null;
-  } catch {
-    return null;
-  }
+function scrubCmsDataMockUrls(data: SiteCmsData): SiteCmsData {
+  const cleanUrl = (u?: string) => resolveCmsImageUrl(u, data.general?.r2PublicCdnUrl);
+
+  return {
+    ...data,
+    general: {
+      ...data.general,
+      heroImages: Array.isArray(data.general?.heroImages)
+        ? data.general.heroImages.map(cleanUrl).filter(Boolean)
+        : [],
+      storyMainImage: cleanUrl(data.general?.storyMainImage),
+      storySecondaryImage: cleanUrl(data.general?.storySecondaryImage),
+      experienceImage: cleanUrl(data.general?.experienceImage),
+    },
+    tours: Array.isArray(data.tours)
+      ? data.tours.map((t) => ({ ...t, image: cleanUrl(t.image) }))
+      : [],
+    stays: Array.isArray(data.stays)
+      ? data.stays.map((s) => ({ ...s, image: cleanUrl(s.image) }))
+      : [],
+    destinations: Array.isArray(data.destinations)
+      ? data.destinations.map((d) => ({ ...d, image: cleanUrl(d.image) }))
+      : [],
+    gallery: Array.isArray(data.gallery)
+      ? data.gallery
+          .map((g) => ({ ...g, image: cleanUrl(g.image) }))
+          .filter((g) => Boolean(g.image))
+      : [],
+    reviews: Array.isArray(data.reviews)
+      ? data.reviews.map((r) => ({ ...r, image: cleanUrl(r.image) }))
+      : [],
+  };
 }
 
 function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
@@ -95,9 +112,6 @@ function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
     });
   }
 
-  const effectiveR2Domain =
-    generalData.r2PublicCdnUrl || getStoredR2Config().publicCdnUrl;
-
   const rawMerged: SiteCmsData = {
     ...sharedCmsState,
     updatedAt:
@@ -108,40 +122,32 @@ function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
       ...sharedCmsState.general,
       ...generalData,
     },
-    tours:
-      Array.isArray(d.tours) && d.tours.length > 0
-        ? (d.tours as SiteCmsData['tours'])
-        : sharedCmsState.tours,
-    stays:
-      Array.isArray(d.stays) && d.stays.length > 0
-        ? (d.stays as SiteCmsData['stays'])
-        : sharedCmsState.stays,
-    destinations:
-      Array.isArray(d.destinations) && d.destinations.length > 0
-        ? (d.destinations as SiteCmsData['destinations'])
-        : sharedCmsState.destinations,
-    gallery:
-      Array.isArray(d.gallery) && d.gallery.length > 0
-        ? (d.gallery as SiteCmsData['gallery'])
-        : sharedCmsState.gallery,
-    reviews:
-      Array.isArray(d.reviews) && d.reviews.length > 0
-        ? (d.reviews as SiteCmsData['reviews'])
-        : sharedCmsState.reviews,
-    faqs:
-      Array.isArray(d.faqs) && d.faqs.length > 0
-        ? (d.faqs as SiteCmsData['faqs'])
-        : sharedCmsState.faqs,
+    tours: Array.isArray(d.tours)
+      ? (d.tours as SiteCmsData['tours'])
+      : sharedCmsState.tours,
+    stays: Array.isArray(d.stays)
+      ? (d.stays as SiteCmsData['stays'])
+      : sharedCmsState.stays,
+    destinations: Array.isArray(d.destinations)
+      ? (d.destinations as SiteCmsData['destinations'])
+      : sharedCmsState.destinations,
+    gallery: Array.isArray(d.gallery)
+      ? (d.gallery as SiteCmsData['gallery'])
+      : sharedCmsState.gallery,
+    reviews: Array.isArray(d.reviews)
+      ? (d.reviews as SiteCmsData['reviews'])
+      : sharedCmsState.reviews,
+    faqs: Array.isArray(d.faqs)
+      ? (d.faqs as SiteCmsData['faqs'])
+      : sharedCmsState.faqs,
   };
 
-  sharedCmsState = effectiveR2Domain
-    ? upgradeCmsUrlsToR2Domain(rawMerged, effectiveR2Domain)
-    : rawMerged;
-  firestoreHasLoaded = true;
+  sharedCmsState = scrubCmsDataMockUrls(rawMerged);
 }
 
 async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
-  assertNoInlineImagesInFirestore(data);
+  const cleanData = scrubCmsDataMockUrls(data);
+  assertNoInlineImagesInFirestore(cleanData);
   const actorUid =
     auth.currentUser?.email === 'merlinfiverr0@gmail.com'
       ? auth.currentUser.uid
@@ -150,7 +156,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
 
   const storedR2 = getStoredR2Config();
   const generalWithR2: SiteCmsData['general'] = {
-    ...data.general,
+    ...cleanData.general,
     ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
     ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
     ...(storedR2.publicCdnUrl ? { r2PublicCdnUrl: storedR2.publicCdnUrl } : {}),
@@ -161,12 +167,12 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
     general: generalWithR2,
-    tours: data.tours.slice(0, 50),
-    stays: data.stays.slice(0, 50),
-    destinations: data.destinations.slice(0, 50),
-    gallery: data.gallery.slice(0, 100),
-    reviews: data.reviews.slice(0, 100),
-    faqs: data.faqs.slice(0, 100),
+    tours: cleanData.tours.slice(0, 50),
+    stays: cleanData.stays.slice(0, 50),
+    destinations: cleanData.destinations.slice(0, 50),
+    gallery: cleanData.gallery.slice(0, 100),
+    reviews: cleanData.reviews.slice(0, 100),
+    faqs: cleanData.faqs.slice(0, 100),
   };
 
   try {
@@ -175,10 +181,9 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
     handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
   }
 
-  // Also sync individual collection documents (tours, stays, destinations, gallery, reviews, faqs)
   try {
     const batch = writeBatch(db);
-    data.tours.slice(0, 50).forEach((item, idx) => {
+    cleanData.tours.slice(0, 50).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `tour_${idx}`);
       batch.set(doc(db, 'tours', id), {
         id,
@@ -187,7 +192,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
         payload: item,
       });
     });
-    data.stays.slice(0, 50).forEach((item, idx) => {
+    cleanData.stays.slice(0, 50).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `stay_${idx}`);
       batch.set(doc(db, 'stays', id), {
         id,
@@ -196,7 +201,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
         payload: item,
       });
     });
-    data.destinations.slice(0, 50).forEach((item, idx) => {
+    cleanData.destinations.slice(0, 50).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `dest_${idx}`);
       batch.set(doc(db, 'destinations', id), {
         id,
@@ -205,7 +210,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
         payload: item,
       });
     });
-    data.gallery.slice(0, 100).forEach((item, idx) => {
+    cleanData.gallery.slice(0, 100).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `photo_${idx}`);
       batch.set(doc(db, 'gallery', id), {
         id,
@@ -214,7 +219,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
         payload: item,
       });
     });
-    data.reviews.slice(0, 100).forEach((item, idx) => {
+    cleanData.reviews.slice(0, 100).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `rev_${idx}`);
       batch.set(doc(db, 'reviews', id), {
         id,
@@ -223,7 +228,7 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
         payload: item,
       });
     });
-    data.faqs.slice(0, 100).forEach((item, idx) => {
+    cleanData.faqs.slice(0, 100).forEach((item, idx) => {
       const id = sanitizeDocId(item.id, `faq_${idx}`);
       batch.set(doc(db, 'faqs', id), {
         id,
@@ -244,26 +249,9 @@ async function refreshSharedStore() {
     if (snap.exists()) {
       const d = snap.data();
       applyFirestoreSnapshotToState(d);
-      const fallback = await fetchServerFallbackOnce();
-      if (fallback?.enquiries && fallback.enquiries.length > 0) {
-        sharedCmsState = {
-          ...sharedCmsState,
-          enquiries: fallback.enquiries,
-        };
-      }
-      sharedLoadingState = false;
-      notifyListeners();
-      return;
     }
   } catch {
-    // Fallback to server API if Firestore doc not yet initialized
-  }
-
-  if (!firestoreHasLoaded) {
-    const fallback = await fetchServerFallbackOnce();
-    if (fallback && !firestoreHasLoaded) {
-      sharedCmsState = fallback;
-    }
+    // Ignore transient network errors
   }
   sharedLoadingState = false;
   notifyListeners();
@@ -282,29 +270,6 @@ function initSharedCmsStore() {
     notifyListeners();
   });
 
-  // Only use server API for enquiries or initial fallback before Firestore responds;
-  // NEVER let stateless server defaults overwrite Firestore /site_cms/main data.
-  fetchServerFallbackOnce().then((fallback) => {
-    if (!fallback) return;
-    if (!firestoreHasLoaded) {
-      sharedCmsState = {
-        ...sharedCmsState,
-        ...fallback,
-      };
-    } else if (
-      Array.isArray(fallback.enquiries) &&
-      fallback.enquiries.length > 0 &&
-      sharedCmsState.enquiries.length === 0
-    ) {
-      sharedCmsState = {
-        ...sharedCmsState,
-        enquiries: fallback.enquiries,
-      };
-    }
-    sharedLoadingState = false;
-    notifyListeners();
-  });
-
   const cmsRef = doc(db, 'site_cms', 'main');
   onSnapshot(
     cmsRef,
@@ -316,9 +281,7 @@ function initSharedCmsStore() {
         notifyListeners();
       } else {
         if (!snap.metadata.fromCache) {
-          persistFullCmsToFirestore(sharedCmsState).catch(() => {
-            // Ignore seed race condition
-          });
+          persistFullCmsToFirestore(sharedCmsState).catch(() => {});
         }
         sharedLoadingState = false;
         notifyListeners();
@@ -366,46 +329,28 @@ export function useSiteCms() {
     await refreshSharedStore();
   }, []);
 
-  /**
-   * Saves CMS metadata & Cloudflare R2 CDN links directly to Firebase Firestore
-   * (/site_cms/main + individual collections) first, and mirrors to the server API.
-   */
   const saveCmsToFirebase = useCallback(
     async (nextData: SiteCmsData): Promise<SiteCmsData> => {
-      assertNoInlineImagesInFirestore(nextData);
+      const scrubbed = scrubCmsDataMockUrls(nextData);
+      assertNoInlineImagesInFirestore(scrubbed);
 
       const storedR2 = getStoredR2Config();
       const effectiveR2Domain =
-        nextData.general.r2PublicCdnUrl || storedR2.publicCdnUrl;
+        scrubbed.general.r2PublicCdnUrl || storedR2.publicCdnUrl;
 
       const preparedData: SiteCmsData = {
-        ... (effectiveR2Domain
-          ? upgradeCmsUrlsToR2Domain(nextData, effectiveR2Domain)
-          : nextData),
+        ...scrubbed,
         updatedAt: new Date().toISOString(),
         general: {
-          ...nextData.general,
+          ...scrubbed.general,
           ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
           ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
           ...(effectiveR2Domain ? { r2PublicCdnUrl: effectiveR2Domain } : {}),
         },
       };
 
-      // 1. Authoritative write to Firebase Firestore (/site_cms/main + collections)
       await persistFullCmsToFirestore(preparedData);
 
-      // 2. Mirror to local/server API store (non-destructive)
-      try {
-        await fetch('/api/admin/cms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cms: preparedData }),
-        });
-      } catch {
-        // Firestore already succeeded
-      }
-
-      firestoreHasLoaded = true;
       sharedCmsState = preparedData;
       notifyListeners();
       window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
@@ -414,9 +359,6 @@ export function useSiteCms() {
     []
   );
 
-  /**
-   * Registers or updates a Cloudflare R2 bucket object's CDN link in Firebase Firestore (/r2_media/{id}).
-   */
   const registerR2MediaInFirebase = useCallback(
     async (item: {
       id: string;
@@ -429,9 +371,9 @@ export function useSiteCms() {
     }) => {
       assertNoInlineImagesInFirestore(item.cdnUrl, 'r2_media.cdnUrl');
       const actorUid =
-    auth.currentUser?.email === 'merlinfiverr0@gmail.com'
-      ? auth.currentUser.uid
-      : 'bimondo-cms-admin';
+        auth.currentUser?.email === 'merlinfiverr0@gmail.com'
+          ? auth.currentUser.uid
+          : 'bimondo-cms-admin';
       const cleanId = sanitizeDocId(item.id, 'r2_media');
       const mediaRef = doc(db, 'r2_media', cleanId);
 
@@ -479,9 +421,6 @@ export function useSiteCms() {
     []
   );
 
-  /**
-   * Removes an R2 media catalog entry from Firebase Firestore (/r2_media/{id}).
-   */
   const removeR2MediaFromFirebase = useCallback(async (mediaId: string) => {
     if (!mediaId) return;
     const cleanId = sanitizeDocId(mediaId, 'r2_media');
@@ -496,10 +435,6 @@ export function useSiteCms() {
     }
   }, []);
 
-  /**
-   * Submits a public customer booking/enquiry to Firestore (/enquiries/{id}) and the server store,
-   * and immediately updates the shared CMS state so the Admin Panel sees it in real time.
-   */
   const submitCustomerEnquiryToFirebase = useCallback(
     async (
       enquiryInput: Omit<
@@ -507,61 +442,72 @@ export function useSiteCms() {
         'id' | 'createdAt' | 'status' | 'adminNotes'
       >
     ): Promise<CmsCustomerEnquiry | null> => {
-      const res = await fetch('/api/admin/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_enquiry',
-          enquiry: enquiryInput,
-        }),
-      });
-      const data = await res.json();
-      if (data?.cms) {
-        sharedCmsState = {
-          ...sharedCmsState,
-          enquiries: Array.isArray(data.cms.enquiries)
-            ? data.cms.enquiries
-            : sharedCmsState.enquiries,
-        };
-        notifyListeners();
-        window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
-      }
+      const enquiryId = sanitizeDocId(`bk_${Date.now()}`, 'bk');
 
-      const enquiryId = sanitizeDocId(
-        data?.enquiry?.id || `bk_${Date.now()}`,
-        'bk'
-      );
-
-      const methodTag = (enquiryInput.bookingMethod || 'direct_admin').toUpperCase();
-      const pkgLabel = enquiryInput.selectedPackage || 'Custom Tailor-Made Journey';
-      const phoneLabel = enquiryInput.phone ? ` | Tel: ${enquiryInput.phone}` : '';
+      const methodTag = (
+        enquiryInput.bookingMethod || 'direct_admin'
+      ).toUpperCase();
+      const pkgLabel =
+        enquiryInput.selectedPackage || 'Custom Tailor-Made Journey';
+      const phoneLabel = enquiryInput.phone
+        ? ` | Tel: ${enquiryInput.phone}`
+        : '';
       const combinedStyle = `[${methodTag}] ${pkgLabel} · ${
         enquiryInput.style || 'Balanced island discovery'
       }`.slice(0, 100);
       const combinedMsg = `${
         enquiryInput.message || ''
-      }${phoneLabel} (Package: ${pkgLabel})`.trim().slice(0, 2000);
+      }${phoneLabel} (Package: ${pkgLabel})`
+        .trim()
+        .slice(0, 2000);
+
+      const newEnquiry: CmsCustomerEnquiry = {
+        id: enquiryId,
+        name: (enquiryInput.name || 'Traveller').slice(0, 120),
+        email: (enquiryInput.email || 'unknown@example.com').slice(0, 254),
+        phone: (enquiryInput.phone || '').slice(0, 64),
+        bookingMethod: enquiryInput.bookingMethod || 'direct_admin',
+        selectedPackage: pkgLabel,
+        arrival: (enquiryInput.arrival || 'Flexible').slice(0, 64),
+        guests: (enquiryInput.guests || '2 travellers').slice(0, 64),
+        duration: (enquiryInput.duration || '7–10 days').slice(0, 64),
+        style: combinedStyle,
+        message: combinedMsg,
+        status: 'new',
+        adminNotes: '',
+        createdAt: new Date().toISOString(),
+      };
 
       try {
         await setDoc(doc(collection(db, 'enquiries'), enquiryId), {
-          id: enquiryId,
-          name: (enquiryInput.name || 'Traveller').slice(0, 120),
-          email: (enquiryInput.email || 'unknown@example.com').slice(0, 254),
-          arrival: (enquiryInput.arrival || 'Flexible').slice(0, 64),
-          guests: (enquiryInput.guests || '2 travellers').slice(0, 64),
-          duration: (enquiryInput.duration || '7–10 days').slice(0, 64),
-          style: combinedStyle,
-          message: combinedMsg,
+          id: newEnquiry.id,
+          name: newEnquiry.name,
+          email: newEnquiry.email,
+          arrival: newEnquiry.arrival,
+          guests: newEnquiry.guests,
+          duration: newEnquiry.duration,
+          style: newEnquiry.style,
+          message: newEnquiry.message,
           status: 'new',
           adminNotes: '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-      } catch {
-        // Server API already recorded enquiry
+      } catch (error) {
+        handleFirestoreError(
+          error,
+          OperationType.WRITE,
+          `enquiries/${enquiryId}`
+        );
       }
 
-      return (data?.enquiry as CmsCustomerEnquiry) || null;
+      sharedCmsState = {
+        ...sharedCmsState,
+        enquiries: [newEnquiry, ...sharedCmsState.enquiries],
+      };
+      notifyListeners();
+      window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
+      return newEnquiry;
     },
     []
   );

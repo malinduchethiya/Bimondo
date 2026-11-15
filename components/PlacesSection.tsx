@@ -31,64 +31,56 @@ const FALLBACK_PLACE_SLIDES: StaggeredPlaceSlide[] = [
     id: 'sigiriya',
     name: 'Sigiriya',
     subtitle: 'Cultural Triangle',
-    image:
-      'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'tall-up',
   },
   {
     id: 'ella-hills',
     name: 'Ella & Pekoe Trail',
     subtitle: 'Hill Country & Hiking',
-    image:
-      'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'low-down',
   },
   {
     id: 'galle-coast',
     name: 'Galle & Mirissa',
     subtitle: 'Sea & Sand Escapes',
-    image:
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'mid-up',
   },
   {
     id: 'kandy-heritage',
     name: 'Kandy',
     subtitle: 'Sacred Hill Capital',
-    image:
-      'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'compact-mid',
   },
   {
     id: 'yala-safari',
     name: 'Yala & Udawalawe',
     subtitle: 'Wildlife & Nature',
-    image:
-      'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'mid-up',
   },
   {
     id: 'kitulgala-falls',
     name: 'Kitulgala & Horton Plains',
     subtitle: 'Waterfalls & Cloud Forests',
-    image:
-      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'tall-deep',
   },
   {
     id: 'minneriya',
     name: 'Minneriya & Wilpattu',
     subtitle: 'National Park Safaris',
-    image:
-      'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'low-down',
   },
   {
     id: 'arugam-weligama',
     name: 'Weligama & Arugam Bay',
     subtitle: 'Surf & Coastal Lagoons',
-    image:
-      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=900&q=85',
+    image: '',
     variant: 'compact-mid',
   },
 ];
@@ -112,7 +104,6 @@ export default function PlacesSection() {
       : FALLBACK_PLACE_SLIDES;
 
   const totalSlides = slides.length;
-  // Duplicate 2x for seamless infinite loop with fewer DOM nodes
   const infiniteSlides = [...slides, ...slides];
 
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -158,7 +149,6 @@ export default function PlacesSection() {
         )}px, 0, 0)`;
       }
 
-      // Stop RAF loop once target is reached so 0% CPU is used while resting between 2s steps
       if (Math.abs(targetXRef.current - currentXRef.current) > 0.25) {
         rafIdRef.current = window.requestAnimationFrame(tick);
       } else {
@@ -292,10 +282,6 @@ export default function PlacesSection() {
                 <CmsImage
                   alt={slide.name}
                   src={slide.image}
-                  fallbackSrc={
-                    FALLBACK_PLACE_SLIDES[idx % FALLBACK_PLACE_SLIDES.length]
-                      .image
-                  }
                   fill
                   sizes="(max-width: 720px) 180px, 230px"
                   className="object-cover"

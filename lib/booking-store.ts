@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import {
   ACCOMMODATIONS,
   BookingProviderId,
@@ -8,11 +6,6 @@ import {
 } from '@/lib/booking-types';
 import { COLOMBO_DAY_EXPERIENCES, TOURS } from '@/lib/tours';
 import { DEFAULT_DESTINATIONS } from '@/lib/cms-defaults';
-
-const SETTINGS_FILE_PATH = path.join(
-  process.cwd(),
-  '.aistudio-booking-settings.json'
-);
 
 export interface ServerBookingCredentials {
   nightsbridgeClientKey: string;
@@ -154,7 +147,7 @@ export function getDefaultBookingSettings(): PublicBookingSettings {
 }
 
 let memorySettings: PublicBookingSettings | null = null;
-let memoryCredentials: ServerBookingCredentials = {
+const memoryCredentials: ServerBookingCredentials = {
   nightsbridgeClientKey: process.env.NIGHTSBRIDGE_CLIENT_KEY?.trim() || '',
   bokunAccessKey: process.env.BOKUN_ACCESS_KEY?.trim() || '',
   bokunSecretKey: process.env.BOKUN_SECRET_KEY?.trim() || '',
@@ -162,33 +155,6 @@ let memoryCredentials: ServerBookingCredentials = {
 };
 
 export function getServerBookingSettings(): PublicBookingSettings {
-  if (!memorySettings) {
-    try {
-      if (fs.existsSync(SETTINGS_FILE_PATH)) {
-        const raw = fs.readFileSync(SETTINGS_FILE_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.publicSettings) {
-          memorySettings = {
-            ...getDefaultBookingSettings(),
-            ...parsed.publicSettings,
-            assignments: {
-              ...buildDefaultAssignments(),
-              ...(parsed.publicSettings.assignments || {}),
-            },
-          };
-        }
-        if (parsed && parsed.serverCredentials) {
-          memoryCredentials = {
-            ...memoryCredentials,
-            ...parsed.serverCredentials,
-          };
-        }
-      }
-    } catch {
-      // Fallback to in-memory defaults if file read fails
-    }
-  }
-
   const base = memorySettings || getDefaultBookingSettings();
 
   return {
@@ -265,24 +231,6 @@ export function updateServerBookingSettings(
   };
 
   memorySettings = merged;
-
-  try {
-    fs.writeFileSync(
-      SETTINGS_FILE_PATH,
-      JSON.stringify(
-        {
-          publicSettings: merged,
-          serverCredentials: memoryCredentials,
-        },
-        null,
-        2
-      ),
-      'utf8'
-    );
-  } catch {
-    // Ignore read-only filesystem errors; memorySettings remains updated
-  }
-
   return merged;
 }
 

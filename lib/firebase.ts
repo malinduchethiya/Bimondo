@@ -146,6 +146,6 @@ export async function validateFirestoreConnection(): Promise<void> {
   try {
     await getDoc(doc(db, 'site_cms', 'main'));
   } catch {
-    // Gracefully operate with offline cache + /api/admin/cms server fallback
+    // Ignore transient initial connection check errors
   }
 }

@@ -20,8 +20,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'United Kingdom · Grand Island Journey',
     thought:
       '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
-    image:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-2',
@@ -29,8 +28,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'France · Pekoe Trail & South Coast',
     thought:
       '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
-    image:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-3',
@@ -38,8 +36,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'Australia · Surf, Safari & Coast',
     thought:
       '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
-    image:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-4',
@@ -47,8 +44,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'India · Cultural Triangle & Hills',
     thought:
       '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
-    image:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-5',
@@ -56,8 +52,7 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'Germany · Wildlife & Rainforests',
     thought:
       '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
-    image:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
   {
     id: 'thought-6',
@@ -65,12 +60,10 @@ const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
     subtitle: 'Italy · Romance in Ceylon',
     thought:
       '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
-    image:
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80',
+    image: '',
   },
 ];
 
-// Train speed in pixels per second moving from right to left (desktop & tablet)
 const TRAIN_SPEED_PX_PER_SEC = 85;
 
 export default function ValuesSection() {
@@ -83,17 +76,12 @@ export default function ValuesSection() {
           name: rev.name,
           subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
           thought: rev.quote,
-          image:
-            rev.image ||
-            DEFAULT_TOURIST_THOUGHTS[idx % DEFAULT_TOURIST_THOUGHTS.length]
-              .image,
+          image: rev.image || '',
         }))
       : DEFAULT_TOURIST_THOUGHTS;
 
   const totalCards = cards.length;
-  // Duplicate cards 2x for seamless continuous train motion with minimal DOM nodes
   const trainCards = [...cards, ...cards];
-  // First 4 cards for mobile vertical phone 2x2 square grid gallery
   const mobileGridCards = cards.slice(0, 4);
 
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -158,16 +146,13 @@ export default function ValuesSection() {
       const dt = Math.min((now - lastTime) / 1000, 0.06);
       lastTime = now;
 
-      // Smoothly ramp speed down on hover and back up on leave
       const targetVel = isHoveredRef.current ? 0 : 1;
       currentVelocityFactorRef.current +=
         (targetVel - currentVelocityFactorRef.current) * Math.min(1, dt * 8);
 
-      // Continuous right-to-left train movement
       currentOffsetRef.current +=
         TRAIN_SPEED_PX_PER_SEC * currentVelocityFactorRef.current * dt;
 
-      // Apply any smooth manual nudge from arrows/dots
       if (Math.abs(targetNudgeRef.current) > 0.5) {
         const step = targetNudgeRef.current * Math.min(1, dt * 10);
         currentOffsetRef.current += step;
@@ -286,7 +271,6 @@ export default function ValuesSection() {
           </h2>
         </div>
 
-        {/* DESKTOP & TABLET FORMAT (>= 768px): Continuous Right-to-Left Train Slider */}
         <div
           className="tourist-reviews-widget sliding-cards-shell desktop-train-view"
           onMouseEnter={() => {
@@ -318,11 +302,6 @@ export default function ValuesSection() {
                       <div className="sliding-card-avatar">
                         <CmsImage
                           src={card.image}
-                          fallbackSrc={
-                            DEFAULT_TOURIST_THOUGHTS[
-                              idx % DEFAULT_TOURIST_THOUGHTS.length
-                            ].image
-                          }
                           alt={card.name}
                           fill
                           sizes="132px"
@@ -375,7 +354,6 @@ export default function ValuesSection() {
           </div>
         </div>
 
-        {/* MOBILE VERTICAL PHONE FORMAT (<= 767px): 4-Card 2x2 Square Grid Gallery (Non-Touch-Interactive so Normal Downward Scrolling Works) */}
         <div
           className="mobile-thoughts-square-grid"
           aria-label="Tourist thoughts square grid gallery"

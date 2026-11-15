@@ -23,7 +23,6 @@ import { auth, googleProvider } from '@/lib/firebase';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import {
   getDefaultCmsData,
-  DEFAULT_HERO_IMAGES,
   type SiteCmsData,
   type CmsDestination,
   type CmsGalleryPhoto,
@@ -84,8 +83,8 @@ export default function AdminPage() {
     () =>
       Array.isArray(cms.general?.heroImages) && cms.general.heroImages.length > 0
         ? cms.general.heroImages
-        : DEFAULT_HERO_IMAGES,
-    [cms.general?.heroImages]
+        : [''],
+    [cms.general]
   );
 
   // Update shared CMS state in memory and mark dirty for text edits
@@ -134,10 +133,28 @@ export default function AdminPage() {
     heroImages.forEach((url, idx) => {
       targets.push({
         id: `hero:${idx}`,
-        group: 'Hero',
+        group: 'Homepage',
         label: `Hero Slide #${idx + 1}`,
         currentUrl: url,
       });
+    });
+    targets.push({
+      id: 'general:storyMainImage',
+      group: 'Homepage',
+      label: 'Our Story Main Image',
+      currentUrl: cms.general?.storyMainImage || '',
+    });
+    targets.push({
+      id: 'general:storySecondaryImage',
+      group: 'Homepage',
+      label: 'Our Story Secondary Image',
+      currentUrl: cms.general?.storySecondaryImage || '',
+    });
+    targets.push({
+      id: 'general:experienceImage',
+      group: 'Homepage',
+      label: 'What We Do / Experience Section Image',
+      currentUrl: cms.general?.experienceImage || '',
     });
     cms.destinations.forEach((d) => {
       targets.push({
@@ -196,7 +213,15 @@ export default function AdminPage() {
       }
       nextData = {
         ...cms,
-        general: { ...cms.general, heroImages: nextHero },
+        general: { ...cms.general, heroImages: nextHero.filter(Boolean) },
+      };
+    } else if (type === 'general') {
+      nextData = {
+        ...cms,
+        general: {
+          ...cms.general,
+          [id]: url,
+        },
       };
     } else if (type === 'destination') {
       nextData = {
@@ -528,7 +553,10 @@ export default function AdminPage() {
                           persistToFirestore(
                             {
                               ...cms,
-                              general: { ...cms.general, heroImages: next },
+                              general: {
+                                ...cms.general,
+                                heroImages: next.filter(Boolean),
+                              },
                             },
                             `Updated Hero Slide #${idx + 1} in Firestore with R2 URL.`
                           );
@@ -536,6 +564,77 @@ export default function AdminPage() {
                       />
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Homepage Story & Experience Section Images */}
+              <div className="space-y-4 pt-4 border-t border-stone-200">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-700">
+                  Homepage Section Images (Our Story &amp; What We Do)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <AdminImageUploadField
+                    label="Our Story — Main Image (R2 general/)"
+                    value={cms.general.storyMainImage || ''}
+                    folder="general"
+                    onR2Uploaded={registerR2MediaInFirebase}
+                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
+                    onOpenR2Settings={() => setActiveTab('r2')}
+                    onChange={(newUrl) => {
+                      persistToFirestore(
+                        {
+                          ...cms,
+                          general: {
+                            ...cms.general,
+                            storyMainImage: newUrl,
+                          },
+                        },
+                        'Saved Our Story Main Image R2 link to Firestore.'
+                      );
+                    }}
+                  />
+
+                  <AdminImageUploadField
+                    label="Our Story — Secondary Image (R2 general/)"
+                    value={cms.general.storySecondaryImage || ''}
+                    folder="general"
+                    onR2Uploaded={registerR2MediaInFirebase}
+                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
+                    onOpenR2Settings={() => setActiveTab('r2')}
+                    onChange={(newUrl) => {
+                      persistToFirestore(
+                        {
+                          ...cms,
+                          general: {
+                            ...cms.general,
+                            storySecondaryImage: newUrl,
+                          },
+                        },
+                        'Saved Our Story Secondary Image R2 link to Firestore.'
+                      );
+                    }}
+                  />
+
+                  <AdminImageUploadField
+                    label="What We Do — Experience Image (R2 general/)"
+                    value={cms.general.experienceImage || ''}
+                    folder="general"
+                    onR2Uploaded={registerR2MediaInFirebase}
+                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
+                    onOpenR2Settings={() => setActiveTab('r2')}
+                    onChange={(newUrl) => {
+                      persistToFirestore(
+                        {
+                          ...cms,
+                          general: {
+                            ...cms.general,
+                            experienceImage: newUrl,
+                          },
+                        },
+                        'Saved Experience Section R2 link to Firestore.'
+                      );
+                    }}
+                  />
                 </div>
               </div>
             </div>

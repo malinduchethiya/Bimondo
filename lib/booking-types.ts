@@ -182,8 +182,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Confirmed individually at the time of enquiry',
     ],
     maxGuestsPerRoom: 3,
-    image:
-      'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
   {
     id: 'stay-kandy-planter-bungalow',
@@ -200,8 +199,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Selected around your preferred travel pace',
     ],
     maxGuestsPerRoom: 3,
-    image:
-      'https://images.unsplash.com/photo-1544735716-392fe2489ffa?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
   {
     id: 'stay-ella-nine-skies-bungalow',
@@ -218,8 +216,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Matched to couples, families, or solo travellers',
     ],
     maxGuestsPerRoom: 4,
-    image:
-      'https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
   {
     id: 'stay-galle-fort-courtyard',
@@ -236,8 +233,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Best visited from November to April',
     ],
     maxGuestsPerRoom: 3,
-    image:
-      'https://images.unsplash.com/photo-1546708973-b339540b5162?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
   {
     id: 'stay-yala-wild-camp',
@@ -254,8 +250,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Coordinated with private 4x4 safari departures',
     ],
     maxGuestsPerRoom: 3,
-    image:
-      'https://images.unsplash.com/photo-1564760055775-d63b17a55c44?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
   {
     id: 'stay-mirissa-ocean-villa',
@@ -272,8 +267,7 @@ export const ACCOMMODATIONS: AccommodationItem[] = [
       'Tailored for beach relaxation, surfing, or family stays',
     ],
     maxGuestsPerRoom: 4,
-    image:
-      'https://images.unsplash.com/photo-1502680390469-be75c86b636f?auto=format&fit=crop&w=1000&q=85',
+    image: '',
   },
 ];
 
