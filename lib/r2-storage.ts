@@ -114,7 +114,29 @@ export const VALID_R2_FOLDERS: readonly R2FolderName[] = [
 
 const MAX_UPLOAD_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
-const NAMED_R2_BINDING_KEYS = ['R2_MEDIA_BUCKET', 'R2_BUCKET'] as const;
+const DEFAULT_R2_ACCOUNT_ID = 'cb757d11edf7dc64fc682ae735992ba4';
+const DEFAULT_R2_BUCKET_NAME = 'bimondo';
+const DEFAULT_R2_PUBLIC_CDN_URL = 'https://cdn.bimondotours.com';
+
+const NAMED_R2_BINDING_KEYS = [
+  'R2_MEDIA_BUCKET',
+  'R2_BUCKET',
+  'BIMONDO_BUCKET',
+  'BIMONDO',
+  'BUCKET',
+] as const;
+
+function isR2BucketBindingObject(
+  candidate: unknown
+): candidate is CloudflareR2BucketBinding {
+  return Boolean(
+    candidate &&
+      typeof candidate === 'object' &&
+      typeof (candidate as CloudflareR2BucketBinding).put === 'function' &&
+      typeof (candidate as CloudflareR2BucketBinding).get === 'function' &&
+      typeof (candidate as CloudflareR2BucketBinding).list === 'function'
+  );
+}
 
 function getCloudflareRuntimeEnv(): Record<string, unknown> {
   try {
@@ -138,16 +160,18 @@ function getNamedR2BucketBinding(): {
   const cfEnv = getCloudflareRuntimeEnv();
   for (const key of NAMED_R2_BINDING_KEYS) {
     const candidate = cfEnv[key];
-    if (
-      candidate &&
-      typeof candidate === 'object' &&
-      typeof (candidate as CloudflareR2BucketBinding).put === 'function' &&
-      typeof (candidate as CloudflareR2BucketBinding).get === 'function' &&
-      typeof (candidate as CloudflareR2BucketBinding).list === 'function'
-    ) {
+    if (isR2BucketBindingObject(candidate)) {
       return {
         name: key,
-        binding: candidate as CloudflareR2BucketBinding,
+        binding: candidate,
+      };
+    }
+  }
+  for (const [key, candidate] of Object.entries(cfEnv)) {
+    if (isR2BucketBindingObject(candidate)) {
+      return {
+        name: key,
+        binding: candidate,
       };
     }
   }
@@ -183,11 +207,14 @@ export function normalizePublicCdnUrl(raw: string): string {
 }
 
 export function readR2ServerConfig(): R2ServerConfig {
-  const accountId = getEnvString([
-    'R2_ACCOUNT_ID',
-    'CLOUDFLARE_R2_ACCOUNT_ID',
-    'CLOUDFLARE_ACCOUNT_ID',
-  ])
+  const rawAccountId =
+    getEnvString([
+      'R2_ACCOUNT_ID',
+      'CLOUDFLARE_R2_ACCOUNT_ID',
+      'CLOUDFLARE_ACCOUNT_ID',
+    ]) || DEFAULT_R2_ACCOUNT_ID;
+
+  const accountId = rawAccountId
     .replace(/^https?:\/\//i, '')
     .split('/')[0]
     .replace(/\.r2\.cloudflarestorage\.com$/i, '')
@@ -203,15 +230,20 @@ export function readR2ServerConfig(): R2ServerConfig {
     'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
   ]);
 
-  const bucketName = getEnvString([
-    'R2_BUCKET_NAME',
-    'CLOUDFLARE_R2_BUCKET_NAME',
-  ]);
+  const bucketName =
+    getEnvString([
+      'R2_BUCKET_NAME',
+      'R2_BUCKET',
+      'CLOUDFLARE_R2_BUCKET_NAME',
+    ]) || DEFAULT_R2_BUCKET_NAME;
 
-  const rawPublicCdnUrl = getEnvString([
-    'R2_PUBLIC_CDN_URL',
-    'CLOUDFLARE_R2_PUBLIC_URL',
-  ]);
+  const rawPublicCdnUrl =
+    getEnvString([
+      'R2_PUBLIC_CDN_URL',
+      'R2_PUBLIC_URL',
+      'R2_CUSTOM_DOMAIN',
+      'CLOUDFLARE_R2_PUBLIC_URL',
+    ]) || DEFAULT_R2_PUBLIC_CDN_URL;
 
   const jurisdiction = getEnvString(['R2_JURISDICTION']).toLowerCase();
   const explicitEndpoint = getEnvString(['R2_ENDPOINT', 'R2_S3_ENDPOINT']).replace(
@@ -232,7 +264,8 @@ export function readR2ServerConfig(): R2ServerConfig {
     accessKeyId,
     secretAccessKey,
     bucketName,
-    publicCdnUrl: normalizePublicCdnUrl(rawPublicCdnUrl),
+    publicCdnUrl:
+      normalizePublicCdnUrl(rawPublicCdnUrl) || DEFAULT_R2_PUBLIC_CDN_URL,
     endpointUrl,
     jurisdiction: jurisdiction || undefined,
   };
