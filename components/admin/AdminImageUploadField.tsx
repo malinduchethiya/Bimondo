@@ -1,266 +1,136 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  extractObjectKeyFromUrl,
-  getR2RequestHeaders,
-  getStoredR2Config,
-  loadR2ConfigFromFirestore,
-  normalizeR2PublicDomain,
+  deleteImageViaAdminR2,
+  fetchR2AdminBucket,
+  R2ClientActionError,
+  R2FolderName,
+  R2UploadedMediaItem,
   resolveCmsImageUrl,
-  saveR2ConfigToFirestore,
+  uploadImageViaAdminR2,
 } from '@/lib/r2-client';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
-export interface R2UploadedItemMeta {
-  id: string;
-  objectKey: string;
-  cdnUrl: string;
-  folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
-  fileName: string;
-  contentType: string;
-  sizeBytes: number;
-}
-
-interface R2BucketPickerItem {
-  id: string;
-  objectKey: string;
-  cdnUrl: string;
-  folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
-  fileName: string;
-  contentType?: string;
-  sizeBytes: number;
-  lastModified: string;
-}
+export type R2UploadedItemMeta = R2UploadedMediaItem;
 
 interface AdminImageUploadFieldProps {
   label?: string;
-  folder?: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
+  folder?: R2FolderName;
+  slotId?: string;
   value: string;
-  onChange: (nextCdnUrl: string) => void;
-  onR2Uploaded?: (item: R2UploadedItemMeta) => Promise<void> | void;
-  onR2Deleted?: (deletedKey: string, mediaDocId: string) => Promise<void> | void;
+  onChange: (
+    nextCdnUrl: string,
+    uploadedItem?: R2UploadedMediaItem
+  ) => Promise<void> | void;
+  onR2Uploaded?: (item: R2UploadedMediaItem) => Promise<void> | void;
+  onR2Deleted?: (
+    deletedKey: string,
+    mediaDocId: string
+  ) => Promise<void> | void;
   onOpenR2Settings?: () => void;
 }
 
 export default function AdminImageUploadField({
   label = 'SECTION IMAGE (CLOUDFLARE R2)',
   folder = 'general',
+  slotId,
   value,
   onChange,
   onR2Uploaded,
   onR2Deleted,
   onOpenR2Settings,
 }: AdminImageUploadFieldProps) {
+  const { isVerifiedAdmin } = useSiteCms();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [retryingSave, setRetryingSave] = useState(false);
 
-  const [showR2Config, setShowR2Config] = useState(false);
-  const [savingR2, setSavingR2] = useState(false);
-  const [r2AccountId, setR2AccountId] = useState('');
-  const [r2BucketName, setR2BucketName] = useState('bimondo-media');
-  const [r2PublicCdnUrl, setR2PublicCdnUrl] = useState('');
-  const [r2AccessKeyId, setR2AccessKeyId] = useState('');
-  const [r2SecretAccessKey, setR2SecretAccessKey] = useState('');
-  const [s3Connected, setS3Connected] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{
+    message: string;
+    step?: string;
+    requestId?: string;
+  } | null>(null);
+
+  // Holds an image that succeeded R2 upload + CDN verification but failed Firestore assignment
+  const [pendingRetryItem, setPendingRetryItem] =
+    useState<R2UploadedMediaItem | null>(null);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerLoading, setPickerLoading] = useState(false);
-  const [pickerItems, setPickerItems] = useState<R2BucketPickerItem[]>([]);
+  const [pickerAssigningKey, setPickerAssigningKey] = useState<string | null>(
+    null
+  );
+  const [pickerItems, setPickerItems] = useState<R2UploadedMediaItem[]>([]);
+  const [bucketSummary, setBucketSummary] = useState<{
+    bucketName: string;
+    publicCdnUrl: string;
+    s3Connected: boolean;
+  } | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const init = async () => {
-      const cfg = await loadR2ConfigFromFirestore();
-      if (!active) return;
-      setR2AccountId(cfg.accountId || '');
-      setR2BucketName(cfg.bucketName || 'bimondo-media');
-      setR2PublicCdnUrl(cfg.publicCdnUrl || '');
-      setR2AccessKeyId(cfg.accessKeyId || '');
-      setR2SecretAccessKey(cfg.secretAccessKey || '');
-
-      try {
-        const res = await fetch('/api/admin/r2', {
-          cache: 'no-store',
-          headers: getR2RequestHeaders(cfg),
-        });
-        const data = await res.json();
-        if (!active) return;
-        const connected = Boolean(data?.status?.s3Connected);
-        setS3Connected(connected);
-        if (!connected && !cfg.accessKeyId) {
-          setShowR2Config(true);
-        }
-        if (data?.status?.accountId && !cfg.accountId) {
-          setR2AccountId(data.status.accountId);
-        }
-        if (data?.status?.bucketName) {
-          setR2BucketName(data.status.bucketName);
-        }
-        const serverCdn = normalizeR2PublicDomain(data?.status?.publicCdnUrl);
-        if (serverCdn && !cfg.publicCdnUrl) {
-          setR2PublicCdnUrl(serverCdn);
-        }
-      } catch {
-        // Ignore background status error
-      }
+  const formatError = (err: unknown, fallbackStep: string) => {
+    if (err instanceof R2ClientActionError) {
+      return {
+        message: err.message,
+        step: err.step,
+        requestId: err.requestId,
+      };
+    }
+    return {
+      message: err instanceof Error ? err.message : 'Operation failed.',
+      step: fallbackStep,
     };
-    init();
-    return () => {
-      active = false;
-    };
-  }, []);
+  };
 
-  const handleSaveR2Credentials = async () => {
-    setSavingR2(true);
-    setErrorMsg(null);
-    setStatusMsg(null);
+  const commitAssignmentToFirestore = async (
+    item: R2UploadedMediaItem,
+    requestId?: string
+  ) => {
     try {
-      const saved = await saveR2ConfigToFirestore({
-        accountId: r2AccountId,
-        bucketName: r2BucketName || 'bimondo-media',
-        publicCdnUrl: r2PublicCdnUrl,
-        accessKeyId: r2AccessKeyId || undefined,
-        secretAccessKey: r2SecretAccessKey || undefined,
-      });
-
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getR2RequestHeaders(saved),
-        },
-        body: JSON.stringify({
-          action: 'save_config',
-          accountId: saved.accountId,
-          bucketName: saved.bucketName,
-          publicCdnUrl: saved.publicCdnUrl,
-          accessKeyId: saved.accessKeyId || undefined,
-          secretAccessKey: saved.secretAccessKey || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Could not save R2 settings.');
+      await onChange(item.cdnUrl, item);
+      if (onR2Uploaded) {
+        await onR2Uploaded(item);
       }
-
-      const ok = Boolean(data?.connectionTest?.ok ?? data?.status?.s3Connected);
-      setS3Connected(ok);
-      setR2AccountId(saved.accountId);
-      setR2BucketName(saved.bucketName);
-      setR2PublicCdnUrl(saved.publicCdnUrl);
-
-      if (!ok && data?.connectionTest?.message) {
-        setErrorMsg(data.connectionTest.message);
-        return;
-      }
-
-      if (saved.publicCdnUrl && value) {
-        const key = extractObjectKeyFromUrl(value);
-        if (key) {
-          const nextUrl = `${saved.publicCdnUrl}/${key}`;
-          onChange(nextUrl);
-          if (onR2Uploaded) {
-            await onR2Uploaded({
-              id: key.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 120),
-              objectKey: key,
-              cdnUrl: nextUrl,
-              folder,
-              fileName: key.split('/').pop() || 'image.jpg',
-              contentType: 'image/jpeg',
-              sizeBytes: 0,
-            });
-          }
-        }
-      }
-
+      setPendingRetryItem(null);
+      setErrorInfo(null);
       setStatusMsg(
-        data?.connectionTest?.message || 'R2 connected and saved to Firestore.'
+        `Published to Firestore & verified on CDN (${item.objectKey})${
+          requestId ? ` [${requestId}]` : ''
+        }.`
       );
-      setShowR2Config(false);
-    } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : 'Failed to save R2 settings.'
-      );
-    } finally {
-      setSavingR2(false);
+    } catch (assignErr) {
+      // Keep the uploaded R2 item so the admin can retry Firestore assignment without re-uploading
+      setPendingRetryItem(item);
+      const formatted = formatError(assignErr, 'firestore_save');
+      setErrorInfo({
+        message: `${formatted.message} — Image is already uploaded to R2 (${item.objectKey}). Click "Retry Firestore Save" below.`,
+        step: formatted.step || 'firestore_save',
+        requestId: formatted.requestId || requestId,
+      });
+      throw assignErr;
     }
   };
 
   const handleUploadFile = async (file: File | null | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Please select an image file (JPG, PNG, WebP, AVIF).');
-      return;
-    }
-
     setUploading(true);
-    setErrorMsg(null);
+    setErrorInfo(null);
     setStatusMsg(null);
 
     try {
-      let stored = getStoredR2Config();
-      if (
-        r2AccountId.trim() ||
-        r2PublicCdnUrl.trim() ||
-        r2AccessKeyId.trim() ||
-        r2SecretAccessKey.trim()
-      ) {
-        stored = await saveR2ConfigToFirestore({
-          accountId: r2AccountId.trim() || stored.accountId,
-          bucketName:
-            r2BucketName.trim() || stored.bucketName || 'bimondo-media',
-          publicCdnUrl: r2PublicCdnUrl.trim() || stored.publicCdnUrl,
-          accessKeyId: r2AccessKeyId.trim() || stored.accessKeyId,
-          secretAccessKey: r2SecretAccessKey.trim() || stored.secretAccessKey,
-        });
-      }
-
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', folder);
-      if (value && value.startsWith('http')) {
-        formData.append('replaceKey', value);
-      }
-      if (stored.accountId) formData.append('accountId', stored.accountId);
-      if (stored.bucketName) formData.append('bucketName', stored.bucketName);
-      if (stored.publicCdnUrl) {
-        formData.append('publicCdnUrl', stored.publicCdnUrl);
-      }
-      if (stored.accessKeyId) {
-        formData.append('accessKeyId', stored.accessKeyId);
-      }
-      if (stored.secretAccessKey) {
-        formData.append('secretAccessKey', stored.secretAccessKey);
-      }
-
-      const res = await fetch('/api/admin/r2', {
-        method: 'POST',
-        headers: getR2RequestHeaders(stored),
-        body: formData,
+      const { item, requestId } = await uploadImageViaAdminR2({
+        file,
+        folder,
       });
-      const data = await res.json();
 
-      if (!res.ok || !data?.item?.cdnUrl) {
-        setShowR2Config(true);
-        throw new Error(
-          data?.error || 'R2 upload failed. Check your R2 credentials above.'
-        );
-      }
-
-      setS3Connected(true);
-      const uploaded = data.item as R2UploadedItemMeta;
-      onChange(uploaded.cdnUrl);
-      if (onR2Uploaded) {
-        await onR2Uploaded(uploaded);
-      }
-      setStatusMsg(
-        `Uploaded to R2 (${uploaded.objectKey}) & saved link to Firestore.`
-      );
+      await commitAssignmentToFirestore(item, requestId);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'R2 upload failed.');
+      if (!pendingRetryItem) {
+        setErrorInfo(formatError(err, 'r2_write'));
+      }
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -269,32 +139,40 @@ export default function AdminImageUploadField({
     }
   };
 
+  const handleRetryFirestoreSave = async () => {
+    if (!pendingRetryItem) return;
+    setRetryingSave(true);
+    setErrorInfo(null);
+    setStatusMsg(null);
+    try {
+      await commitAssignmentToFirestore(pendingRetryItem);
+    } catch {
+      // Error state is already updated by commitAssignmentToFirestore
+    } finally {
+      setRetryingSave(false);
+    }
+  };
+
   const handleDeleteFromR2 = async () => {
     if (!value) return;
     setDeleting(true);
-    setErrorMsg(null);
+    setErrorInfo(null);
     setStatusMsg(null);
     try {
-      const res = await fetch(
-        `/api/admin/r2?url=${encodeURIComponent(value)}`,
-        {
-          method: 'DELETE',
-          headers: getR2RequestHeaders(),
-        }
+      const result = await deleteImageViaAdminR2({
+        keyOrUrl: value,
+        ignoreSlot: slotId,
+      });
+      await onChange('');
+      if (onR2Deleted && result.deletedKey) {
+        await onR2Deleted(result.deletedKey, result.mediaDocId);
+      }
+      setPendingRetryItem(null);
+      setStatusMsg(
+        `Removed image (${result.deletedKey}) from R2 and cleared link from Firestore.`
       );
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to delete from R2.');
-      }
-      const deletedKey = String(data.deletedKey || '');
-      const mediaDocId = String(data.mediaDocId || '');
-      onChange('');
-      if (onR2Deleted && deletedKey) {
-        await onR2Deleted(deletedKey, mediaDocId);
-      }
-      setStatusMsg('Removed image from R2 and cleared link.');
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Delete failed.');
+      setErrorInfo(formatError(err, 'r2_delete'));
     } finally {
       setDeleting(false);
     }
@@ -303,152 +181,46 @@ export default function AdminImageUploadField({
   const openBucketPicker = async () => {
     setPickerOpen(true);
     setPickerLoading(true);
+    setErrorInfo(null);
     try {
-      const res = await fetch('/api/admin/r2', {
-        cache: 'no-store',
-        headers: getR2RequestHeaders(),
+      const res = await fetchR2AdminBucket();
+      setPickerItems(res.items);
+      setBucketSummary({
+        bucketName: res.status.bucketName,
+        publicCdnUrl: res.status.publicCdnUrl,
+        s3Connected: res.status.s3Connected,
       });
-      const data = await res.json();
-      setPickerItems(Array.isArray(data.items) ? data.items : []);
-    } catch {
+    } catch (err) {
       setPickerItems([]);
+      setErrorInfo(formatError(err, 'r2_list'));
     } finally {
       setPickerLoading(false);
     }
   };
 
-  const previewUrl = resolveCmsImageUrl(value, r2PublicCdnUrl);
+  const previewUrl = resolveCmsImageUrl(value);
 
   return (
-    <div className="border border-stone-200 rounded-xl p-4 bg-stone-50/60 space-y-3">
+    <div className="border border-stone-200 rounded-lg p-4 bg-stone-50/60 space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="text-xs font-semibold uppercase tracking-wider text-stone-600">
           {label}
         </span>
-        <button
-          type="button"
-          onClick={() => setShowR2Config((v) => !v)}
-          className={`text-xs px-2.5 py-1 rounded-md border font-medium transition ${
-            s3Connected
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-amber-300 bg-amber-50 text-amber-900'
-          }`}
-        >
-          {s3Connected
-            ? `R2 Connected (${r2BucketName})${
-                r2PublicCdnUrl
-                  ? ` · ${r2PublicCdnUrl.replace(/^https?:\/\//, '')}`
-                  : ''
-              }`
-            : 'Configure R2 Bucket & Public Domain'}
-        </button>
+        {onOpenR2Settings && (
+          <button
+            type="button"
+            onClick={onOpenR2Settings}
+            className="text-xs px-2.5 py-1 rounded border border-stone-300 bg-white text-stone-700 hover:bg-stone-100 font-medium transition"
+          >
+            {bucketSummary?.s3Connected
+              ? `R2 Connected (${bucketSummary.bucketName})`
+              : 'View R2 Bucket Status'}
+          </button>
+        )}
       </div>
 
-      {showR2Config && (
-        <div className="bg-white border border-stone-200 rounded-lg p-3.5 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-stone-800">
-              Cloudflare R2 Direct Upload &amp; Public Domain Settings
-            </span>
-            {onOpenR2Settings && (
-              <button
-                type="button"
-                onClick={onOpenR2Settings}
-                className="text-xs text-emerald-800 underline font-medium"
-              >
-                Open R2 Bucket Manager
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-            <div>
-              <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                Public R2 Domain (https://pub-xxx.r2.dev)
-              </label>
-              <input
-                type="text"
-                placeholder="https://pub-xxxx.r2.dev"
-                value={r2PublicCdnUrl}
-                onChange={(e) => setR2PublicCdnUrl(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded-md bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                Cloudflare Account ID (or S3 Endpoint)
-              </label>
-              <input
-                type="text"
-                placeholder="32-character Account ID"
-                value={r2AccountId}
-                onChange={(e) => setR2AccountId(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded-md bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                R2 Bucket Name
-              </label>
-              <input
-                type="text"
-                placeholder="bimondo-media"
-                value={r2BucketName}
-                onChange={(e) => setR2BucketName(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded-md bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            <div>
-              <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                R2 S3 Access Key ID
-              </label>
-              <input
-                type="password"
-                placeholder="R2 S3 Access Key ID"
-                value={r2AccessKeyId}
-                onChange={(e) => setR2AccessKeyId(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded-md bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                R2 S3 Secret Access Key
-              </label>
-              <input
-                type="password"
-                placeholder="R2 S3 Secret Access Key"
-                value={r2SecretAccessKey}
-                onChange={(e) => setR2SecretAccessKey(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded-md bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setShowR2Config(false)}
-              className="px-3 py-1.5 text-xs rounded-md border border-stone-300 text-stone-700 hover:bg-stone-100"
-            >
-              Close
-            </button>
-            <button
-              type="button"
-              disabled={savingR2}
-              onClick={handleSaveR2Credentials}
-              className="px-3.5 py-1.5 text-xs rounded-md bg-stone-900 text-white font-medium hover:bg-stone-800 disabled:opacity-50"
-            >
-              {savingR2 ? 'Connecting R2…' : 'Save & Connect R2'}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-3.5 items-start">
-        <div className="w-28 h-20 rounded-lg overflow-hidden bg-stone-200 border border-stone-300 shrink-0 flex items-center justify-center">
+        <div className="w-28 h-20 rounded overflow-hidden bg-stone-200 border border-stone-300 shrink-0 flex items-center justify-center">
           {previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -467,18 +239,18 @@ export default function AdminImageUploadField({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/avif"
               onChange={(e) => handleUploadFile(e.target.files?.[0])}
               className="hidden"
             />
             <button
               type="button"
-              disabled={uploading || deleting}
+              disabled={!isVerifiedAdmin || uploading || deleting || retryingSave}
               onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-1.5 text-xs font-medium rounded-md bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50"
+              className="px-3.5 py-1.5 text-xs font-medium rounded bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-50"
             >
               {uploading
-                ? 'Uploading to R2…'
+                ? 'Uploading & Verifying R2…'
                 : value
                 ? 'Upload & Replace in R2'
                 : 'Upload Image to R2'}
@@ -486,9 +258,9 @@ export default function AdminImageUploadField({
 
             <button
               type="button"
-              disabled={uploading || deleting}
+              disabled={!isVerifiedAdmin || uploading || deleting || retryingSave}
               onClick={openBucketPicker}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              className="px-3 py-1.5 text-xs font-medium rounded border border-stone-300 bg-white text-stone-800 hover:bg-stone-100 disabled:opacity-50"
             >
               Choose from R2 Bucket
             </button>
@@ -496,38 +268,48 @@ export default function AdminImageUploadField({
             {value && (
               <button
                 type="button"
-                disabled={uploading || deleting}
+                disabled={!isVerifiedAdmin || uploading || deleting || retryingSave}
                 onClick={handleDeleteFromR2}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                className="px-3 py-1.5 text-xs font-medium rounded border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
               >
                 {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            )}
+
+            {pendingRetryItem && (
+              <button
+                type="button"
+                disabled={!isVerifiedAdmin || retryingSave}
+                onClick={handleRetryFirestoreSave}
+                className="px-3 py-1.5 text-xs font-medium rounded bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-50"
+              >
+                {retryingSave
+                  ? 'Retrying Firestore Save…'
+                  : 'Retry Firestore Save'}
               </button>
             )}
           </div>
 
           <input
             type="url"
-            placeholder="https://pub-xxxx.r2.dev/..."
+            readOnly
+            placeholder="Upload an image or choose from R2 Bucket..."
             value={value}
-            onChange={(e) => {
-              const nextVal = e.target.value;
-              if (nextVal.trim().startsWith('data:image/')) {
-                setErrorMsg(
-                  'Base64 images are disabled. Upload the file to R2 or paste an https:// URL.'
-                );
-                return;
-              }
-              setErrorMsg(null);
-              onChange(nextVal);
-            }}
-            className="w-full px-3 py-1.5 text-xs border border-stone-300 rounded-md bg-white text-stone-800 font-mono"
+            className="w-full px-3 py-1.5 text-xs border border-stone-200 rounded bg-stone-100 text-stone-700 font-mono"
           />
 
           {statusMsg && (
             <p className="text-xs text-emerald-700 font-medium">{statusMsg}</p>
           )}
-          {errorMsg && (
-            <p className="text-xs text-red-600 font-medium">{errorMsg}</p>
+
+          {errorInfo && (
+            <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 space-y-0.5">
+              <p className="font-medium">{errorInfo.message}</p>
+              <p className="text-[11px] font-mono text-red-600">
+                {errorInfo.step ? `step=${errorInfo.step}` : ''}
+                {errorInfo.requestId ? ` · requestId=${errorInfo.requestId}` : ''}
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -538,7 +320,7 @@ export default function AdminImageUploadField({
           onClick={() => setPickerOpen(false)}
         >
           <div
-            className="bg-white rounded-xl max-w-3xl w-full max-h-[80vh] flex flex-col overflow-hidden border border-stone-200 shadow-xl"
+            className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] flex flex-col overflow-hidden border border-stone-200 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-5 py-3.5 border-b border-stone-200 flex items-center justify-between">
@@ -547,14 +329,17 @@ export default function AdminImageUploadField({
                   Cloudflare R2 Bucket Objects ({pickerItems.length})
                 </h4>
                 <p className="text-xs text-stone-500">
-                  Click any image in your R2 bucket to link it to this section
-                  in Firestore.
+                  Click any verified object in R2 bucket{' '}
+                  <span className="font-mono">
+                    {bucketSummary?.bucketName || 'bimondo'}
+                  </span>{' '}
+                  to assign and publish it to Firestore.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
-                className="px-3 py-1 text-xs rounded-md border border-stone-300 text-stone-700"
+                className="px-3 py-1 text-xs rounded border border-stone-300 text-stone-700"
               >
                 Close
               </button>
@@ -563,12 +348,12 @@ export default function AdminImageUploadField({
             <div className="p-5 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {pickerLoading ? (
                 <p className="text-xs text-stone-500 col-span-full">
-                  Loading objects from R2 bucket…
+                  Loading objects from Cloudflare R2 bucket…
                 </p>
               ) : pickerItems.length === 0 ? (
                 <div className="col-span-full text-center py-8 space-y-2">
                   <p className="text-xs text-stone-500">
-                    No objects found in R2 bucket yet.
+                    No objects found in R2 bucket.
                   </p>
                   <button
                     type="button"
@@ -576,53 +361,50 @@ export default function AdminImageUploadField({
                       setPickerOpen(false);
                       fileInputRef.current?.click();
                     }}
-                    className="px-3.5 py-1.5 text-xs rounded-md bg-stone-900 text-white font-medium"
+                    className="px-3.5 py-1.5 text-xs rounded bg-stone-900 text-white font-medium"
                   >
-                    Upload First Image to R2
+                    Upload Image to R2
                   </button>
                 </div>
               ) : (
-                pickerItems.map((item) => (
-                  <button
-                    key={item.objectKey}
-                    type="button"
-                    onClick={async () => {
-                      onChange(item.cdnUrl);
-                      if (onR2Uploaded) {
-                        await onR2Uploaded({
-                          id: item.id,
-                          objectKey: item.objectKey,
-                          cdnUrl: item.cdnUrl,
-                          folder: item.folder,
-                          fileName: item.fileName,
-                          contentType: item.contentType || 'image/jpeg',
-                          sizeBytes: item.sizeBytes || 0,
-                        });
-                      }
-                      setPickerOpen(false);
-                      setStatusMsg(
-                        `Linked R2 object (${item.objectKey}) to Firestore.`
-                      );
-                    }}
-                    className="text-left border border-stone-200 rounded-lg p-2 hover:border-stone-900 transition flex flex-col gap-1.5"
-                  >
-                    <div className="w-full h-24 rounded bg-stone-100 overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.cdnUrl}
-                        alt={item.fileName}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <span className="text-[10px] font-semibold uppercase text-stone-500">
-                      {item.folder}/
-                    </span>
-                    <span className="text-xs font-medium text-stone-800 truncate w-full">
-                      {item.fileName}
-                    </span>
-                  </button>
-                ))
+                pickerItems.map((item) => {
+                  const isAssigningThis = pickerAssigningKey === item.objectKey;
+                  return (
+                    <button
+                      key={item.objectKey}
+                      type="button"
+                      disabled={Boolean(pickerAssigningKey)}
+                      onClick={async () => {
+                        setPickerAssigningKey(item.objectKey);
+                        try {
+                          await commitAssignmentToFirestore(item);
+                          setPickerOpen(false);
+                        } catch {
+                          setPickerOpen(false);
+                        } finally {
+                          setPickerAssigningKey(null);
+                        }
+                      }}
+                      className="text-left border border-stone-200 rounded p-2 hover:border-stone-900 transition flex flex-col gap-1.5 disabled:opacity-50"
+                    >
+                      <div className="w-full h-24 rounded bg-stone-100 overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={item.cdnUrl}
+                          alt={item.fileName}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <span className="text-[10px] font-semibold uppercase text-stone-500">
+                        {item.folder}/
+                      </span>
+                      <span className="text-xs font-medium text-stone-800 truncate w-full">
+                        {isAssigningThis ? 'Saving to Firestore…' : item.fileName}
+                      </span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>

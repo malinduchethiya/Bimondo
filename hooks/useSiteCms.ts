@@ -23,14 +23,14 @@ import {
   auth,
   db,
   handleFirestoreError,
+  isVerifiedAdminUser,
   OperationType,
   validateFirestoreConnection,
 } from '@/lib/firebase';
 import {
-  ensureClientR2ConfigHydrated,
-  getStoredR2Config,
+  R2ClientActionError,
+  R2UploadedMediaItem,
   resolveCmsImageUrl,
-  saveStoredR2Config,
 } from '@/lib/r2-client';
 
 export interface R2MediaFirestoreRecord {
@@ -45,6 +45,7 @@ export interface R2MediaFirestoreRecord {
 }
 
 let sharedCmsState: SiteCmsData = getDefaultCmsData();
+let sharedPublishedCmsState: SiteCmsData = getDefaultCmsData();
 let sharedLoadingState = true;
 let sharedFirebaseUser: User | null = null;
 let sharedAuthReady = false;
@@ -64,8 +65,22 @@ function sanitizeDocId(rawId: string, fallbackPrefix: string): string {
   return cleaned || `${fallbackPrefix}_${Date.now()}`;
 }
 
+function requireVerifiedAdminUid(): string {
+  const user = auth.currentUser;
+  if (!user || !isVerifiedAdminUser(user)) {
+    throw new R2ClientActionError({
+      message:
+        'Sign in with your verified Google admin account (merlinfiverr0@gmail.com) before publishing changes to Firestore.',
+      step: 'auth',
+      statusCode: 401,
+    });
+  }
+  return user.uid;
+}
+
 function scrubCmsDataMockUrls(data: SiteCmsData): SiteCmsData {
-  const cleanUrl = (u?: string) => resolveCmsImageUrl(u, data.general?.r2PublicCdnUrl);
+  const cleanUrl = (u?: string) =>
+    resolveCmsImageUrl(u, data.general?.r2PublicCdnUrl);
 
   return {
     ...data,
@@ -88,9 +103,7 @@ function scrubCmsDataMockUrls(data: SiteCmsData): SiteCmsData {
       ? data.destinations.map((d) => ({ ...d, image: cleanUrl(d.image) }))
       : [],
     gallery: Array.isArray(data.gallery)
-      ? data.gallery
-          .map((g) => ({ ...g, image: cleanUrl(g.image) }))
-          .filter((g) => Boolean(g.image))
+      ? data.gallery.map((g) => ({ ...g, image: cleanUrl(g.image) }))
       : [],
     reviews: Array.isArray(data.reviews)
       ? data.reviews.map((r) => ({ ...r, image: cleanUrl(r.image) }))
@@ -100,17 +113,6 @@ function scrubCmsDataMockUrls(data: SiteCmsData): SiteCmsData {
 
 function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
   const generalData = (d.general || {}) as SiteCmsData['general'];
-  if (
-    generalData.r2PublicCdnUrl ||
-    generalData.r2AccountId ||
-    generalData.r2BucketName
-  ) {
-    saveStoredR2Config({
-      accountId: generalData.r2AccountId || undefined,
-      bucketName: generalData.r2BucketName || undefined,
-      publicCdnUrl: generalData.r2PublicCdnUrl || undefined,
-    });
-  }
 
   const rawMerged: SiteCmsData = {
     ...sharedCmsState,
@@ -142,31 +144,20 @@ function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
       : sharedCmsState.faqs,
   };
 
-  sharedCmsState = scrubCmsDataMockUrls(rawMerged);
+  const scrubbed = scrubCmsDataMockUrls(rawMerged);
+  sharedCmsState = scrubbed;
+  sharedPublishedCmsState = scrubbed;
 }
 
-async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
-  const cleanData = scrubCmsDataMockUrls(data);
-  assertNoInlineImagesInFirestore(cleanData);
-  const actorUid =
-    auth.currentUser?.email === 'merlinfiverr0@gmail.com'
-      ? auth.currentUser.uid
-      : 'bimondo-cms-admin';
-  const cmsDocRef = doc(db, 'site_cms', 'main');
+function buildSiteCmsMainPayload(cleanData: SiteCmsData, actorUid: string) {
+  const generalClean = { ...cleanData.general };
+  delete generalClean.r2AccountId;
 
-  const storedR2 = getStoredR2Config();
-  const generalWithR2: SiteCmsData['general'] = {
-    ...cleanData.general,
-    ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
-    ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
-    ...(storedR2.publicCdnUrl ? { r2PublicCdnUrl: storedR2.publicCdnUrl } : {}),
-  };
-
-  const firestorePayload = {
+  return {
     id: 'main',
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-    general: generalWithR2,
+    general: generalClean,
     tours: cleanData.tours.slice(0, 50),
     stays: cleanData.stays.slice(0, 50),
     destinations: cleanData.destinations.slice(0, 50),
@@ -174,72 +165,92 @@ async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
     reviews: cleanData.reviews.slice(0, 100),
     faqs: cleanData.faqs.slice(0, 100),
   };
+}
+
+async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
+  const actorUid = requireVerifiedAdminUid();
+  const cleanData = scrubCmsDataMockUrls(data);
+  assertNoInlineImagesInFirestore(cleanData);
+
+  const batch = writeBatch(db);
+  const cmsDocRef = doc(db, 'site_cms', 'main');
+  batch.set(cmsDocRef, buildSiteCmsMainPayload(cleanData, actorUid));
+
+  cleanData.tours.slice(0, 50).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `tour_${idx}`);
+    batch.set(doc(db, 'tours', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
+
+  cleanData.stays.slice(0, 50).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `stay_${idx}`);
+    batch.set(doc(db, 'stays', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
+
+  cleanData.destinations.slice(0, 50).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `dest_${idx}`);
+    batch.set(doc(db, 'destinations', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
+
+  cleanData.gallery.slice(0, 100).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `photo_${idx}`);
+    batch.set(doc(db, 'gallery', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
+
+  cleanData.reviews.slice(0, 100).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `rev_${idx}`);
+    batch.set(doc(db, 'reviews', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
+
+  cleanData.faqs.slice(0, 100).forEach((item, idx) => {
+    const id = sanitizeDocId(item.id, `faq_${idx}`);
+    if (id === 'r2_system_config') return;
+    batch.set(doc(db, 'faqs', id), {
+      id,
+      updatedBy: actorUid,
+      updatedAt: serverTimestamp(),
+      payload: item,
+    });
+  });
 
   try {
-    await setDoc(cmsDocRef, firestorePayload);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
-  }
-
-  try {
-    const batch = writeBatch(db);
-    cleanData.tours.slice(0, 50).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `tour_${idx}`);
-      batch.set(doc(db, 'tours', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
-    cleanData.stays.slice(0, 50).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `stay_${idx}`);
-      batch.set(doc(db, 'stays', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
-    cleanData.destinations.slice(0, 50).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `dest_${idx}`);
-      batch.set(doc(db, 'destinations', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
-    cleanData.gallery.slice(0, 100).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `photo_${idx}`);
-      batch.set(doc(db, 'gallery', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
-    cleanData.reviews.slice(0, 100).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `rev_${idx}`);
-      batch.set(doc(db, 'reviews', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
-    cleanData.faqs.slice(0, 100).forEach((item, idx) => {
-      const id = sanitizeDocId(item.id, `faq_${idx}`);
-      batch.set(doc(db, 'faqs', id), {
-        id,
-        updatedBy: actorUid,
-        updatedAt: serverTimestamp(),
-        payload: item,
-      });
-    });
     await batch.commit();
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'collections_batch_sync');
+    try {
+      handleFirestoreError(error, OperationType.WRITE, 'site_cms/main');
+    } catch (formattedErr) {
+      throw new R2ClientActionError({
+        message:
+          formattedErr instanceof Error
+            ? `Firestore save failed: ${formattedErr.message}`
+            : 'Failed to save CMS state to Firestore.',
+        step: 'firestore_save',
+      });
+    }
   }
 }
 
@@ -261,7 +272,6 @@ function initSharedCmsStore() {
   if (storeInitialized || typeof window === 'undefined') return;
   storeInitialized = true;
 
-  ensureClientR2ConfigHydrated();
   validateFirestoreConnection();
 
   onAuthStateChanged(auth, (u) => {
@@ -277,15 +287,10 @@ function initSharedCmsStore() {
       if (snap.exists()) {
         const d = snap.data();
         applyFirestoreSnapshotToState(d);
-        sharedLoadingState = false;
-        notifyListeners();
-      } else {
-        if (!snap.metadata.fromCache) {
-          persistFullCmsToFirestore(sharedCmsState).catch(() => {});
-        }
-        sharedLoadingState = false;
-        notifyListeners();
       }
+      // Never perform anonymous default-content writes when snap does not exist
+      sharedLoadingState = false;
+      notifyListeners();
     },
     (error) => {
       if (
@@ -331,49 +336,39 @@ export function useSiteCms() {
 
   const saveCmsToFirebase = useCallback(
     async (nextData: SiteCmsData): Promise<SiteCmsData> => {
+      const previousPublished = sharedPublishedCmsState;
       const scrubbed = scrubCmsDataMockUrls(nextData);
       assertNoInlineImagesInFirestore(scrubbed);
-
-      const storedR2 = getStoredR2Config();
-      const effectiveR2Domain =
-        scrubbed.general.r2PublicCdnUrl || storedR2.publicCdnUrl;
 
       const preparedData: SiteCmsData = {
         ...scrubbed,
         updatedAt: new Date().toISOString(),
-        general: {
-          ...scrubbed.general,
-          ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
-          ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
-          ...(effectiveR2Domain ? { r2PublicCdnUrl: effectiveR2Domain } : {}),
-        },
       };
 
-      await persistFullCmsToFirestore(preparedData);
-
-      sharedCmsState = preparedData;
-      notifyListeners();
-      window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
-      return preparedData;
+      try {
+        await persistFullCmsToFirestore(preparedData);
+        sharedCmsState = preparedData;
+        sharedPublishedCmsState = preparedData;
+        notifyListeners();
+        window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
+        return preparedData;
+      } catch (err) {
+        // Keep previous published state intact on failure
+        sharedPublishedCmsState = previousPublished;
+        notifyListeners();
+        throw err;
+      }
     },
     []
   );
 
+  /**
+   * Registers an uploaded R2 media item in `r2_media/{id}` without mutating `site_cms/main`.
+   */
   const registerR2MediaInFirebase = useCallback(
-    async (item: {
-      id: string;
-      objectKey: string;
-      cdnUrl: string;
-      folder: 'tours' | 'stays' | 'destinations' | 'gallery' | 'general';
-      fileName: string;
-      contentType: string;
-      sizeBytes: number;
-    }) => {
+    async (item: R2UploadedMediaItem) => {
       assertNoInlineImagesInFirestore(item.cdnUrl, 'r2_media.cdnUrl');
-      const actorUid =
-        auth.currentUser?.email === 'merlinfiverr0@gmail.com'
-          ? auth.currentUser.uid
-          : 'bimondo-cms-admin';
+      const actorUid = requireVerifiedAdminUid();
       const cleanId = sanitizeDocId(item.id, 'r2_media');
       const mediaRef = doc(db, 'r2_media', cleanId);
 
@@ -411,11 +406,134 @@ export function useSiteCms() {
           });
         }
       } catch (error) {
-        handleFirestoreError(
-          error,
-          OperationType.WRITE,
-          `r2_media/${cleanId}`
+        try {
+          handleFirestoreError(
+            error,
+            OperationType.WRITE,
+            `r2_media/${cleanId}`
+          );
+        } catch (formattedErr) {
+          throw new R2ClientActionError({
+            message:
+              formattedErr instanceof Error
+                ? `Failed to register media in Firestore: ${formattedErr.message}`
+                : 'Failed to register media in Firestore.',
+            step: 'firestore_save',
+          });
+        }
+      }
+    },
+    []
+  );
+
+  /**
+   * Atomically assigns an R2 image to a CMS target and commits `site_cms/main`,
+   * the target collection document (if applicable), and `r2_media/{id}` in one writeBatch.
+   * Preserves unrelated draft edits in `sharedCmsState`, and rolls back the image field
+   * to the prior published value if the Firestore commit fails.
+   */
+  const assignR2ImageToCmsSlot = useCallback(
+    async (params: {
+      applyToCms: (current: SiteCmsData) => SiteCmsData;
+      mediaItem?: R2UploadedMediaItem;
+      collectionDoc?: {
+        collectionName:
+          | 'tours'
+          | 'stays'
+          | 'destinations'
+          | 'gallery'
+          | 'reviews';
+        docId: string;
+        getPayload: (updatedCms: SiteCmsData) => unknown;
+      };
+    }): Promise<SiteCmsData> => {
+      const actorUid = requireVerifiedAdminUid();
+      const snapshotBeforeAttempt = sharedCmsState;
+      const nextDraft = scrubCmsDataMockUrls(
+        params.applyToCms(sharedCmsState)
+      );
+      assertNoInlineImagesInFirestore(nextDraft);
+
+      const batch = writeBatch(db);
+      const cmsDocRef = doc(db, 'site_cms', 'main');
+      batch.set(cmsDocRef, buildSiteCmsMainPayload(nextDraft, actorUid));
+
+      if (params.collectionDoc) {
+        const cleanColId = sanitizeDocId(
+          params.collectionDoc.docId,
+          params.collectionDoc.collectionName
         );
+        const payload = params.collectionDoc.getPayload(nextDraft);
+        if (payload && typeof payload === 'object') {
+          batch.set(doc(db, params.collectionDoc.collectionName, cleanColId), {
+            id: cleanColId,
+            updatedBy: actorUid,
+            updatedAt: serverTimestamp(),
+            payload,
+          });
+        }
+      }
+
+      if (params.mediaItem) {
+        const item = params.mediaItem;
+        const cleanMediaId = sanitizeDocId(item.id, 'r2_media');
+        const mediaRef = doc(db, 'r2_media', cleanMediaId);
+        let existsOnServer = false;
+        try {
+          const snap = await getDoc(mediaRef);
+          existsOnServer = snap.exists();
+        } catch {
+          existsOnServer = false;
+        }
+        if (existsOnServer) {
+          batch.update(mediaRef, {
+            objectKey: item.objectKey.slice(0, 300),
+            cdnUrl: item.cdnUrl.slice(0, 500),
+            folder: item.folder,
+            fileName: item.fileName.slice(0, 200),
+            contentType: item.contentType.slice(0, 100),
+            sizeBytes: Math.round(item.sizeBytes),
+            uploadedBy: actorUid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          batch.set(mediaRef, {
+            id: cleanMediaId,
+            objectKey: item.objectKey.slice(0, 300),
+            cdnUrl: item.cdnUrl.slice(0, 500),
+            folder: item.folder,
+            fileName: item.fileName.slice(0, 200),
+            contentType: item.contentType.slice(0, 100),
+            sizeBytes: Math.round(item.sizeBytes),
+            uploadedBy: actorUid,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      }
+
+      try {
+        await batch.commit();
+        const committed: SiteCmsData = {
+          ...nextDraft,
+          updatedAt: new Date().toISOString(),
+        };
+        sharedCmsState = committed;
+        sharedPublishedCmsState = committed;
+        notifyListeners();
+        window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
+        return committed;
+      } catch (error) {
+        // Restore prior state on failure so the UI never falsely shows the failed assignment as published
+        sharedCmsState = snapshotBeforeAttempt;
+        notifyListeners();
+        throw new R2ClientActionError({
+          message:
+            error instanceof Error
+              ? `Firestore assignment failed: ${error.message}`
+              : 'Failed to save image assignment to Firestore.',
+          step: 'firestore_save',
+        });
       }
     },
     []
@@ -423,6 +541,7 @@ export function useSiteCms() {
 
   const removeR2MediaFromFirebase = useCallback(async (mediaId: string) => {
     if (!mediaId) return;
+    requireVerifiedAdminUid();
     const cleanId = sanitizeDocId(mediaId, 'r2_media');
     try {
       await deleteDoc(doc(db, 'r2_media', cleanId));
@@ -517,10 +636,12 @@ export function useSiteCms() {
     loading: sharedLoadingState,
     authReady: sharedAuthReady,
     firebaseUser: sharedFirebaseUser,
+    isVerifiedAdmin: isVerifiedAdminUser(sharedFirebaseUser),
     refresh,
     setCms,
     saveCmsToFirebase,
     registerR2MediaInFirebase,
+    assignR2ImageToCmsSlot,
     removeR2MediaFromFirebase,
     submitCustomerEnquiryToFirebase,
   };

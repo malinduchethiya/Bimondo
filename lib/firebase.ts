@@ -1,7 +1,7 @@
 'use client';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, User } from 'firebase/auth';
 import {
   doc,
   getDoc,
@@ -11,6 +11,8 @@ import {
   Firestore,
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
+
+export const PRIMARY_ADMIN_EMAIL = 'merlinfiverr0@gmail.com';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
@@ -24,7 +26,7 @@ function initFirestoreClient(): Firestore {
     return initializeFirestore(
       app,
       {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         ignoreUndefinedProperties: true,
       },
       firebaseConfig.firestoreDatabaseId
@@ -37,6 +39,14 @@ function initFirestoreClient(): Firestore {
 export const db = initFirestoreClient();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+export function isVerifiedAdminUser(user: User | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    user.emailVerified === true &&
+    (user.email || '').trim().toLowerCase() === PRIMARY_ADMIN_EMAIL
+  );
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -73,7 +83,8 @@ export function isOfflineFirestoreError(error: unknown): boolean {
     msg.includes('client is offline') ||
     msg.includes('could not reach cloud firestore backend') ||
     msg.includes('unavailable') ||
-    msg.includes('network error')
+    msg.includes('network error') ||
+    msg.includes('quic')
   );
 }
 
@@ -82,7 +93,6 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null
 ): void {
-  // Do not crash or spam console errors when Firestore is operating in offline cache mode
   if (isOfflineFirestoreError(error)) {
     return;
   }

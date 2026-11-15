@@ -1,51 +1,78 @@
 'use client';
 
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 
-export interface StoredR2ClientConfig {
+export type R2FolderName =
+  | 'tours'
+  | 'stays'
+  | 'destinations'
+  | 'gallery'
+  | 'general';
+
+export type R2StepName =
+  | 'auth'
+  | 'config'
+  | 'validation'
+  | 'r2_write'
+  | 'r2_list'
+  | 'r2_delete'
+  | 'cdn_verify'
+  | 'firestore_save';
+
+export interface R2UploadedMediaItem {
+  id: string;
+  objectKey: string;
+  cdnUrl: string;
+  folder: R2FolderName;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  lastModified?: string;
+}
+
+export interface R2AdminStatusSnapshot {
+  configured: boolean;
+  s3Connected: boolean;
+  storageMode: 'cloudflare-binding' | 'cloudflare-s3' | 'unconfigured';
+  bindingName: string | null;
   accountId: string;
   bucketName: string;
   publicCdnUrl: string;
-  accessKeyId: string;
-  secretAccessKey: string;
+  hasCredentials: boolean;
+  endpointUrl: string;
+  hasPublicDomain: boolean;
+  objectCount?: number;
+  lastError?: string;
 }
 
-const R2_FIRESTORE_DOC_ID = 'r2_system_config';
+export class R2ClientActionError extends Error {
+  public readonly step: R2StepName;
+  public readonly requestId?: string;
+  public readonly statusCode?: number;
 
-let memoryR2ClientConfig: StoredR2ClientConfig = {
-  accountId: '',
-  bucketName: 'bimondo',
-  publicCdnUrl: 'https://cdn.bimondotours.com',
-  accessKeyId: '',
-  secretAccessKey: '',
-};
-
-let firestoreHydrationStarted = false;
-
-export function parseR2EndpointInput(raw?: string): {
-  accountId: string;
-  inferredBucket: string;
-} {
-  const trimmed = String(raw || '').trim();
-  if (!trimmed) return { accountId: '', inferredBucket: '' };
-
-  const match = trimmed.match(
-    /^https?:\/\/([a-z0-9]+)(?:\.[a-z0-9-]+)?\.r2\.cloudflarestorage\.com(?:\/([^/?#]+))?/i
-  );
-  if (match) {
-    return {
-      accountId: match[1] || '',
-      inferredBucket: match[2] || '',
-    };
+  constructor(params: {
+    message: string;
+    step: R2StepName;
+    requestId?: string;
+    statusCode?: number;
+  }) {
+    super(params.message);
+    this.name = 'R2ClientActionError';
+    this.step = params.step;
+    this.requestId = params.requestId;
+    this.statusCode = params.statusCode;
   }
-
-  if (!trimmed.includes('.') && /^[a-z0-9]{20,40}$/i.test(trimmed)) {
-    return { accountId: trimmed, inferredBucket: '' };
-  }
-
-  return { accountId: trimmed, inferredBucket: '' };
 }
+
+const MAX_CLIENT_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
+
+const ALLOWED_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+]);
 
 export function normalizeR2PublicDomain(raw?: string): string {
   const trimmed = String(raw || '')
@@ -61,140 +88,271 @@ export function normalizeR2PublicDomain(raw?: string): string {
   return withProto;
 }
 
-export function getStoredR2Config(): StoredR2ClientConfig {
-  return memoryR2ClientConfig;
-}
-
-export function saveStoredR2Config(
-  patch: Partial<StoredR2ClientConfig>
-): StoredR2ClientConfig {
-  const current = getStoredR2Config();
-
-  let rawAccount =
-    patch.accountId !== undefined
-      ? String(patch.accountId).trim()
-      : current.accountId;
-  let rawBucket =
-    patch.bucketName !== undefined && String(patch.bucketName).trim()
-      ? String(patch.bucketName).trim()
-      : current.bucketName || 'bimondo';
-
-  if (
-    patch.publicCdnUrl &&
-    /\.r2\.cloudflarestorage\.com/i.test(patch.publicCdnUrl)
-  ) {
-    const parsedFromCdn = parseR2EndpointInput(patch.publicCdnUrl);
-    if (!rawAccount && parsedFromCdn.accountId) {
-      rawAccount = patch.publicCdnUrl.trim();
-    }
-    if (parsedFromCdn.inferredBucket) {
-      rawBucket = parsedFromCdn.inferredBucket;
-    }
-  }
-  if (rawAccount && /\.r2\.cloudflarestorage\.com/i.test(rawAccount)) {
-    const parsedFromAcc = parseR2EndpointInput(rawAccount);
-    if (parsedFromAcc.inferredBucket && !patch.bucketName) {
-      rawBucket = parsedFromAcc.inferredBucket;
-    }
-  }
-
-  const next: StoredR2ClientConfig = {
-    accountId: rawAccount,
-    bucketName: rawBucket || 'bimondo',
-    publicCdnUrl:
-      patch.publicCdnUrl !== undefined
-        ? normalizeR2PublicDomain(patch.publicCdnUrl)
-        : current.publicCdnUrl,
-    accessKeyId:
-      patch.accessKeyId !== undefined && String(patch.accessKeyId).trim()
-        ? String(patch.accessKeyId).trim()
-        : current.accessKeyId,
-    secretAccessKey:
-      patch.secretAccessKey !== undefined &&
-      String(patch.secretAccessKey).trim()
-        ? String(patch.secretAccessKey).trim()
-        : current.secretAccessKey,
-  };
-
-  memoryR2ClientConfig = next;
-  return next;
-}
-
-export function getR2RequestHeaders(
-  overrides?: Partial<StoredR2ClientConfig>
-): Record<string, string> {
-  const cfg = getStoredR2Config();
-  const accountId = overrides?.accountId?.trim() || cfg.accountId;
-  const bucketName = overrides?.bucketName?.trim() || cfg.bucketName;
-  const publicCdnUrl =
-    overrides?.publicCdnUrl !== undefined
-      ? normalizeR2PublicDomain(overrides.publicCdnUrl) || cfg.publicCdnUrl
-      : cfg.publicCdnUrl;
-  const accessKeyId = overrides?.accessKeyId?.trim() || cfg.accessKeyId;
-  const secretAccessKey =
-    overrides?.secretAccessKey?.trim() || cfg.secretAccessKey;
-
-  const headers: Record<string, string> = {};
-  if (accountId) headers['x-r2-account-id'] = accountId;
-  if (bucketName) headers['x-r2-bucket-name'] = bucketName;
-  if (publicCdnUrl) headers['x-r2-public-cdn-url'] = publicCdnUrl;
-  if (accessKeyId) headers['x-r2-access-key-id'] = accessKeyId;
-  if (secretAccessKey) headers['x-r2-secret-access-key'] = secretAccessKey;
-  return headers;
-}
-
-export async function saveR2ConfigToFirestore(
-  patch: Partial<StoredR2ClientConfig>
-): Promise<StoredR2ClientConfig> {
-  const merged = saveStoredR2Config(patch);
-  try {
-    const actorUid =
-      auth.currentUser?.email === 'merlinfiverr0@gmail.com'
-        ? auth.currentUser.uid
-        : 'bimondo-cms-admin';
-    await setDoc(doc(db, 'faqs', R2_FIRESTORE_DOC_ID), {
-      id: R2_FIRESTORE_DOC_ID,
-      updatedBy: actorUid,
-      updatedAt: serverTimestamp(),
-      payload: {
-        accountId: merged.accountId.slice(0, 200),
-        bucketName: (merged.bucketName || 'bimondo').slice(0, 120),
-        publicCdnUrl: merged.publicCdnUrl.slice(0, 300),
-        accessKeyId: merged.accessKeyId.slice(0, 200),
-        secretAccessKey: merged.secretAccessKey.slice(0, 200),
-      },
+/**
+ * Obtains a fresh Firebase ID token from the signed-in admin user.
+ */
+export async function getAdminAuthHeaders(): Promise<Record<string, string>> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new R2ClientActionError({
+      message:
+        'Admin sign-in required. Click "Admin Google Sign-In" in the top bar first.',
+      step: 'auth',
+      statusCode: 401,
     });
-  } catch {
-    // Server also persists via REST commit
   }
-  return merged;
-}
 
-export async function loadR2ConfigFromFirestore(): Promise<StoredR2ClientConfig> {
   try {
-    const snap = await getDoc(doc(db, 'faqs', R2_FIRESTORE_DOC_ID));
-    if (snap.exists()) {
-      const data = snap.data();
-      const payload = (data?.payload || {}) as Partial<StoredR2ClientConfig>;
-      if (
-        payload.accountId ||
-        payload.publicCdnUrl ||
-        payload.accessKeyId ||
-        payload.bucketName
-      ) {
-        return saveStoredR2Config(payload);
-      }
-    }
-  } catch {
-    // Ignore if offline or doc doesn't exist yet
+    const idToken = await currentUser.getIdToken();
+    return {
+      Authorization: `Bearer ${idToken}`,
+    };
+  } catch (err) {
+    throw new R2ClientActionError({
+      message:
+        err instanceof Error
+          ? `Failed to retrieve Firebase ID token: ${err.message}`
+          : 'Failed to retrieve Firebase ID token.',
+      step: 'auth',
+      statusCode: 401,
+    });
   }
-  return getStoredR2Config();
 }
 
-export function ensureClientR2ConfigHydrated(): void {
-  if (firestoreHydrationStarted || typeof window === 'undefined') return;
-  firestoreHydrationStarted = true;
-  loadR2ConfigFromFirestore().catch(() => {});
+/**
+ * Safely parses JSON or non-JSON proxy/gateway responses from `/api/admin/r2`.
+ */
+async function parseAdminApiResponse<T extends Record<string, unknown>>(
+  res: Response,
+  fallbackStep: R2StepName
+): Promise<T & { requestId?: string; step?: R2StepName; error?: string }> {
+  const rawText = await res.text().catch(() => '');
+  let parsed: Record<string, unknown> | null = null;
+  if (rawText) {
+    try {
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!parsed) {
+    if (res.status === 413) {
+      throw new R2ClientActionError({
+        message:
+          'Image file is too large for the gateway proxy (HTTP 413). Please upload an image under 15 MB.',
+        step: 'validation',
+        statusCode: 413,
+      });
+    }
+    throw new R2ClientActionError({
+      message: `Server returned non-JSON response (HTTP ${res.status} ${
+        res.statusText || ''
+      }).`.trim(),
+      step: fallbackStep,
+      statusCode: res.status,
+    });
+  }
+
+  if (!res.ok || parsed.ok === false) {
+    const step = (parsed.step as R2StepName) || fallbackStep;
+    const requestId =
+      typeof parsed.requestId === 'string' ? parsed.requestId : undefined;
+    const errMsg =
+      typeof parsed.error === 'string' && parsed.error
+        ? parsed.error
+        : `Operation failed at step "${step}" (HTTP ${res.status}).`;
+
+    throw new R2ClientActionError({
+      message: errMsg,
+      step,
+      requestId,
+      statusCode: res.status,
+    });
+  }
+
+  return parsed as T & {
+    requestId?: string;
+    step?: R2StepName;
+    error?: string;
+  };
+}
+
+/**
+ * Lists objects in the authoritative R2 bucket and returns live connection status.
+ */
+export async function fetchR2AdminBucket(prefix?: string): Promise<{
+  requestId?: string;
+  status: R2AdminStatusSnapshot;
+  items: R2UploadedMediaItem[];
+}> {
+  const headers = await getAdminAuthHeaders();
+  const url = prefix
+    ? `/api/admin/r2?prefix=${encodeURIComponent(prefix)}`
+    : '/api/admin/r2';
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers,
+    cache: 'no-store',
+  });
+
+  const data = await parseAdminApiResponse<{
+    status: R2AdminStatusSnapshot;
+    items: R2UploadedMediaItem[];
+  }>(res, 'r2_list');
+
+  return {
+    requestId: data.requestId,
+    status: data.status,
+    items: Array.isArray(data.items) ? data.items : [],
+  };
+}
+
+/**
+ * Runs an explicit bucket connection test on the server.
+ */
+export async function testR2AdminConnection(): Promise<{
+  requestId?: string;
+  status: R2AdminStatusSnapshot;
+  items: R2UploadedMediaItem[];
+  message: string;
+}> {
+  const headers = await getAdminAuthHeaders();
+  const res = await fetch('/api/admin/r2', {
+    method: 'POST',
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action: 'test_connection' }),
+  });
+
+  const data = await parseAdminApiResponse<{
+    status: R2AdminStatusSnapshot;
+    items: R2UploadedMediaItem[];
+    connectionTest?: { message?: string };
+  }>(res, 'r2_list');
+
+  return {
+    requestId: data.requestId,
+    status: data.status,
+    items: Array.isArray(data.items) ? data.items : [],
+    message:
+      data.connectionTest?.message ||
+      `Connected to R2 bucket "${data.status?.bucketName}".`,
+  };
+}
+
+/**
+ * Validates and uploads an image file through `/api/admin/r2` and verifies its CDN URL.
+ */
+export async function uploadImageViaAdminR2(params: {
+  file: File;
+  folder: R2FolderName;
+}): Promise<{
+  requestId?: string;
+  item: R2UploadedMediaItem;
+}> {
+  const { file, folder } = params;
+  if (!file) {
+    throw new R2ClientActionError({
+      message: 'No image file selected.',
+      step: 'validation',
+      statusCode: 400,
+    });
+  }
+
+  const mime = (file.type || '').toLowerCase();
+  if (mime && !ALLOWED_IMAGE_MIMES.has(mime)) {
+    throw new R2ClientActionError({
+      message: `Unsupported image type "${file.type}". Please select a JPEG, PNG, WebP, or AVIF image.`,
+      step: 'validation',
+      statusCode: 400,
+    });
+  }
+
+  if (file.size <= 0) {
+    throw new R2ClientActionError({
+      message: 'Selected image file is empty (0 bytes).',
+      step: 'validation',
+      statusCode: 400,
+    });
+  }
+
+  if (file.size > MAX_CLIENT_UPLOAD_BYTES) {
+    throw new R2ClientActionError({
+      message: `Selected image is ${(file.size / (1024 * 1024)).toFixed(
+        1
+      )} MB, which exceeds the 15 MB limit.`,
+      step: 'validation',
+      statusCode: 413,
+    });
+  }
+
+  const headers = await getAdminAuthHeaders();
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('folder', folder);
+
+  const res = await fetch('/api/admin/r2', {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  const data = await parseAdminApiResponse<{
+    item: R2UploadedMediaItem;
+  }>(res, 'r2_write');
+
+  if (!data.item?.cdnUrl || !data.item?.objectKey) {
+    throw new R2ClientActionError({
+      message: 'Upload response did not include a verified R2 CDN URL.',
+      step: 'cdn_verify',
+      requestId: data.requestId,
+      statusCode: 502,
+    });
+  }
+
+  return {
+    requestId: data.requestId,
+    item: data.item,
+  };
+}
+
+/**
+ * Deletes an object from R2 after the server verifies no published CMS fields still reference it.
+ */
+export async function deleteImageViaAdminR2(params: {
+  keyOrUrl: string;
+  ignoreSlot?: string;
+}): Promise<{
+  requestId?: string;
+  deletedKey: string;
+  mediaDocId: string;
+}> {
+  const headers = await getAdminAuthHeaders();
+  const query = new URLSearchParams();
+  query.set('key', params.keyOrUrl);
+  if (params.ignoreSlot) {
+    query.set('ignoreSlot', params.ignoreSlot);
+  }
+
+  const res = await fetch(`/api/admin/r2?${query.toString()}`, {
+    method: 'DELETE',
+    headers,
+  });
+
+  const data = await parseAdminApiResponse<{
+    deletedKey: string;
+    mediaDocId: string;
+  }>(res, 'r2_delete');
+
+  return {
+    requestId: data.requestId,
+    deletedKey: String(data.deletedKey || ''),
+    mediaDocId: String(data.mediaDocId || ''),
+  };
 }
 
 export function extractObjectKeyFromUrl(rawUrl?: string): string | null {
@@ -205,9 +363,14 @@ export function extractObjectKeyFromUrl(rawUrl?: string): string | null {
     if (
       parsed.hostname.endsWith('.r2.dev') ||
       parsed.hostname.endsWith('.r2.cloudflarestorage.com') ||
-      parsed.hostname.includes('bimondotours.com')
+      parsed.hostname.includes('bimondotours.com') ||
+      parsed.hostname.includes('bimondotravels.com')
     ) {
-      const cleanPath = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+      const cleanPath = parsed.pathname
+        .replace(/^\/+/, '')
+        .split('/')
+        .map((seg) => decodeURIComponent(seg))
+        .join('/');
       return cleanPath || null;
     }
   } catch {

@@ -15,7 +15,9 @@ export default function GalleryPage() {
   );
 
   const photos: CmsGalleryPhoto[] =
-    cms.gallery && cms.gallery.length > 0 ? cms.gallery : DEFAULT_GALLERY;
+    cms.gallery && cms.gallery.length > 0
+      ? cms.gallery.filter((p) => Boolean(p.image))
+      : DEFAULT_GALLERY;
 
   const categories = [
     { id: 'all', label: 'All Regions' },

@@ -1,7 +1,7 @@
 /**
  * Firestore Security Rules Specification Test Suite
- * Verifies that all "Dirty Dozen" adversarial payloads defined in security_spec.md
- * are strictly rejected with PERMISSION_DENIED.
+ * Verifies that all "Dirty Dozen" adversarial payloads and R2/CMS security constraints
+ * are strictly enforced.
  */
 
 export interface SecurityTestCase {
@@ -59,18 +59,14 @@ export const DIRTY_DOZEN_TEST_CASES: SecurityTestCase[] = [
   },
   {
     id: 3,
-    name: 'Reject shadow ghost field on site_cms',
+    name: 'Reject client-supplied actor bypass (bimondo-cms-admin) without verified admin auth',
     collection: 'site_cms',
     docId: 'main',
-    operation: 'create',
-    auth: {
-      uid: 'admin_1',
-      email: 'merlinfiverr0@gmail.com',
-      email_verified: true,
-    },
+    operation: 'update',
+    auth: null,
     payload: {
       id: 'main',
-      isVerifiedGhostField: true,
+      updatedBy: 'bimondo-cms-admin',
     },
     expectedResult: 'PERMISSION_DENIED',
   },
@@ -89,48 +85,29 @@ export const DIRTY_DOZEN_TEST_CASES: SecurityTestCase[] = [
   },
   {
     id: 5,
-    name: 'Reject poisoned document ID on r2_media',
-    collection: 'r2_media',
-    docId: 'invalid/doc$id*with!bad@chars',
-    operation: 'create',
-    auth: {
-      uid: 'admin_1',
-      email: 'merlinfiverr0@gmail.com',
-      email_verified: true,
-    },
-    payload: {},
+    name: 'Reject public get on legacy faqs/r2_system_config document',
+    collection: 'faqs',
+    docId: 'r2_system_config',
+    operation: 'get',
+    auth: null,
     expectedResult: 'PERMISSION_DENIED',
   },
   {
     id: 6,
-    name: 'Reject forged client timestamp on r2_media create',
-    collection: 'r2_media',
-    docId: 'media_2',
-    operation: 'create',
-    auth: {
-      uid: 'admin_1',
-      email: 'merlinfiverr0@gmail.com',
-      email_verified: true,
-    },
-    payload: {
-      createdAt: '2020-01-01T00:00:00Z',
-    },
+    name: 'Reject public list containing legacy faqs/r2_system_config document',
+    collection: 'faqs',
+    docId: 'r2_system_config',
+    operation: 'list',
+    auth: null,
     expectedResult: 'PERMISSION_DENIED',
   },
   {
     id: 7,
-    name: 'Reject mutation of immutable createdAt field on r2_media update',
+    name: 'Reject unauthenticated delete on r2_media or CMS collections',
     collection: 'r2_media',
     docId: 'media_1',
-    operation: 'update',
-    auth: {
-      uid: 'admin_1',
-      email: 'merlinfiverr0@gmail.com',
-      email_verified: true,
-    },
-    payload: {
-      createdAt: '2099-01-01T00:00:00Z',
-    },
+    operation: 'delete',
+    auth: null,
     expectedResult: 'PERMISSION_DENIED',
   },
   {

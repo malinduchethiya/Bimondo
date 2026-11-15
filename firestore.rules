@@ -36,9 +36,9 @@ service cloud.firestore {
       );
     }
 
+    // Require real verified admin UID — no client-supplied string bypasses allowed
     function isAuthorizedCmsActor(actorField) {
-      return (isAdmin() && actorField == request.auth.uid) ||
-        (actorField is string && actorField == 'bimondo-cms-admin');
+      return isAdmin() && actorField is string && actorField == request.auth.uid;
     }
 
     // Validation Blueprint: AdminProfile
@@ -80,7 +80,7 @@ service cloud.firestore {
         data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
         isAuthorizedCmsActor(data.updatedBy) &&
         data.updatedAt is timestamp &&
-        data.general is map && data.general.size() <= 25 &&
+        data.general is map && data.general.size() <= 30 &&
         data.tours is list && data.tours.size() <= 50 &&
         (data.tours.size() == 0 || data.tours[0] is map) &&
         data.stays is list && data.stays.size() <= 50 &&
@@ -243,7 +243,7 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(tourId);
+      allow delete: if isValidId(tourId) && isAdmin();
     }
 
     // Collection 4: /stays/{stayId}
@@ -263,7 +263,7 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(stayId);
+      allow delete: if isValidId(stayId) && isAdmin();
     }
 
     // Collection 5: /destinations/{destId}
@@ -283,7 +283,7 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(destId);
+      allow delete: if isValidId(destId) && isAdmin();
     }
 
     // Collection 6: /gallery/{photoId}
@@ -303,7 +303,7 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(photoId);
+      allow delete: if isValidId(photoId) && isAdmin();
     }
 
     // Collection 7: /reviews/{reviewId}
@@ -323,18 +323,22 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(reviewId);
+      allow delete: if isValidId(reviewId) && isAdmin();
     }
 
-    // Collection 8: /faqs/{faqId}
+    // Collection 8: /faqs/{faqId} (Explicitly blocks legacy r2_system_config on both get and list)
     match /faqs/{faqId} {
-      allow get: if isValidId(faqId);
-      allow list: if resource.data.id is string && resource.data.id.size() <= 128;
+      allow get: if isValidId(faqId) && faqId != 'r2_system_config';
+      allow list: if resource.data.id is string &&
+        resource.data.id.size() <= 128 &&
+        resource.data.id != 'r2_system_config';
       allow create: if isValidId(faqId) &&
+        faqId != 'r2_system_config' &&
         isValidCmsCollectionRecord(incoming()) &&
         incoming().id == faqId &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(faqId) &&
+        faqId != 'r2_system_config' &&
         isValidCmsCollectionRecord(incoming()) &&
         incoming().id == existing().id &&
         incoming().updatedAt == request.time &&
@@ -343,7 +347,7 @@ service cloud.firestore {
           'updatedAt',
           'payload'
         ]);
-      allow delete: if isValidId(faqId);
+      allow delete: if isValidId(faqId) && isAdmin();
     }
 
     // Collection 9: /r2_media/{mediaId} (Cloudflare R2 CDN Links Catalog)
@@ -355,7 +359,7 @@ service cloud.firestore {
         incoming().id == mediaId &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
-      allow delete: if isValidId(mediaId);
+      allow delete: if isValidId(mediaId) && isAdmin();
       allow update: if isValidId(mediaId) &&
         isValidR2MediaItem(incoming()) &&
         incoming().id == existing().id &&
