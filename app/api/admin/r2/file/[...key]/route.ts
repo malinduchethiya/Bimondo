@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   applyIncomingR2Headers,
+  createPresignedR2ReadUrl,
   ensureR2ConfigHydratedFromFirestore,
   getFileBufferFromR2Bucket,
   readR2ServerConfig,
 } from '@/lib/r2-storage';
+
+const FALLBACK_ISLAND_IMAGE =
+  'https://images.unsplash.com/photo-1588598198321-9735fd52455b?auto=format&fit=crop&w=1920&q=85';
 
 export async function GET(
   req: NextRequest,
@@ -22,7 +26,7 @@ export async function GET(
       return new NextResponse('Missing R2 object key', { status: 400 });
     }
 
-    // 1. Try serving from local cache or remote R2 S3
+    // 1. Try serving from R2 binding, local cache, or remote R2 S3
     const fileData = await getFileBufferFromR2Bucket(objectKey);
     if (fileData) {
       return new NextResponse(new Uint8Array(fileData.buffer), {
@@ -40,9 +44,18 @@ export async function GET(
       return NextResponse.redirect(`${cfg.publicCdnUrl}/${objectKey}`, 307);
     }
 
-    return new NextResponse('R2 object not found', { status: 404 });
+    // 3. If S3 credentials are configured, redirect to a signed R2 URL
+    if (cfg.accountId && cfg.accessKeyId && cfg.secretAccessKey) {
+      const signedUrl = createPresignedR2ReadUrl(objectKey, cfg);
+      if (signedUrl.startsWith('https://')) {
+        return NextResponse.redirect(signedUrl, 307);
+      }
+    }
+
+    // 4. Graceful fallback redirect if an unconfigured legacy proxy URL was requested
+    return NextResponse.redirect(FALLBACK_ISLAND_IMAGE, 307);
   } catch (err) {
     console.error('Error serving R2 object:', err);
-    return new NextResponse('Failed to serve R2 object', { status: 500 });
+    return NextResponse.redirect(FALLBACK_ISLAND_IMAGE, 307);
   }
 }

@@ -142,7 +142,10 @@ function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
 
 async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
   assertNoInlineImagesInFirestore(data);
-  const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
+  const actorUid =
+    auth.currentUser?.email === 'merlinfiverr0@gmail.com'
+      ? auth.currentUser.uid
+      : 'bimondo-cms-admin';
   const cmsDocRef = doc(db, 'site_cms', 'main');
 
   const storedR2 = getStoredR2Config();
@@ -425,7 +428,10 @@ export function useSiteCms() {
       sizeBytes: number;
     }) => {
       assertNoInlineImagesInFirestore(item.cdnUrl, 'r2_media.cdnUrl');
-      const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
+      const actorUid =
+    auth.currentUser?.email === 'merlinfiverr0@gmail.com'
+      ? auth.currentUser.uid
+      : 'bimondo-cms-admin';
       const cleanId = sanitizeDocId(item.id, 'r2_media');
       const mediaRef = doc(db, 'r2_media', cleanId);
 

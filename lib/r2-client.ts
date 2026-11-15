@@ -24,6 +24,30 @@ let memoryR2ClientConfig: StoredR2ClientConfig = {
 
 let firestoreHydrationStarted = false;
 
+export function parseR2EndpointInput(raw?: string): {
+  accountId: string;
+  inferredBucket: string;
+} {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return { accountId: '', inferredBucket: '' };
+
+  const match = trimmed.match(
+    /^https?:\/\/([a-z0-9]+)(?:\.[a-z0-9-]+)?\.r2\.cloudflarestorage\.com(?:\/([^/?#]+))?/i
+  );
+  if (match) {
+    return {
+      accountId: match[1] || '',
+      inferredBucket: match[2] || '',
+    };
+  }
+
+  if (!trimmed.includes('.') && /^[a-z0-9]{20,40}$/i.test(trimmed)) {
+    return { accountId: trimmed, inferredBucket: '' };
+  }
+
+  return { accountId: trimmed, inferredBucket: '' };
+}
+
 export function normalizeR2PublicDomain(raw?: string): string {
   const trimmed = String(raw || '')
     .trim()
@@ -48,10 +72,15 @@ export function getStoredR2Config(): StoredR2ClientConfig {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<StoredR2ClientConfig>;
       memoryR2ClientConfig = {
-        accountId: String(parsed.accountId || memoryR2ClientConfig.accountId || '').trim(),
+        accountId: String(
+          parsed.accountId || memoryR2ClientConfig.accountId || ''
+        ).trim(),
         bucketName:
-          String(parsed.bucketName || memoryR2ClientConfig.bucketName || 'bimondo-media').trim() ||
-          'bimondo-media',
+          String(
+            parsed.bucketName ||
+              memoryR2ClientConfig.bucketName ||
+              'bimondo-media'
+          ).trim() || 'bimondo-media',
         publicCdnUrl: normalizeR2PublicDomain(
           parsed.publicCdnUrl ?? memoryR2ClientConfig.publicCdnUrl
         ),
@@ -73,15 +102,36 @@ export function saveStoredR2Config(
   patch: Partial<StoredR2ClientConfig>
 ): StoredR2ClientConfig {
   const current = getStoredR2Config();
+
+  let rawAccount =
+    patch.accountId !== undefined
+      ? String(patch.accountId).trim()
+      : current.accountId;
+  let rawBucket =
+    patch.bucketName !== undefined && String(patch.bucketName).trim()
+      ? String(patch.bucketName).trim()
+      : current.bucketName || 'bimondo-media';
+
+  // If user pasted their S3 endpoint URL into publicCdnUrl or accountId, extract accountId & bucketName
+  if (patch.publicCdnUrl && /\.r2\.cloudflarestorage\.com/i.test(patch.publicCdnUrl)) {
+    const parsedFromCdn = parseR2EndpointInput(patch.publicCdnUrl);
+    if (!rawAccount && parsedFromCdn.accountId) {
+      rawAccount = patch.publicCdnUrl.trim();
+    }
+    if (parsedFromCdn.inferredBucket) {
+      rawBucket = parsedFromCdn.inferredBucket;
+    }
+  }
+  if (rawAccount && /\.r2\.cloudflarestorage\.com/i.test(rawAccount)) {
+    const parsedFromAcc = parseR2EndpointInput(rawAccount);
+    if (parsedFromAcc.inferredBucket && (!patch.bucketName || rawBucket === 'bimondo-media')) {
+      rawBucket = parsedFromAcc.inferredBucket;
+    }
+  }
+
   const next: StoredR2ClientConfig = {
-    accountId:
-      patch.accountId !== undefined
-        ? String(patch.accountId).trim()
-        : current.accountId,
-    bucketName:
-      patch.bucketName !== undefined && String(patch.bucketName).trim()
-        ? String(patch.bucketName).trim()
-        : current.bucketName || 'bimondo-media',
+    accountId: rawAccount,
+    bucketName: rawBucket || 'bimondo-media',
     publicCdnUrl:
       patch.publicCdnUrl !== undefined
         ? normalizeR2PublicDomain(patch.publicCdnUrl)
@@ -91,7 +141,8 @@ export function saveStoredR2Config(
         ? String(patch.accessKeyId).trim()
         : current.accessKeyId,
     secretAccessKey:
-      patch.secretAccessKey !== undefined && String(patch.secretAccessKey).trim()
+      patch.secretAccessKey !== undefined &&
+      String(patch.secretAccessKey).trim()
         ? String(patch.secretAccessKey).trim()
         : current.secretAccessKey,
   };
@@ -107,14 +158,26 @@ export function saveStoredR2Config(
   return next;
 }
 
-export function getR2RequestHeaders(): Record<string, string> {
+export function getR2RequestHeaders(
+  overrides?: Partial<StoredR2ClientConfig>
+): Record<string, string> {
   const cfg = getStoredR2Config();
+  const accountId = overrides?.accountId?.trim() || cfg.accountId;
+  const bucketName = overrides?.bucketName?.trim() || cfg.bucketName;
+  const publicCdnUrl =
+    overrides?.publicCdnUrl !== undefined
+      ? normalizeR2PublicDomain(overrides.publicCdnUrl) || cfg.publicCdnUrl
+      : cfg.publicCdnUrl;
+  const accessKeyId = overrides?.accessKeyId?.trim() || cfg.accessKeyId;
+  const secretAccessKey =
+    overrides?.secretAccessKey?.trim() || cfg.secretAccessKey;
+
   const headers: Record<string, string> = {};
-  if (cfg.accountId) headers['x-r2-account-id'] = cfg.accountId;
-  if (cfg.bucketName) headers['x-r2-bucket-name'] = cfg.bucketName;
-  if (cfg.publicCdnUrl) headers['x-r2-public-cdn-url'] = cfg.publicCdnUrl;
-  if (cfg.accessKeyId) headers['x-r2-access-key-id'] = cfg.accessKeyId;
-  if (cfg.secretAccessKey) headers['x-r2-secret-access-key'] = cfg.secretAccessKey;
+  if (accountId) headers['x-r2-account-id'] = accountId;
+  if (bucketName) headers['x-r2-bucket-name'] = bucketName;
+  if (publicCdnUrl) headers['x-r2-public-cdn-url'] = publicCdnUrl;
+  if (accessKeyId) headers['x-r2-access-key-id'] = accessKeyId;
+  if (secretAccessKey) headers['x-r2-secret-access-key'] = secretAccessKey;
   return headers;
 }
 
@@ -123,7 +186,10 @@ export async function saveR2ConfigToFirestore(
 ): Promise<StoredR2ClientConfig> {
   const merged = saveStoredR2Config(patch);
   try {
-    const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
+    const actorUid =
+      auth.currentUser?.email === 'merlinfiverr0@gmail.com'
+        ? auth.currentUser.uid
+        : 'bimondo-cms-admin';
     await setDoc(doc(db, 'faqs', R2_FIRESTORE_DOC_ID), {
       id: R2_FIRESTORE_DOC_ID,
       updatedBy: actorUid,
@@ -137,7 +203,7 @@ export async function saveR2ConfigToFirestore(
       },
     });
   } catch {
-    // LocalStorage still holds config if offline
+    // Server also persists via REST commit
   }
   return merged;
 }
@@ -205,7 +271,7 @@ export function extractObjectKeyFromUrl(rawUrl?: string): string | null {
  * 2. Legacy `/api/admin/r2/file/<key>` links are automatically upgraded to `${r2PublicCdnUrl}/${key}`
  *    whenever the R2 Public Domain is configured in CMS or R2 settings.
  * 3. If a link points to `https://www.bimondotours.com/api/admin/r2/file/<key>` and no public R2 domain
- *    is set yet, it normalizes to relative `/api/admin/r2/file/<key>` so it streams from R2 on any host.
+ *    is set yet, it normalizes to relative `/api/admin/r2/file/<key>`.
  */
 export function resolveCmsImageUrl(
   rawUrl?: string,

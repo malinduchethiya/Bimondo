@@ -193,11 +193,10 @@ export default function R2BucketManagerTab({
     setError(null);
 
     try {
-      const cleanCdn = normalizeR2PublicDomain(publicCdnUrl);
       const savedLocal = await saveR2ConfigToFirestore({
         accountId,
         bucketName: bucketName || 'bimondo-media',
-        publicCdnUrl: cleanCdn,
+        publicCdnUrl,
         accessKeyId: accessKeyId.trim() || undefined,
         secretAccessKey: secretAccessKey.trim() || undefined,
       });
@@ -206,7 +205,7 @@ export default function R2BucketManagerTab({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getR2RequestHeaders(),
+          ...getR2RequestHeaders(savedLocal),
         },
         body: JSON.stringify({
           action: 'save_config',
@@ -223,6 +222,8 @@ export default function R2BucketManagerTab({
       }
 
       setStatus(data.status);
+      setAccountId(savedLocal.accountId);
+      setBucketName(savedLocal.bucketName);
       setPublicCdnUrl(savedLocal.publicCdnUrl);
       setAccessKeyId('');
       setSecretAccessKey('');
@@ -232,10 +233,14 @@ export default function R2BucketManagerTab({
       if (savedLocal.publicCdnUrl && onR2DomainUpdated) {
         await onR2DomainUpdated(savedLocal.publicCdnUrl);
       }
-      setBanner(
-        data.connectionTest?.message ||
-          'Cloudflare R2 configuration saved to Firestore & connected.'
-      );
+      if (data.connectionTest && !data.connectionTest.ok) {
+        setError(data.connectionTest.message);
+      } else {
+        setBanner(
+          data.connectionTest?.message ||
+            'Cloudflare R2 configuration saved to Firestore & connected.'
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Error saving R2 credentials.'
@@ -338,7 +343,23 @@ export default function R2BucketManagerTab({
     setError(null);
 
     try {
-      const storedCfg = getStoredR2Config();
+      let storedCfg = getStoredR2Config();
+      if (
+        accountId.trim() ||
+        publicCdnUrl.trim() ||
+        accessKeyId.trim() ||
+        secretAccessKey.trim()
+      ) {
+        storedCfg = await saveR2ConfigToFirestore({
+          accountId: accountId.trim() || storedCfg.accountId,
+          bucketName:
+            bucketName.trim() || storedCfg.bucketName || 'bimondo-media',
+          publicCdnUrl: publicCdnUrl.trim() || storedCfg.publicCdnUrl,
+          accessKeyId: accessKeyId.trim() || storedCfg.accessKeyId,
+          secretAccessKey: secretAccessKey.trim() || storedCfg.secretAccessKey,
+        });
+      }
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('folder', uploadFolder);
@@ -356,7 +377,7 @@ export default function R2BucketManagerTab({
 
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: getR2RequestHeaders(),
+        headers: getR2RequestHeaders(storedCfg),
         body: formData,
       });
       const data = await res.json();
@@ -565,13 +586,15 @@ export default function R2BucketManagerTab({
             <span
               className="admin-status-pill"
               style={{
-                background: 'rgba(29, 60, 46, 0.12)',
-                color: 'var(--green)',
+                background: status.s3Connected
+                  ? 'rgba(29, 60, 46, 0.12)'
+                  : 'rgba(180, 35, 24, 0.1)',
+                color: status.s3Connected ? 'var(--green)' : '#b42318',
               }}
             >
               {status.s3Connected
-                ? `Cloudflare R2 S3 Connected (${status.bucketName})`
-                : `R2 Storage Active (${items.length} Objects Ready)`}
+                ? `✓ Cloudflare R2 Connected (${status.bucketName})`
+                : '⚠ Enter R2 Credentials Below to Enable Direct R2 Upload'}
             </span>
             <button
               type="button"

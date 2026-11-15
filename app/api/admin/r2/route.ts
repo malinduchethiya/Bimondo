@@ -5,6 +5,7 @@ import {
   ensureR2ConfigHydratedFromFirestore,
   getPublicR2ConfigStatus,
   listFilesInR2Bucket,
+  persistR2ConfigToFirestoreServer,
   R2FolderName,
   renameFileInR2Bucket,
   seedInitialR2CatalogFromCms,
@@ -49,11 +50,11 @@ export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
 
   try {
-    // 1. Multipart form-data upload -> Push image binary to Cloudflare R2 Bucket
+    // 1. Multipart form-data upload -> Push image binary directly to Cloudflare R2 Bucket
     if (contentTypeHeader.includes('multipart/form-data')) {
       const formData = await req.formData();
 
-      // Also accept R2 config overrides inside multipart formData if provided
+      // Accept R2 config overrides inside multipart formData if provided
       const fAccount = String(formData.get('accountId') || '').trim();
       const fBucket = String(formData.get('bucketName') || '').trim();
       const fCdn = String(formData.get('publicCdnUrl') || '').trim();
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
           accessKeyId: fAccess || undefined,
           secretAccessKey: fSecret || undefined,
         });
+        await persistR2ConfigToFirestoreServer();
       }
 
       const file = formData.get('file');
@@ -129,6 +131,7 @@ export async function POST(req: NextRequest) {
         accessKeyId: body.accessKeyId,
         secretAccessKey: body.secretAccessKey,
       });
+      await persistR2ConfigToFirestoreServer();
       const connectionTest = await testR2Connection(origin);
       const items = await listFilesInR2Bucket(undefined, origin);
       return NextResponse.json({
@@ -185,14 +188,14 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   } catch (err) {
+    const message =
+      err instanceof Error ? err.message : 'Cloudflare R2 operation failed.';
+    const isConfigMissing = message.includes('not connected yet');
     return NextResponse.json(
       {
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Cloudflare R2 operation failed.',
+        error: message,
       },
-      { status: 500 }
+      { status: isConfigMissing ? 400 : 500 }
     );
   }
 }

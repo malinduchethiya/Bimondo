@@ -96,7 +96,11 @@ export default function AdminImageUploadField({
         const data = await res.json();
         if (!mounted) return;
         if (data?.status) {
-          setS3Connected(Boolean(data.status.s3Connected));
+          const connected = Boolean(data.status.s3Connected);
+          setS3Connected(connected);
+          if (!connected && !cfg.accessKeyId) {
+            setShowR2QuickConfig(true);
+          }
           if (data.status.accountId && !cfg.accountId) {
             setR2AccountId(data.status.accountId);
           }
@@ -126,11 +130,10 @@ export default function AdminImageUploadField({
     setStatusMsg(null);
 
     try {
-      const cleanCdn = normalizeR2PublicDomain(r2PublicCdnUrl);
       const savedLocal = await saveR2ConfigToFirestore({
         accountId: r2AccountId,
         bucketName: r2BucketName || 'bimondo-media',
-        publicCdnUrl: cleanCdn,
+        publicCdnUrl: r2PublicCdnUrl,
         accessKeyId: r2AccessKeyId || undefined,
         secretAccessKey: r2SecretAccessKey || undefined,
       });
@@ -139,7 +142,7 @@ export default function AdminImageUploadField({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...getR2RequestHeaders(),
+          ...getR2RequestHeaders(savedLocal),
         },
         body: JSON.stringify({
           action: 'save_config',
@@ -155,8 +158,18 @@ export default function AdminImageUploadField({
         throw new Error(data.error || 'Failed to save R2 configuration.');
       }
 
-      setS3Connected(Boolean(data?.status?.s3Connected));
+      const isConnOk = Boolean(
+        data?.connectionTest?.ok ?? data?.status?.s3Connected
+      );
+      setS3Connected(isConnOk);
+      setR2AccountId(savedLocal.accountId);
+      setR2BucketName(savedLocal.bucketName);
       setR2PublicCdnUrl(savedLocal.publicCdnUrl);
+
+      if (!isConnOk && data?.connectionTest?.message) {
+        setErrorMsg(data.connectionTest.message);
+        return;
+      }
 
       // If current value is a /api/admin/r2/file/<key> URL and publicCdnUrl is now set,
       // automatically convert it to the direct R2 domain link and save to Firestore!
@@ -254,7 +267,25 @@ export default function AdminImageUploadField({
     setErrorMsg(null);
 
     try {
-      const storedCfg = getStoredR2Config();
+      // Automatically persist any R2 credentials typed into the inline inputs before uploading
+      let storedCfg = getStoredR2Config();
+      if (
+        r2AccountId.trim() ||
+        r2PublicCdnUrl.trim() ||
+        r2AccessKeyId.trim() ||
+        r2SecretAccessKey.trim()
+      ) {
+        storedCfg = await saveR2ConfigToFirestore({
+          accountId: r2AccountId.trim() || storedCfg.accountId,
+          bucketName:
+            r2BucketName.trim() || storedCfg.bucketName || 'bimondo-media',
+          publicCdnUrl: r2PublicCdnUrl.trim() || storedCfg.publicCdnUrl,
+          accessKeyId: r2AccessKeyId.trim() || storedCfg.accessKeyId,
+          secretAccessKey:
+            r2SecretAccessKey.trim() || storedCfg.secretAccessKey,
+        });
+      }
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('folder', folder);
@@ -275,7 +306,7 @@ export default function AdminImageUploadField({
 
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: getR2RequestHeaders(),
+        headers: getR2RequestHeaders(storedCfg),
         body: formData,
       });
 
@@ -284,9 +315,10 @@ export default function AdminImageUploadField({
         setShowR2QuickConfig(true);
         throw new Error(
           data?.error ||
-            'Failed to upload image to Cloudflare R2. Please verify your R2 Account ID, Bucket Name, Public R2.dev Domain, and S3 keys below.'
+            'Failed to upload image to Cloudflare R2. Please verify your R2 Account ID, Bucket Name, Public R2.dev Domain, and S3 keys above.'
         );
       }
+      setS3Connected(true);
 
       const uploadedItem = data.item as R2UploadedItemMeta & {
         storageMode?: string;
