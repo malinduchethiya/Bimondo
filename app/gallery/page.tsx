@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import CmsImage from '@/components/CmsImage';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { DEFAULT_GALLERY, CmsGalleryPhoto } from '@/lib/cms-defaults';
 
@@ -79,14 +79,16 @@ export default function GalleryPage() {
               className="gallery-item"
               onClick={() => setSelectedPhoto(photo)}
             >
-              <Image
+              <CmsImage
                 src={photo.image}
+                fallbackSrc={
+                  DEFAULT_GALLERY[i % DEFAULT_GALLERY.length]?.image
+                }
                 alt={photo.title}
                 fill
                 priority={i < 2}
                 sizes="(max-width: 768px) 100vw, 33vw"
                 className="object-cover"
-                referrerPolicy="no-referrer"
               />
               <div className="gallery-overlay">
                 <span className="gallery-loc">{photo.location}</span>
@@ -145,13 +147,12 @@ export default function GalleryPage() {
                 width: '100%',
               }}
             >
-              <Image
+              <CmsImage
                 src={selectedPhoto.image}
                 alt={selectedPhoto.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 850px"
                 className="object-cover"
-                referrerPolicy="no-referrer"
               />
               <button
                 type="button"

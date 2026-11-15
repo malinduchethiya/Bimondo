@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { StaggerSlideVariant } from '@/lib/cms-defaults';
+import CmsImage from '@/components/CmsImage';
 
 interface StaggeredPlaceSlide {
   id: string;
@@ -289,13 +289,16 @@ export default function PlacesSection() {
                 key={`${slide.id}-${idx}`}
                 className={`place staggered-place-card variant-${slide.variant}`}
               >
-                <Image
+                <CmsImage
                   alt={slide.name}
                   src={slide.image}
+                  fallbackSrc={
+                    FALLBACK_PLACE_SLIDES[idx % FALLBACK_PLACE_SLIDES.length]
+                      .image
+                  }
                   fill
                   sizes="(max-width: 720px) 180px, 230px"
                   className="object-cover"
-                  referrerPolicy="no-referrer"
                 />
                 <div className="place-name staggered-place-label">
                   {slide.name}

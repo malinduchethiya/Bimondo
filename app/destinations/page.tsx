@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import CmsImage from '@/components/CmsImage';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { DEFAULT_DESTINATIONS, CmsDestination } from '@/lib/cms-defaults';
@@ -82,14 +82,16 @@ export default function DestinationsPage() {
           {filtered.map((dest, i) => (
             <article key={dest.id} className="destination-detail-card">
               <div className="dest-img-wrap">
-                <Image
+                <CmsImage
                   src={dest.image}
+                  fallbackSrc={
+                    DEFAULT_DESTINATIONS[i % DEFAULT_DESTINATIONS.length]?.image
+                  }
                   alt={dest.name}
                   fill
                   priority={i < 2}
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover"
-                  referrerPolicy="no-referrer"
                 />
                 <span className="dest-season-badge">{dest.season}</span>
               </div>

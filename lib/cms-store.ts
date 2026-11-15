@@ -26,24 +26,20 @@ export function readSiteCmsData(): SiteCmsData {
       const raw = fs.readFileSync(CMS_FILE_PATH, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<SiteCmsData>;
 
-      // Ensure all 20 documented company profile tours are present
+      // Preserve all edited tour properties and custom tours
       let mergedTours = defaults.tours;
       if (Array.isArray(parsed.tours) && parsed.tours.length > 0) {
-        const parsedById = new Map(parsed.tours.map((t) => [t.id, t]));
-        const defaultIds = new Set(defaults.tours.map((t) => t.id));
-        const customTours = parsed.tours.filter((t) => !defaultIds.has(t.id));
-        mergedTours = [
-          ...defaults.tours.map((defTour) => {
-            const existing = parsedById.get(defTour.id);
-            return existing
-              ? {
-                  ...defTour,
-                  image: existing.image || defTour.image,
-                }
-              : defTour;
-          }),
-          ...customTours,
-        ];
+        const defaultById = new Map(defaults.tours.map((t) => [t.id, t]));
+        mergedTours = parsed.tours.map((t) => {
+          const defTour = defaultById.get(t.id);
+          return defTour
+            ? {
+                ...defTour,
+                ...t,
+                image: t.image || defTour.image,
+              }
+            : t;
+        });
       }
 
       // Ensure all default destinations and any custom destinations/images are preserved

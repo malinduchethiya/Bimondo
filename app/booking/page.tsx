@@ -15,7 +15,7 @@ import { useSiteCms } from '@/hooks/useSiteCms';
 export default function BookingPage() {
   const { cms } = useSiteCms();
   const toursList =
-    cms.tours && cms.tours.length >= 20 ? cms.tours : TOURS;
+    cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
   const staysList =
     cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
 

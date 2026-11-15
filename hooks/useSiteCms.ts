@@ -26,6 +26,12 @@ import {
   OperationType,
   validateFirestoreConnection,
 } from '@/lib/firebase';
+import {
+  ensureClientR2ConfigHydrated,
+  getStoredR2Config,
+  saveStoredR2Config,
+  upgradeCmsUrlsToR2Domain,
+} from '@/lib/r2-client';
 
 export interface R2MediaFirestoreRecord {
   id: string;
@@ -48,6 +54,7 @@ let sharedLoadingState = true;
 let sharedFirebaseUser: User | null = null;
 let sharedAuthReady = false;
 let storeInitialized = false;
+let firestoreHasLoaded = false;
 
 type StoreListener = () => void;
 const listeners = new Set<StoreListener>();
@@ -74,16 +81,83 @@ async function fetchServerFallbackOnce(): Promise<SiteCmsData | null> {
   }
 }
 
+function applyFirestoreSnapshotToState(d: Record<string, unknown>) {
+  const generalData = (d.general || {}) as SiteCmsData['general'];
+  if (
+    generalData.r2PublicCdnUrl ||
+    generalData.r2AccountId ||
+    generalData.r2BucketName
+  ) {
+    saveStoredR2Config({
+      accountId: generalData.r2AccountId || undefined,
+      bucketName: generalData.r2BucketName || undefined,
+      publicCdnUrl: generalData.r2PublicCdnUrl || undefined,
+    });
+  }
+
+  const effectiveR2Domain =
+    generalData.r2PublicCdnUrl || getStoredR2Config().publicCdnUrl;
+
+  const rawMerged: SiteCmsData = {
+    ...sharedCmsState,
+    updatedAt:
+      typeof (d.updatedAt as { toDate?: () => Date })?.toDate === 'function'
+        ? (d.updatedAt as { toDate: () => Date }).toDate().toISOString()
+        : sharedCmsState.updatedAt,
+    general: {
+      ...sharedCmsState.general,
+      ...generalData,
+    },
+    tours:
+      Array.isArray(d.tours) && d.tours.length > 0
+        ? (d.tours as SiteCmsData['tours'])
+        : sharedCmsState.tours,
+    stays:
+      Array.isArray(d.stays) && d.stays.length > 0
+        ? (d.stays as SiteCmsData['stays'])
+        : sharedCmsState.stays,
+    destinations:
+      Array.isArray(d.destinations) && d.destinations.length > 0
+        ? (d.destinations as SiteCmsData['destinations'])
+        : sharedCmsState.destinations,
+    gallery:
+      Array.isArray(d.gallery) && d.gallery.length > 0
+        ? (d.gallery as SiteCmsData['gallery'])
+        : sharedCmsState.gallery,
+    reviews:
+      Array.isArray(d.reviews) && d.reviews.length > 0
+        ? (d.reviews as SiteCmsData['reviews'])
+        : sharedCmsState.reviews,
+    faqs:
+      Array.isArray(d.faqs) && d.faqs.length > 0
+        ? (d.faqs as SiteCmsData['faqs'])
+        : sharedCmsState.faqs,
+  };
+
+  sharedCmsState = effectiveR2Domain
+    ? upgradeCmsUrlsToR2Domain(rawMerged, effectiveR2Domain)
+    : rawMerged;
+  firestoreHasLoaded = true;
+}
+
 async function persistFullCmsToFirestore(data: SiteCmsData): Promise<void> {
   assertNoInlineImagesInFirestore(data);
   const actorUid = auth.currentUser?.uid || 'bimondo-cms-admin';
   const cmsDocRef = doc(db, 'site_cms', 'main');
 
+  const storedR2 = getStoredR2Config();
+  const generalWithR2: SiteCmsData['general'] = {
+    ...data.general,
+    ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
+    ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
+    ...(storedR2.publicCdnUrl ? { r2PublicCdnUrl: storedR2.publicCdnUrl } : {}),
+  };
+
   const firestorePayload = {
     id: 'main',
     updatedBy: actorUid,
     updatedAt: serverTimestamp(),
-    general: data.general,
+    general: generalWithR2,
     tours: data.tours.slice(0, 50),
     stays: data.stays.slice(0, 50),
     destinations: data.destinations.slice(0, 50),
@@ -166,27 +240,14 @@ async function refreshSharedStore() {
     const snap = await getDoc(doc(db, 'site_cms', 'main'));
     if (snap.exists()) {
       const d = snap.data();
+      applyFirestoreSnapshotToState(d);
       const fallback = await fetchServerFallbackOnce();
-      sharedCmsState = {
-        ...sharedCmsState,
-        updatedAt:
-          typeof d.updatedAt?.toDate === 'function'
-            ? d.updatedAt.toDate().toISOString()
-            : sharedCmsState.updatedAt,
-        general: {
-          ...sharedCmsState.general,
-          ...(d.general || {}),
-        },
-        tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
-        stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
-        destinations: Array.isArray(d.destinations)
-          ? d.destinations
-          : sharedCmsState.destinations,
-        gallery: Array.isArray(d.gallery) ? d.gallery : sharedCmsState.gallery,
-        reviews: Array.isArray(d.reviews) ? d.reviews : sharedCmsState.reviews,
-        faqs: Array.isArray(d.faqs) ? d.faqs : sharedCmsState.faqs,
-        enquiries: fallback?.enquiries || sharedCmsState.enquiries,
-      };
+      if (fallback?.enquiries && fallback.enquiries.length > 0) {
+        sharedCmsState = {
+          ...sharedCmsState,
+          enquiries: fallback.enquiries,
+        };
+      }
       sharedLoadingState = false;
       notifyListeners();
       return;
@@ -195,9 +256,11 @@ async function refreshSharedStore() {
     // Fallback to server API if Firestore doc not yet initialized
   }
 
-  const fallback = await fetchServerFallbackOnce();
-  if (fallback) {
-    sharedCmsState = fallback;
+  if (!firestoreHasLoaded) {
+    const fallback = await fetchServerFallbackOnce();
+    if (fallback && !firestoreHasLoaded) {
+      sharedCmsState = fallback;
+    }
   }
   sharedLoadingState = false;
   notifyListeners();
@@ -207,6 +270,7 @@ function initSharedCmsStore() {
   if (storeInitialized || typeof window === 'undefined') return;
   storeInitialized = true;
 
+  ensureClientR2ConfigHydrated();
   validateFirestoreConnection();
 
   onAuthStateChanged(auth, (u) => {
@@ -215,15 +279,27 @@ function initSharedCmsStore() {
     notifyListeners();
   });
 
+  // Only use server API for enquiries or initial fallback before Firestore responds;
+  // NEVER let stateless server defaults overwrite Firestore /site_cms/main data.
   fetchServerFallbackOnce().then((fallback) => {
-    if (fallback) {
+    if (!fallback) return;
+    if (!firestoreHasLoaded) {
       sharedCmsState = {
         ...sharedCmsState,
         ...fallback,
       };
-      sharedLoadingState = false;
-      notifyListeners();
+    } else if (
+      Array.isArray(fallback.enquiries) &&
+      fallback.enquiries.length > 0 &&
+      sharedCmsState.enquiries.length === 0
+    ) {
+      sharedCmsState = {
+        ...sharedCmsState,
+        enquiries: fallback.enquiries,
+      };
     }
+    sharedLoadingState = false;
+    notifyListeners();
   });
 
   const cmsRef = doc(db, 'site_cms', 'main');
@@ -232,33 +308,10 @@ function initSharedCmsStore() {
     (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        sharedCmsState = {
-          ...sharedCmsState,
-          updatedAt:
-            typeof d.updatedAt?.toDate === 'function'
-              ? d.updatedAt.toDate().toISOString()
-              : sharedCmsState.updatedAt,
-          general: {
-            ...sharedCmsState.general,
-            ...(d.general || {}),
-          },
-          tours: Array.isArray(d.tours) ? d.tours : sharedCmsState.tours,
-          stays: Array.isArray(d.stays) ? d.stays : sharedCmsState.stays,
-          destinations: Array.isArray(d.destinations)
-            ? d.destinations
-            : sharedCmsState.destinations,
-          gallery: Array.isArray(d.gallery)
-            ? d.gallery
-            : sharedCmsState.gallery,
-          reviews: Array.isArray(d.reviews)
-            ? d.reviews
-            : sharedCmsState.reviews,
-          faqs: Array.isArray(d.faqs) ? d.faqs : sharedCmsState.faqs,
-        };
+        applyFirestoreSnapshotToState(d);
         sharedLoadingState = false;
         notifyListeners();
       } else {
-        // Only auto-seed when confirmed from server (not an empty local offline cache)
         if (!snap.metadata.fromCache) {
           persistFullCmsToFirestore(sharedCmsState).catch(() => {
             // Ignore seed race condition
@@ -311,31 +364,49 @@ export function useSiteCms() {
   }, []);
 
   /**
-   * Saves CMS metadata & Cloudflare R2 CDN links to both Firebase Firestore
-   * (/site_cms/main + individual collections) and the server API.
+   * Saves CMS metadata & Cloudflare R2 CDN links directly to Firebase Firestore
+   * (/site_cms/main + individual collections) first, and mirrors to the server API.
    */
   const saveCmsToFirebase = useCallback(
     async (nextData: SiteCmsData): Promise<SiteCmsData> => {
       assertNoInlineImagesInFirestore(nextData);
 
-      // 1. Sync to server store for API routes & enquiries
-      const res = await fetch('/api/admin/cms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cms: nextData }),
-      });
-      const apiData = await res.json();
-      if (!res.ok) {
-        throw new Error(apiData.error || 'Failed to update CMS store.');
+      const storedR2 = getStoredR2Config();
+      const effectiveR2Domain =
+        nextData.general.r2PublicCdnUrl || storedR2.publicCdnUrl;
+
+      const preparedData: SiteCmsData = {
+        ... (effectiveR2Domain
+          ? upgradeCmsUrlsToR2Domain(nextData, effectiveR2Domain)
+          : nextData),
+        updatedAt: new Date().toISOString(),
+        general: {
+          ...nextData.general,
+          ...(storedR2.accountId ? { r2AccountId: storedR2.accountId } : {}),
+          ...(storedR2.bucketName ? { r2BucketName: storedR2.bucketName } : {}),
+          ...(effectiveR2Domain ? { r2PublicCdnUrl: effectiveR2Domain } : {}),
+        },
+      };
+
+      // 1. Authoritative write to Firebase Firestore (/site_cms/main + collections)
+      await persistFullCmsToFirestore(preparedData);
+
+      // 2. Mirror to local/server API store (non-destructive)
+      try {
+        await fetch('/api/admin/cms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cms: preparedData }),
+        });
+      } catch {
+        // Firestore already succeeded
       }
 
-      // 2. Always persist to Firestore (/site_cms/main + tours, stays, destinations, gallery, reviews, faqs)
-      await persistFullCmsToFirestore(apiData.cms);
-
-      sharedCmsState = apiData.cms;
+      firestoreHasLoaded = true;
+      sharedCmsState = preparedData;
       notifyListeners();
       window.dispatchEvent(new CustomEvent('bimondo:cms-updated'));
-      return apiData.cms;
+      return preparedData;
     },
     []
   );

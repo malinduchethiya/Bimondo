@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  applyIncomingR2Headers,
   deleteFileFromR2Bucket,
+  ensureR2ConfigHydratedFromFirestore,
   getPublicR2ConfigStatus,
   listFilesInR2Bucket,
   R2FolderName,
@@ -13,6 +15,9 @@ import {
 } from '@/lib/r2-storage';
 
 export async function GET(req: NextRequest) {
+  applyIncomingR2Headers(req.headers);
+  await ensureR2ConfigHydratedFromFirestore();
+
   const { searchParams } = new URL(req.url);
   const prefix = searchParams.get('prefix') || undefined;
   const origin = req.nextUrl.origin;
@@ -37,13 +42,33 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  applyIncomingR2Headers(req.headers);
+  await ensureR2ConfigHydratedFromFirestore();
+
   const contentTypeHeader = req.headers.get('content-type') || '';
   const origin = req.nextUrl.origin;
 
   try {
-    // 1. Multipart form-data upload -> Push image binary to Cloudflare R2 / Managed R2 Bucket
+    // 1. Multipart form-data upload -> Push image binary to Cloudflare R2 Bucket
     if (contentTypeHeader.includes('multipart/form-data')) {
       const formData = await req.formData();
+
+      // Also accept R2 config overrides inside multipart formData if provided
+      const fAccount = String(formData.get('accountId') || '').trim();
+      const fBucket = String(formData.get('bucketName') || '').trim();
+      const fCdn = String(formData.get('publicCdnUrl') || '').trim();
+      const fAccess = String(formData.get('accessKeyId') || '').trim();
+      const fSecret = String(formData.get('secretAccessKey') || '').trim();
+      if (fAccount || fCdn || fAccess || fSecret) {
+        writeR2ServerConfig({
+          accountId: fAccount || undefined,
+          bucketName: fBucket || undefined,
+          publicCdnUrl: fCdn || undefined,
+          accessKeyId: fAccess || undefined,
+          secretAccessKey: fSecret || undefined,
+        });
+      }
+
       const file = formData.get('file');
       if (!file || !(file instanceof File)) {
         return NextResponse.json(
@@ -173,6 +198,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  applyIncomingR2Headers(req.headers);
+  await ensureR2ConfigHydratedFromFirestore();
+
   try {
     const { searchParams } = new URL(req.url);
     const keyOrUrl =

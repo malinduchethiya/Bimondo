@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Image from 'next/image';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { BENTO_DESTINATIONS } from '@/lib/bento-destinations';
+import { BENTO_DESTINATIONS, BentoDestination } from '@/lib/bento-destinations';
+import { useSiteCms } from '@/hooks/useSiteCms';
+import CmsImage from '@/components/CmsImage';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -24,7 +25,16 @@ const FOUR_SIDES_CONFIG: Record<SwipeSide, SideSwipeConfig> = {
   bottom: { x: 0, y: 48 },
 };
 
+const BENTO_TO_CMS_DEST_ID: Record<string, string> = {
+  sigiriya: 'sigiriya-cultural-triangle',
+  kandy: 'kandy-sacred-capital',
+  galle: 'galle-sea-and-sand',
+  ella: 'ella-hill-country',
+  yala: 'yala-wildlife-rainforest',
+};
+
 export default function BentoDestinationSlider() {
+  const { cms } = useSiteCms();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -49,7 +59,39 @@ export default function BentoDestinationSlider() {
   const cuisineTileRef = useRef<HTMLDivElement>(null);
   const cuisineImgRef = useRef<HTMLDivElement>(null);
 
-  const dest = BENTO_DESTINATIONS[currentIndex];
+  // Merge live Firestore CMS destinations, tours, stays, and gallery photos into the Bento slides
+  const bentoSlides: BentoDestination[] = useMemo(() => {
+    return BENTO_DESTINATIONS.map((base, idx) => {
+      const targetDestId = BENTO_TO_CMS_DEST_ID[base.id];
+      const cmsDest =
+        cms.destinations?.find((d) => d.id === targetDestId) ||
+        cms.destinations?.[idx];
+      const cmsTour = cms.tours?.find((t) => t.id === base.ctaTourId);
+      const cmsStay = cms.stays?.[idx % Math.max(1, cms.stays?.length || 1)];
+      const cmsGallery =
+        cms.gallery?.[idx % Math.max(1, cms.gallery?.length || 1)];
+
+      return {
+        ...base,
+        name: cmsDest ? cmsDest.name.split(',')[0].trim() : base.name,
+        subtitle: cmsDest
+          ? `Sri Lanka · ${cmsDest.regionLabel}`
+          : base.subtitle,
+        description: cmsDest?.description || base.description,
+        exploreText:
+          cmsDest?.highlights && cmsDest.highlights.length > 0
+            ? cmsDest.highlights.join(' · ')
+            : base.exploreText,
+        heroImage: cmsDest?.image || cmsTour?.image || base.heroImage,
+        pathwayImage: cmsTour?.image || base.pathwayImage,
+        tallSceneImage: cmsStay?.image || base.tallSceneImage,
+        natureImage: cmsGallery?.image || base.natureImage,
+      };
+    });
+  }, [cms.destinations, cms.tours, cms.stays, cms.gallery]);
+
+  const safeIndex = currentIndex % bentoSlides.length;
+  const dest = bentoSlides[safeIndex];
 
   const getTiles = () =>
     [
@@ -107,7 +149,6 @@ export default function BentoDestinationSlider() {
       { tile: navPairRef.current, side: 'bottom' as SwipeSide },
     ].filter((t) => t.tile) as { tile: HTMLElement; side: SwipeSide }[];
 
-  // Pure GPU-composited 4-sides swipe-in animation (no clip-path or filter repaints)
   const runFourSidesSwipeIn = useCallback((randomizeSides = false) => {
     if (!boardRef.current) return;
     setIsAnimating(true);
@@ -186,7 +227,6 @@ export default function BentoDestinationSlider() {
     return () => ctx.revert();
   }, []);
 
-  // Trigger once when first scrolling into view so repeated scrolling never stalls
   useEffect(() => {
     if (!boardRef.current) return;
 
@@ -243,17 +283,20 @@ export default function BentoDestinationSlider() {
 
   const handlePrev = () => {
     const nextIdx =
-      currentIndex === 0 ? BENTO_DESTINATIONS.length - 1 : currentIndex - 1;
+      safeIndex === 0 ? bentoSlides.length - 1 : safeIndex - 1;
     transitionToSlide(nextIdx);
   };
 
   const handleNext = () => {
     const nextIdx =
-      currentIndex === BENTO_DESTINATIONS.length - 1 ? 0 : currentIndex + 1;
+      safeIndex === bentoSlides.length - 1 ? 0 : safeIndex + 1;
     transitionToSlide(nextIdx);
   };
 
-  const whatsAppUrl = `https://wa.me/94762232054?text=${encodeURIComponent(
+  const whatsAppNumber =
+    (cms.general.whatsappNumber || '94762232054').replace(/\D/g, '') ||
+    '94762232054';
+  const whatsAppUrl = `https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(
     `Hello Bimondo Travels, I'd love to plan a private journey to ${dest.name} (${dest.subtitle}).`
   )}`;
 
@@ -282,13 +325,12 @@ export default function BentoDestinationSlider() {
           {/* 1. Top-Left Hero Banner Card (Cols 1-2, Rows 1-6) */}
           <div ref={heroTileRef} className="bento-sr-tile bento-sr-hero">
             <div ref={heroImgRef} className="bento-sr-img-layer">
-              <Image
+              <CmsImage
                 src={dest.heroImage}
                 alt={dest.name}
                 fill
                 sizes="(max-width: 900px) 100vw, 50vw"
                 className="object-cover bento-sr-img"
-                referrerPolicy="no-referrer"
                 priority
               />
             </div>
@@ -318,13 +360,12 @@ export default function BentoDestinationSlider() {
           {/* 3. Middle-Center-Left Pathway Image Card (Col 2, Rows 7-10) */}
           <div ref={pathwayTileRef} className="bento-sr-tile bento-sr-pathway">
             <div ref={pathwayImgRef} className="bento-sr-img-layer">
-              <Image
+              <CmsImage
                 src={dest.pathwayImage}
                 alt={`${dest.name} pathway`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
-                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -374,13 +415,12 @@ export default function BentoDestinationSlider() {
           {/* 7. Middle-Center-Right Tall Atmospheric Scene Card (Col 3, Rows 4-9) */}
           <div ref={tallTileRef} className="bento-sr-tile bento-sr-tall-scene">
             <div ref={tallImgRef} className="bento-sr-img-layer">
-              <Image
+              <CmsImage
                 src={dest.tallSceneImage}
                 alt={`${dest.name} atmosphere`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
-                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -397,13 +437,12 @@ export default function BentoDestinationSlider() {
           {/* 9. Top-Right Nature / Botanical Image Card (Col 4, Rows 1-6) */}
           <div ref={natureTileRef} className="bento-sr-tile bento-sr-nature">
             <div ref={natureImgRef} className="bento-sr-img-layer">
-              <Image
+              <CmsImage
                 src={dest.natureImage}
                 alt={`${dest.name} nature`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
-                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -416,13 +455,12 @@ export default function BentoDestinationSlider() {
             </div>
             <div className="bento-sr-cuisine-media">
               <div ref={cuisineImgRef} className="bento-sr-img-layer">
-                <Image
+                <CmsImage
                   src={dest.cuisineImage}
                   alt={`${dest.name} cuisine`}
                   fill
                   sizes="(max-width: 900px) 50vw, 25vw"
                   className="object-cover bento-sr-img"
-                  referrerPolicy="no-referrer"
                 />
               </div>
               <div className="bento-sr-cuisine-fade" />

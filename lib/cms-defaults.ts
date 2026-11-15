@@ -90,6 +90,9 @@ export interface CmsGeneralSettings {
   tripadvisorBrand?: string;
   tripadvisorRating?: string;
   tripadvisorReviewsText?: string;
+  r2AccountId?: string;
+  r2BucketName?: string;
+  r2PublicCdnUrl?: string;
 }
 
 export const DEFAULT_HERO_IMAGES: string[] = [

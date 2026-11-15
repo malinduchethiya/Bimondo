@@ -4,6 +4,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { R2UploadedItemMeta } from '@/components/admin/AdminImageUploadField';
 import { SiteCmsData } from '@/lib/cms-defaults';
+import {
+  getR2RequestHeaders,
+  getStoredR2Config,
+  loadR2ConfigFromFirestore,
+  normalizeR2PublicDomain,
+  resolveCmsImageUrl,
+  saveR2ConfigToFirestore,
+  shouldUseDirectImgTag,
+} from '@/lib/r2-client';
 
 interface R2ConfigStatus {
   configured: boolean;
@@ -50,6 +59,7 @@ interface R2BucketManagerTabProps {
     cdnUrl: string,
     item: R2UploadedItemMeta
   ) => Promise<void> | void;
+  onR2DomainUpdated?: (publicCdnUrl: string) => Promise<void> | void;
 }
 
 function formatBytes(bytes: number): string {
@@ -65,6 +75,7 @@ export default function R2BucketManagerTab({
   onR2Deleted,
   onR2Renamed,
   onQuickAssignToSite,
+  onR2DomainUpdated,
 }: R2BucketManagerTabProps) {
   const [status, setStatus] = useState<R2ConfigStatus>({
     configured: true,
@@ -102,7 +113,11 @@ export default function R2BucketManagerTab({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchR2BucketData = useCallback(async () => {
-    const res = await fetch('/api/admin/r2', { cache: 'no-store' });
+    await loadR2ConfigFromFirestore();
+    const res = await fetch('/api/admin/r2', {
+      cache: 'no-store',
+      headers: getR2RequestHeaders(),
+    });
     return res.json();
   }, []);
 
@@ -112,16 +127,15 @@ export default function R2BucketManagerTab({
       items?: R2BucketObjectItem[];
       warning?: string;
     }) => {
+      const localCfg = getStoredR2Config();
       if (data.status) {
         setStatus(data.status);
-        setAccountId(data.status.accountId || '');
-        setBucketName(data.status.bucketName || 'bimondo-media');
-        setPublicCdnUrl(
-          data.status.publicCdnUrl &&
-            !data.status.publicCdnUrl.includes('/api/admin/r2/file')
-            ? data.status.publicCdnUrl
-            : ''
+        setAccountId(data.status.accountId || localCfg.accountId || '');
+        setBucketName(
+          data.status.bucketName || localCfg.bucketName || 'bimondo-media'
         );
+        const serverCdn = normalizeR2PublicDomain(data.status.publicCdnUrl);
+        setPublicCdnUrl(serverCdn || localCfg.publicCdnUrl || '');
       }
       if (Array.isArray(data.items)) {
         setItems(data.items);
@@ -179,16 +193,28 @@ export default function R2BucketManagerTab({
     setError(null);
 
     try {
+      const cleanCdn = normalizeR2PublicDomain(publicCdnUrl);
+      const savedLocal = await saveR2ConfigToFirestore({
+        accountId,
+        bucketName: bucketName || 'bimondo-media',
+        publicCdnUrl: cleanCdn,
+        accessKeyId: accessKeyId.trim() || undefined,
+        secretAccessKey: secretAccessKey.trim() || undefined,
+      });
+
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getR2RequestHeaders(),
+        },
         body: JSON.stringify({
           action: 'save_config',
-          accountId,
-          bucketName,
-          publicCdnUrl,
-          accessKeyId: accessKeyId.trim() || undefined,
-          secretAccessKey: secretAccessKey.trim() || undefined,
+          accountId: savedLocal.accountId,
+          bucketName: savedLocal.bucketName,
+          publicCdnUrl: savedLocal.publicCdnUrl,
+          accessKeyId: savedLocal.accessKeyId || undefined,
+          secretAccessKey: savedLocal.secretAccessKey || undefined,
         }),
       });
       const data = await res.json();
@@ -197,14 +223,18 @@ export default function R2BucketManagerTab({
       }
 
       setStatus(data.status);
+      setPublicCdnUrl(savedLocal.publicCdnUrl);
       setAccessKeyId('');
       setSecretAccessKey('');
       if (Array.isArray(data.items)) {
         setItems(data.items);
       }
+      if (savedLocal.publicCdnUrl && onR2DomainUpdated) {
+        await onR2DomainUpdated(savedLocal.publicCdnUrl);
+      }
       setBanner(
         data.connectionTest?.message ||
-          'Cloudflare R2 configuration saved and connected.'
+          'Cloudflare R2 configuration saved to Firestore & connected.'
       );
     } catch (err) {
       setError(
@@ -222,7 +252,10 @@ export default function R2BucketManagerTab({
     try {
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getR2RequestHeaders(),
+        },
         body: JSON.stringify({ action: 'test_connection' }),
       });
       const data = await res.json();
@@ -256,7 +289,10 @@ export default function R2BucketManagerTab({
     try {
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getR2RequestHeaders(),
+        },
         body: JSON.stringify({ action: 'sync_catalog' }),
       });
       const data = await res.json();
@@ -302,12 +338,25 @@ export default function R2BucketManagerTab({
     setError(null);
 
     try {
+      const storedCfg = getStoredR2Config();
       const formData = new FormData();
       formData.append('file', file);
       formData.append('folder', uploadFolder);
+      if (storedCfg.accountId) formData.append('accountId', storedCfg.accountId);
+      if (storedCfg.bucketName) formData.append('bucketName', storedCfg.bucketName);
+      if (storedCfg.publicCdnUrl) {
+        formData.append('publicCdnUrl', storedCfg.publicCdnUrl);
+      }
+      if (storedCfg.accessKeyId) {
+        formData.append('accessKeyId', storedCfg.accessKeyId);
+      }
+      if (storedCfg.secretAccessKey) {
+        formData.append('secretAccessKey', storedCfg.secretAccessKey);
+      }
 
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
+        headers: getR2RequestHeaders(),
         body: formData,
       });
       const data = await res.json();
@@ -320,7 +369,7 @@ export default function R2BucketManagerTab({
         await onR2Uploaded(uploaded);
       }
       setBanner(
-        `Uploaded "${uploaded.objectKey}" to R2 Bucket and registered CDN link in Firebase Firestore (/r2_media).`
+        `Uploaded "${uploaded.objectKey}" directly to R2 Bucket and saved R2 domain link (${uploaded.cdnUrl}) in Firebase Firestore (/r2_media).`
       );
       await loadR2Bucket();
     } catch (err) {
@@ -342,7 +391,10 @@ export default function R2BucketManagerTab({
     try {
       const res = await fetch('/api/admin/r2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getR2RequestHeaders(),
+        },
         body: JSON.stringify({
           action: 'rename_object',
           oldKeyOrUrl: item.objectKey,
@@ -384,7 +436,10 @@ export default function R2BucketManagerTab({
     try {
       const res = await fetch(
         `/api/admin/r2?key=${encodeURIComponent(item.objectKey)}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          headers: getR2RequestHeaders(),
+        }
       );
       const data = await res.json();
       if (!res.ok) {
@@ -789,10 +844,11 @@ export default function R2BucketManagerTab({
         ) : (
           <div style={{ display: 'grid', gap: '14px' }}>
             {filteredItems.map((item) => {
-              const usageBadges = getUsageBadges(item.cdnUrl);
-              const isLocalStream = item.cdnUrl.includes(
-                '/api/admin/r2/file/'
-              );
+              const displayUrl = resolveCmsImageUrl(item.cdnUrl, publicCdnUrl);
+              const usageBadges = getUsageBadges(displayUrl).length
+                ? getUsageBadges(displayUrl)
+                : getUsageBadges(item.cdnUrl);
+              const isLocalStream = shouldUseDirectImgTag(displayUrl);
 
               return (
                 <div key={item.objectKey} className="admin-item-editor-card">
@@ -817,14 +873,14 @@ export default function R2BucketManagerTab({
                       {isLocalStream ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={item.cdnUrl}
+                          src={displayUrl}
                           alt={item.fileName}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
                         <Image
-                          src={item.cdnUrl}
+                          src={displayUrl}
                           alt={item.fileName}
                           fill
                           sizes="110px"

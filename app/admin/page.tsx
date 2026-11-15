@@ -16,6 +16,12 @@ import { useSiteCms } from '@/hooks/useSiteCms';
 import { useBookingSettings } from '@/hooks/useBookingSettings';
 import { auth, googleProvider } from '@/lib/firebase';
 import {
+  getR2RequestHeaders,
+  resolveCmsImageUrl,
+  shouldUseDirectImgTag,
+  upgradeCmsUrlsToR2Domain,
+} from '@/lib/r2-client';
+import {
   BookingSubmissionMethod,
   CmsCustomerEnquiry,
   CmsDestination,
@@ -58,7 +64,8 @@ function formatDeterministicTime(iso: string): string {
 }
 
 function AdminThumb({ src, alt }: { src?: string; alt: string }) {
-  if (!src || src.startsWith('data:')) {
+  const resolvedSrc = resolveCmsImageUrl(src);
+  if (!resolvedSrc || resolvedSrc.startsWith('data:')) {
     return (
       <div
         style={{
@@ -76,11 +83,11 @@ function AdminThumb({ src, alt }: { src?: string; alt: string }) {
       </div>
     );
   }
-  if (src.includes('/api/admin/r2/file/')) {
+  if (shouldUseDirectImgTag(resolvedSrc)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         className="w-full h-full object-cover"
         referrerPolicy="no-referrer"
@@ -89,7 +96,7 @@ function AdminThumb({ src, alt }: { src?: string; alt: string }) {
   }
   return (
     <Image
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       fill
       sizes="160px"
@@ -224,7 +231,10 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch(
         `/api/admin/r2?url=${encodeURIComponent(imageUrl)}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          headers: getR2RequestHeaders(),
+        }
       );
       const data = await res.json();
       if (res.ok && data.mediaDocId) {
@@ -3464,6 +3474,24 @@ export default function AdminDashboardPage() {
                 onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
                 onR2Renamed={handleR2ObjectRenamed}
                 onQuickAssignToSite={handleQuickAssignFromR2Bucket}
+                onR2DomainUpdated={async (publicCdnUrl) => {
+                  const upgraded = upgradeCmsUrlsToR2Domain(
+                    workingCms,
+                    publicCdnUrl
+                  );
+                  const nextCms: SiteCmsData = {
+                    ...upgraded,
+                    general: {
+                      ...upgraded.general,
+                      r2PublicCdnUrl: publicCdnUrl,
+                    },
+                  };
+                  setCmsDraft(nextCms);
+                  await saveCmsChanges(
+                    nextCms,
+                    `R2 Public Domain (${publicCdnUrl}) saved & all site image links upgraded in Firestore.`
+                  );
+                }}
               />
             )}
 

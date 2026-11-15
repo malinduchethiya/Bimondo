@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import CmsImage from '@/components/CmsImage';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
 import { TOUR_QUALIFICATION_NOTICE } from '@/lib/tours';
@@ -176,14 +176,16 @@ export default function StaysPage() {
                   }`}
                 >
                   <div className="dest-img-wrap">
-                    <Image
+                    <CmsImage
                       src={stay.image}
+                      fallbackSrc={
+                        ACCOMMODATIONS[idx % ACCOMMODATIONS.length]?.image
+                      }
                       alt={stay.name}
                       fill
                       priority={idx < 2}
                       sizes="(max-width: 768px) 100vw, 50vw"
                       className="object-cover"
-                      referrerPolicy="no-referrer"
                     />
                     <span className="dest-season-badge">
                       4★ HOTELS · BOUTIQUE · 5★ LUXURY

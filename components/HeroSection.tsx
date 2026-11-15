@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { DEFAULT_HERO_IMAGES } from '@/lib/cms-defaults';
+import CmsImage from '@/components/CmsImage';
 
 const HERO_SLIDESHOW_INTERVAL_MS = 4000;
 
@@ -67,14 +67,16 @@ export default function HeroSection() {
               key={`${imgSrc}-${idx}`}
               className={`hero-slide-layer ${isActive ? 'is-active' : ''}`}
             >
-              <Image
+              <CmsImage
                 src={imgSrc}
+                fallbackSrc={
+                  DEFAULT_HERO_IMAGES[idx % DEFAULT_HERO_IMAGES.length]
+                }
                 alt={`Sri Lanka Hero Slide ${idx + 1}`}
                 fill
                 sizes="100vw"
                 priority={idx === 0}
                 className="object-cover"
-                referrerPolicy="no-referrer"
               />
             </div>
           );

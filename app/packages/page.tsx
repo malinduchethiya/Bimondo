@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
+import CmsImage from '@/components/CmsImage';
 import {
   TOURS,
   Tour,
@@ -18,7 +18,7 @@ import { useSiteCms } from '@/hooks/useSiteCms';
 export default function PackagesPage() {
   const { cms } = useSiteCms();
   const toursList =
-    cms.tours && cms.tours.length >= 20 ? cms.tours : TOURS;
+    cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [modalTab, setModalTab] = useState<'itinerary' | 'booking'>('booking');
@@ -109,14 +109,14 @@ export default function PackagesPage() {
                   }`}
                 >
                   <div className="package-img-wrap">
-                    <Image
+                    <CmsImage
                       src={tour.image}
+                      fallbackSrc={TOURS[i % TOURS.length]?.image}
                       alt={tour.name}
                       fill
                       priority={i < 2}
                       sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-cover"
-                      referrerPolicy="no-referrer"
                     />
                     <span className="tour-tag">
                       {tour.durationLabel

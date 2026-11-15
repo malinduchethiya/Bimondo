@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import CmsImage from '@/components/CmsImage';
 
 interface TouristThoughtCard {
   id: string;
@@ -316,13 +316,17 @@ export default function ValuesSection() {
                     <div className="sliding-card-image-header">
                       <span className="sliding-card-overlay" />
                       <div className="sliding-card-avatar">
-                        <Image
+                        <CmsImage
                           src={card.image}
+                          fallbackSrc={
+                            DEFAULT_TOURIST_THOUGHTS[
+                              idx % DEFAULT_TOURIST_THOUGHTS.length
+                            ].image
+                          }
                           alt={card.name}
                           fill
                           sizes="132px"
                           className="sliding-card-avatar-img"
-                          referrerPolicy="no-referrer"
                         />
                       </div>
                     </div>
@@ -380,13 +384,12 @@ export default function ValuesSection() {
             <article key={card.id} className="mobile-thought-square-card">
               <div className="mobile-thought-card-top">
                 <div className="mobile-thought-avatar">
-                  <Image
+                  <CmsImage
                     src={card.image}
                     alt={card.name}
                     fill
                     sizes="56px"
                     className="object-cover"
-                    referrerPolicy="no-referrer"
                   />
                 </div>
                 <div className="mobile-thought-meta">
