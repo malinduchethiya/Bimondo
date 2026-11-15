@@ -14,7 +14,6 @@ import {
   VerifiedPricingQuote,
 } from '@/lib/booking-types';
 
-export const runtime = 'edge';
 
 function formatBokunUtcDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

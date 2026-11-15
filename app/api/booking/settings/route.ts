@@ -6,7 +6,6 @@ import {
 } from '@/lib/booking-store';
 import { PublicBookingSettings } from '@/lib/booking-types';
 
-export const runtime = 'edge';
 
 export async function GET() {
   const settings = getServerBookingSettings();

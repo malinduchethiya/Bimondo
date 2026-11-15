@@ -3,7 +3,7 @@ import next from "eslint-config-next";
 
 export default defineConfig([
   {
-    ignores: ["dist/**/*", ".next/**/*"],
+    ignores: ["dist/**/*", ".next/**/*", ".open-next/**/*", ".wrangler/**/*"],
   },
   {
     extends: [...next],
