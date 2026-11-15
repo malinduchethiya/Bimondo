@@ -4,25 +4,38 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import CmsImage from '@/components/CmsImage';
-import {
-  TOURS,
-  Tour,
-  COLOMBO_DAY_EXPERIENCES,
-  ColomboDayExperience,
-  TOUR_QUALIFICATION_NOTICE,
-} from '@/lib/tours';
+import { Tour, ColomboDayExperience } from '@/lib/tours';
+import { CmsColomboExperienceItem, CmsTourItem } from '@/lib/cms-defaults';
 import TourModal from '@/components/TourModal';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function PackagesPage() {
   const { cms } = useSiteCms();
-  const toursList =
-    cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
+  const pageContent = cms.pages.packagesPage;
+
+  const toursList: (CmsTourItem | Tour)[] = (cms.tours || [])
+    .filter((t) => (t as CmsTourItem).visible !== false)
+    .sort(
+      (a, b) =>
+        ((a as CmsTourItem).order ?? 0) - ((b as CmsTourItem).order ?? 0)
+    );
+
+  const colomboExperiences: (CmsColomboExperienceItem | ColomboDayExperience)[] =
+    (cms.colomboExperiences || [])
+      .filter((exp) => (exp as CmsColomboExperienceItem).visible !== false)
+      .sort(
+        (a, b) =>
+          ((a as CmsColomboExperienceItem).order ?? 0) -
+          ((b as CmsColomboExperienceItem).order ?? 0)
+      );
+
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [modalTab, setModalTab] = useState<'itinerary' | 'booking'>('booking');
-  const [activeBookingTour, setActiveBookingTour] = useState<Tour>(TOURS[0]);
+  const [activeBookingTour, setActiveBookingTour] = useState<Tour | null>(
+    toursList[0] ?? null
+  );
   const [activeDayExpBooking, setActiveDayExpBooking] =
     useState<ColomboDayExperience | null>(null);
 
@@ -40,30 +53,39 @@ export default function PackagesPage() {
       ? toursList
       : toursList.filter((t) => t.category === activeCategory);
 
+  const resolvedBookingTour =
+    (activeBookingTour
+      ? toursList.find((t) => t.id === activeBookingTour.id)
+      : undefined) ||
+    toursList[0] ||
+    null;
+
+  const waNumber = (cms.general.whatsappNumber || '94762232054').replace(
+    /\D/g,
+    ''
+  );
+
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO SIGNATURE JOURNEYS  /  20 DOCUMENTED TOURS"
-        title="Private, tailor-made journeys across Sri Lanka."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              SECTION 09 · SIGNATURE JOURNEYS &amp; ONLINE BOOKING
+              {pageContent.introSection.eyebrow}
             </div>
             <h2 className="serif">
-              Twenty curated routes{' '}
-              <em style={{ color: 'var(--terracotta)' }}>built around you.</em>
+              {pageContent.introSection.headingPrefix}{' '}
+              <em style={{ color: 'var(--terracotta)' }}>
+                {pageContent.introSection.headingItalic}
+              </em>
             </h2>
           </div>
-          <p>
-            Every sample itinerary below can be adapted to your travel dates,
-            preferred pace, and accommodation style (four-star hotels, boutique
-            properties, or five-star luxury resorts). Select any journey to
-            inspect its route or check availability via Bókun and Viator.
-          </p>
+          <p>{pageContent.introSection.description}</p>
         </div>
 
         {/* Required Qualification Notice from Company Profile Section 09 */}
@@ -79,7 +101,8 @@ export default function PackagesPage() {
             color: 'var(--ink)',
           }}
         >
-          <strong>Important Note:</strong> {TOUR_QUALIFICATION_NOTICE}
+          <strong>{pageContent.introSection.qualificationLabel}</strong>{' '}
+          {pageContent.introSection.qualificationNotice}
         </div>
 
         {/* Filter Pills */}
@@ -100,7 +123,8 @@ export default function PackagesPage() {
         <div className="tour-detail-booking-layout">
           <div className="packages-grid">
             {filtered.map((tour, i) => {
-              const isSelected = activeBookingTour.id === tour.id;
+              const isSelected = resolvedBookingTour?.id === tour.id;
+              const cmsTour = tour as CmsTourItem;
               return (
                 <article
                   key={tour.id}
@@ -110,8 +134,9 @@ export default function PackagesPage() {
                 >
                   <div className="package-img-wrap">
                     <CmsImage
-                      src={tour.image}
-                      alt={tour.name}
+                      imageRef={cmsTour.imageRef}
+                      src={cmsTour.imageRef?.url || tour.image}
+                      alt={cmsTour.imageRef?.alt || tour.name}
                       fill
                       priority={i < 2}
                       sizes="(max-width: 768px) 100vw, 33vw"
@@ -135,7 +160,10 @@ export default function PackagesPage() {
                     </span>
                     <h3 className="serif">{tour.name}</h3>
                     <p className="package-route">
-                      <strong>Route:</strong> {tour.route}
+                      <strong>Route:</strong>{' '}
+                      {Array.isArray(tour.route)
+                        ? tour.route.join(' → ')
+                        : tour.route}
                     </p>
                     <p className="package-desc">{tour.description}</p>
                     <p
@@ -145,7 +173,10 @@ export default function PackagesPage() {
                         margin: '0 0 16px',
                       }}
                     >
-                      <strong>Highlights:</strong> {tour.highlights}
+                      <strong>Highlights:</strong>{' '}
+                      {Array.isArray(tour.highlights)
+                        ? tour.highlights.join(', ')
+                        : tour.highlights}
                     </p>
                     <div
                       className="package-footer"
@@ -161,7 +192,7 @@ export default function PackagesPage() {
                           setSelectedTour(tour);
                         }}
                       >
-                        ROUTE DETAILS
+                        {pageContent.introSection.routeDetailsButtonLabel}
                       </button>
                       <button
                         type="button"
@@ -173,7 +204,7 @@ export default function PackagesPage() {
                           setSelectedTour(tour);
                         }}
                       >
-                        BOOK / ENQUIRE ↗
+                        {pageContent.introSection.bookButtonLabel}
                       </button>
                     </div>
                   </div>
@@ -183,21 +214,23 @@ export default function PackagesPage() {
           </div>
 
           {/* Sticky Booking Panel on Desktop */}
-          <aside
-            className="sticky-booking-sidebar"
-            aria-label="Tour Booking & Availability Panel"
-          >
-            <BookingPanel
-              key={activeBookingTour.id}
-              itemId={activeBookingTour.id}
-              itemName={`${activeBookingTour.name} (${
-                activeBookingTour.durationLabel ||
-                `${activeBookingTour.days} Days`
-              })`}
-              itemType="tour"
-              compact
-            />
-          </aside>
+          {resolvedBookingTour && (
+            <aside
+              className="sticky-booking-sidebar"
+              aria-label="Tour Booking & Availability Panel"
+            >
+              <BookingPanel
+                key={resolvedBookingTour.id}
+                itemId={resolvedBookingTour.id}
+                itemName={`${resolvedBookingTour.name} (${
+                  resolvedBookingTour.durationLabel ||
+                  `${resolvedBookingTour.days} Days`
+                })`}
+                itemType="tour"
+                compact
+              />
+            </aside>
+          )}
         </div>
 
         {/* Section 10: Colombo & Battaramulla Day Experiences */}
@@ -205,20 +238,16 @@ export default function PackagesPage() {
           <div className="section-head">
             <div>
               <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-                SECTION 10 · COLOMBO &amp; BATTARAMULLA DAY EXPERIENCES
+                {pageContent.colomboSection.eyebrow}
               </div>
               <h2 className="serif">
-                Half-day &amp; full-day{' '}
+                {pageContent.colomboSection.headingPrefix}{' '}
                 <em style={{ color: 'var(--terracotta)' }}>
-                  experiences from our home base.
+                  {pageContent.colomboSection.headingItalic}
                 </em>
               </h2>
             </div>
-            <p>
-              Operated directly from our base in Thalangama South,
-              Battaramulla—ideal at the beginning or end of your Sri Lanka
-              journey, or for visitors staying in Colombo.
-            </p>
+            <p>{pageContent.colomboSection.description}</p>
           </div>
 
           <div
@@ -228,76 +257,104 @@ export default function PackagesPage() {
               marginTop: '24px',
             }}
           >
-            {COLOMBO_DAY_EXPERIENCES.map((exp, idx) => (
-              <div
-                key={exp.id}
-                className="value"
-                style={{
-                  borderTopColor: '#c8dbe2',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <div>
-                  <span
-                    className="number"
-                    style={{ color: 'var(--terracotta)', fontWeight: 700 }}
-                  >
-                    0{idx + 1} · {exp.duration.toUpperCase()} · {exp.location}
-                  </span>
-                  <h3
-                    className="serif"
-                    style={{
-                      color: 'var(--ink)',
-                      fontSize: '25px',
-                      margin: '10px 0 8px',
-                    }}
-                  >
-                    {exp.name}
-                  </h3>
-                  <p
-                    style={{
-                      color: '#557180',
-                      lineHeight: 1.75,
-                      marginBottom: '12px',
-                    }}
-                  >
-                    {exp.description}
-                  </p>
-                  <p
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--muted)',
-                      marginBottom: '16px',
-                    }}
-                  >
-                    <strong>Highlights:</strong> {exp.highlights}
-                  </p>
+            {colomboExperiences.map((exp, idx) => {
+              const cmsExp = exp as CmsColomboExperienceItem;
+              const expImgUrl = (cmsExp.imageRef?.url || exp.image || '').trim();
+              return (
+                <div
+                  key={exp.id}
+                  className="value"
+                  style={{
+                    borderTopColor: '#c8dbe2',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    {expImgUrl && (
+                      <div
+                        style={{
+                          position: 'relative',
+                          width: '100%',
+                          height: '180px',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                          marginBottom: '14px',
+                        }}
+                      >
+                        <CmsImage
+                          imageRef={cmsExp.imageRef}
+                          src={expImgUrl}
+                          alt={cmsExp.imageRef?.alt || exp.name}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+                    <span
+                      className="number"
+                      style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                    >
+                      0{idx + 1} · {exp.duration.toUpperCase()} · {exp.location}
+                    </span>
+                    <h3
+                      className="serif"
+                      style={{
+                        color: 'var(--ink)',
+                        fontSize: '25px',
+                        margin: '10px 0 8px',
+                      }}
+                    >
+                      {exp.name}
+                    </h3>
+                    <p
+                      style={{
+                        color: '#557180',
+                        lineHeight: 1.75,
+                        marginBottom: '12px',
+                      }}
+                    >
+                      {exp.description}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: '12px',
+                        color: 'var(--muted)',
+                        marginBottom: '16px',
+                      }}
+                    >
+                      <strong>Highlights:</strong>{' '}
+                      {Array.isArray(exp.highlights)
+                        ? exp.highlights.join(', ')
+                        : exp.highlights}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="pill dark"
+                      style={{ padding: '9px 14px', fontSize: '10.5px' }}
+                      onClick={() => setActiveDayExpBooking(exp)}
+                    >
+                      {pageContent.colomboSection.bookButtonLabel}
+                    </button>
+                    <a
+                      className="pill"
+                      style={{ padding: '9px 14px', fontSize: '10.5px' }}
+                      href={`https://wa.me/${waNumber}?text=${encodeURIComponent(
+                        `Hello Bimondo Travels, I would like to enquire about the ${exp.name} (${exp.duration}).`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {pageContent.colomboSection.whatsappButtonLabel}
+                    </a>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="pill dark"
-                    style={{ padding: '9px 14px', fontSize: '10.5px' }}
-                    onClick={() => setActiveDayExpBooking(exp)}
-                  >
-                    BOOK DAY EXPERIENCE ↗
-                  </button>
-                  <a
-                    className="pill"
-                    style={{ padding: '9px 14px', fontSize: '10.5px' }}
-                    href={`https://wa.me/94762232054?text=${encodeURIComponent(
-                      `Hello Bimondo Travels, I would like to enquire about the ${exp.name} (${exp.duration}).`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    WHATSAPP ENQUIRY
-                  </a>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -305,53 +362,60 @@ export default function PackagesPage() {
         <div className="dest-custom-cta-box" style={{ marginTop: '56px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              TAILOR-MADE ITINERARIES &amp; ACCOMMODATION
+              {pageContent.customCtaBox.eyebrow}
             </span>
             <h3
               className="serif"
               style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}
             >
-              Prefer a custom route built around your dates?
+              {pageContent.customCtaBox.heading}
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '540px', lineHeight: 1.8 }}>
-              Share your travel dates, group size, and preferred accommodation
-              tier (four-star hotels, boutique properties, or five-star luxury
-              resorts), and our Battaramulla team will design a day-by-day
-              itinerary for you.
+              {pageContent.customCtaBox.description}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <Link href="/stays" prefetch={false} className="pill light">
-              ACCOMMODATION OPTIONS ↗
+            <Link
+              href={pageContent.customCtaBox.primaryCtaHref || '/stays'}
+              prefetch={false}
+              className="pill light"
+            >
+              {pageContent.customCtaBox.primaryCtaLabel}
             </Link>
-            <Link href="/contact" prefetch={false} className="pill dark">
-              REQUEST CUSTOM ITINERARY ↗
+            <Link
+              href={pageContent.customCtaBox.secondaryCtaHref || '/contact'}
+              prefetch={false}
+              className="pill dark"
+            >
+              {pageContent.customCtaBox.secondaryCtaLabel}
             </Link>
           </div>
         </div>
       </section>
 
       {/* Mobile Sticky Booking Bar */}
-      <div className="mobile-sticky-booking-bar">
-        <div>
-          <small>
-            {activeBookingTour.durationLabel
-              ? activeBookingTour.durationLabel.toUpperCase()
-              : `${activeBookingTour.days} DAYS · PRIVATE JOURNEY`}
-          </small>
-          <strong>{activeBookingTour.name}</strong>
+      {resolvedBookingTour && (
+        <div className="mobile-sticky-booking-bar">
+          <div>
+            <small>
+              {resolvedBookingTour.durationLabel
+                ? resolvedBookingTour.durationLabel.toUpperCase()
+                : `${resolvedBookingTour.days} DAYS · PRIVATE JOURNEY`}
+            </small>
+            <strong>{resolvedBookingTour.name}</strong>
+          </div>
+          <button
+            type="button"
+            className="pill dark"
+            onClick={() => {
+              setModalTab('booking');
+              setSelectedTour(resolvedBookingTour);
+            }}
+          >
+            BOOK NOW ↗
+          </button>
         </div>
-        <button
-          type="button"
-          className="pill dark"
-          onClick={() => {
-            setModalTab('booking');
-            setSelectedTour(activeBookingTour);
-          }}
-        >
-          BOOK NOW ↗
-        </button>
-      </div>
+      )}
 
       {/* Tour Detail & Booking Modal */}
       <TourModal

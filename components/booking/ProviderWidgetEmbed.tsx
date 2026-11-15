@@ -92,11 +92,8 @@ export default function ProviderWidgetEmbed({
           is configured.
         </p>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <Link href="/admin/booking" prefetch={false} className="pill dark">
-            CONFIGURE IN ADMIN SETTINGS ↗
-          </Link>
-          <Link href="/contact" prefetch={false} className="pill">
-            ENQUIRE DIRECTLY WITH CONCIERGE
+          <Link href="/contact" prefetch={false} className="pill dark">
+            ENQUIRE DIRECTLY WITH CONCIERGE ↗
           </Link>
         </div>
       </div>

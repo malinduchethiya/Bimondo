@@ -5,19 +5,20 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import CmsImage from '@/components/CmsImage';
 import { useSiteCms } from '@/hooks/useSiteCms';
-import { DEFAULT_GALLERY, CmsGalleryPhoto } from '@/lib/cms-defaults';
+import { CmsGalleryPhoto } from '@/lib/cms-defaults';
 
 export default function GalleryPage() {
   const { cms } = useSiteCms();
+  const pageContent = cms.pages.galleryPage;
+
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<CmsGalleryPhoto | null>(
     null
   );
 
-  const photos: CmsGalleryPhoto[] =
-    cms.gallery && cms.gallery.length > 0
-      ? cms.gallery.filter((p) => Boolean(p.image))
-      : DEFAULT_GALLERY;
+  const photos: CmsGalleryPhoto[] = (cms.gallery || [])
+    .filter((p) => p.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const categories = [
     { id: 'all', label: 'All Regions' },
@@ -35,28 +36,24 @@ export default function GalleryPage() {
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO GALLERY  /  SRI LANKA"
-        title="Landscapes, heritage, wildlife and coasts across Sri Lanka."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              VISUAL JOURNEY ACROSS THE ISLAND
+              {pageContent.introSection.eyebrow}
             </div>
             <h2 className="serif">
-              Not a place you visit,{' '}
+              {pageContent.introSection.headingPrefix}{' '}
               <em style={{ color: 'var(--terracotta)' }}>
-                but a feeling you carry home.
+                {pageContent.introSection.headingItalic}
               </em>
             </h2>
           </div>
-          <p>
-            From the ancient capitals of Sigiriya, Anuradhapura, Polonnaruwa,
-            and Kandy to The Pekoe Trail in the tea hills, national park
-            safaris, and seasonal coastal escapes.
-          </p>
+          <p>{pageContent.introSection.description}</p>
         </div>
 
         {/* Filter Pills */}
@@ -82,8 +79,9 @@ export default function GalleryPage() {
               onClick={() => setSelectedPhoto(photo)}
             >
               <CmsImage
-                src={photo.image}
-                alt={photo.title}
+                imageRef={photo.imageRef}
+                src={photo.imageRef?.url || photo.image}
+                alt={photo.imageRef?.alt || photo.title}
                 fill
                 priority={i < 2}
                 sizes="(max-width: 768px) 100vw, 33vw"
@@ -93,7 +91,11 @@ export default function GalleryPage() {
                 <span className="gallery-loc">{photo.location}</span>
                 <h3 className="serif gallery-title">{photo.title}</h3>
                 <span
-                  style={{ fontSize: '11px', color: '#e5f8fc', marginTop: '4px' }}
+                  style={{
+                    fontSize: '11px',
+                    color: '#e5f8fc',
+                    marginTop: '4px',
+                  }}
                 >
                   Click to view full photo ↗
                 </span>
@@ -106,22 +108,24 @@ export default function GalleryPage() {
         <div className="dest-custom-cta-box" style={{ marginTop: '55px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              PRIVATE JOURNEYS ACROSS SRI LANKA
+              {pageContent.customCtaBox.eyebrow}
             </span>
             <h3
               className="serif"
               style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}
             >
-              Experience Sri Lanka at your own pace
+              {pageContent.customCtaBox.heading}
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '520px', lineHeight: 1.8 }}>
-              Let our team in Thalangama South, Battaramulla design a private,
-              tailor-made route through these regions with your own driver and
-              licensed guide.
+              {pageContent.customCtaBox.description}
             </p>
           </div>
-          <Link href="/contact" prefetch={false} className="pill light">
-            START YOUR JOURNEY ↗
+          <Link
+            href={pageContent.customCtaBox.ctaHref || '/contact'}
+            prefetch={false}
+            className="pill light"
+          >
+            {pageContent.customCtaBox.ctaLabel}
           </Link>
         </div>
       </section>
@@ -147,8 +151,9 @@ export default function GalleryPage() {
               }}
             >
               <CmsImage
-                src={selectedPhoto.image}
-                alt={selectedPhoto.title}
+                imageRef={selectedPhoto.imageRef}
+                src={selectedPhoto.imageRef?.url || selectedPhoto.image}
+                alt={selectedPhoto.imageRef?.alt || selectedPhoto.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 850px"
                 className="object-cover"

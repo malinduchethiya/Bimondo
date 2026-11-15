@@ -6,21 +6,34 @@ import PageBanner from '@/components/PageBanner';
 import CmsImage from '@/components/CmsImage';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { useSiteCms } from '@/hooks/useSiteCms';
-import { DEFAULT_DESTINATIONS, CmsDestination } from '@/lib/cms-defaults';
-import { COLOMBO_DAY_EXPERIENCES, ColomboDayExperience } from '@/lib/tours';
+import {
+  CmsDestination,
+  CmsColomboExperienceItem,
+} from '@/lib/cms-defaults';
+import { ColomboDayExperience } from '@/lib/tours';
 
 export default function DestinationsPage() {
   const { cms } = useSiteCms();
+  const pageContent = cms.pages.destinationsPage;
+
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [activeDestBooking, setActiveDestBooking] =
     useState<CmsDestination | null>(null);
   const [activeDayBooking, setActiveDayBooking] =
     useState<ColomboDayExperience | null>(null);
 
-  const destinations: CmsDestination[] =
-    cms.destinations && cms.destinations.length > 0
-      ? cms.destinations
-      : DEFAULT_DESTINATIONS;
+  const destinations: CmsDestination[] = (cms.destinations || [])
+    .filter((d) => d.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const colomboExperiences: (CmsColomboExperienceItem | ColomboDayExperience)[] =
+    (cms.colomboExperiences || [])
+      .filter((exp) => (exp as CmsColomboExperienceItem).visible !== false)
+      .sort(
+        (a, b) =>
+          ((a as CmsColomboExperienceItem).order ?? 0) -
+          ((b as CmsColomboExperienceItem).order ?? 0)
+      );
 
   const filtered =
     selectedRegion === 'all'
@@ -39,28 +52,26 @@ export default function DestinationsPage() {
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO DESTINATIONS  /  SRI LANKA"
-        title="From ancient kingdoms and tea hills to wild parks and coasts."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              DESTINATIONS BY REGION
+              {pageContent.regionalSection.eyebrow}
             </div>
             <h2 className="serif">
-              Five regions across
+              {pageContent.regionalSection.headingLine1}
               <br />
-              our <em style={{ color: 'var(--terracotta)' }}>island home.</em>
+              {pageContent.regionalSection.headingLine2Prefix}{' '}
+              <em style={{ color: 'var(--terracotta)' }}>
+                {pageContent.regionalSection.headingItalic}
+              </em>
             </h2>
           </div>
-          <p>
-            Every itinerary connects Sri Lanka&apos;s Cultural Triangle, Hill
-            Country, National Parks, Southern and Eastern Coasts, and our
-            Colombo &amp; Battaramulla home base with private transport and
-            licensed local guides.
-          </p>
+          <p>{pageContent.regionalSection.description}</p>
         </div>
 
         {/* Region Filter Tabs */}
@@ -83,8 +94,9 @@ export default function DestinationsPage() {
             <article key={dest.id} className="destination-detail-card">
               <div className="dest-img-wrap">
                 <CmsImage
-                  src={dest.image}
-                  alt={dest.name}
+                  imageRef={dest.imageRef}
+                  src={dest.imageRef?.url || dest.image}
+                  alt={dest.imageRef?.alt || dest.name}
                   fill
                   priority={i < 2}
                   sizes="(max-width: 768px) 100vw, 50vw"
@@ -103,9 +115,11 @@ export default function DestinationsPage() {
                 <p className="dest-tagline">{dest.tagline}</p>
                 <p className="dest-desc">{dest.description}</p>
                 <div className="dest-highlights">
-                  <strong>Documented places &amp; experiences:</strong>
+                  <strong>
+                    {pageContent.regionalSection.highlightsHeading}
+                  </strong>
                   <ul>
-                    {dest.highlights.map((h, idx) => (
+                    {(dest.highlights || []).map((h, idx) => (
                       <li key={idx}>✳ {h}</li>
                     ))}
                   </ul>
@@ -115,12 +129,14 @@ export default function DestinationsPage() {
                   style={{ gap: '8px', flexWrap: 'wrap' }}
                 >
                   <Link
-                    href="/packages"
+                    href={
+                      pageContent.regionalSection.toursButtonHref || '/packages'
+                    }
                     prefetch={false}
                     className="pill"
                     style={{ padding: '9px 14px', fontSize: '10.5px' }}
                   >
-                    TOURS IN REGION
+                    {pageContent.regionalSection.toursButtonLabel}
                   </Link>
                   <button
                     type="button"
@@ -128,7 +144,7 @@ export default function DestinationsPage() {
                     style={{ padding: '9px 16px', fontSize: '10.5px' }}
                     onClick={() => setActiveDestBooking(dest)}
                   >
-                    BOOK / ENQUIRE ↗
+                    {pageContent.regionalSection.bookButtonLabel}
                   </button>
                 </div>
               </div>
@@ -141,20 +157,16 @@ export default function DestinationsPage() {
           <div className="section-head">
             <div>
               <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-                SECTION 10 · COLOMBO &amp; BATTARAMULLA DAY EXPERIENCES
+                {pageContent.colomboSection.eyebrow}
               </div>
               <h2 className="serif">
-                Six short experiences from{' '}
+                {pageContent.colomboSection.headingPrefix}{' '}
                 <em style={{ color: 'var(--terracotta)' }}>
-                  our Battaramulla base.
+                  {pageContent.colomboSection.headingItalic}
                 </em>
               </h2>
             </div>
-            <p>
-              Because our office is located at No. 596/1, Thalangama South,
-              Battaramulla, we offer half-day and full-day experiences around
-              Colombo, Kotte, Kelaniya, Thalangama Wetland, and Negombo Lagoon.
-            </p>
+            <p>{pageContent.colomboSection.description}</p>
           </div>
 
           <div
@@ -164,7 +176,10 @@ export default function DestinationsPage() {
               marginTop: '24px',
             }}
           >
-            {COLOMBO_DAY_EXPERIENCES.map((exp, idx) => (
+            {colomboExperiences.map((exp, idx) => {
+              const cmsExp = exp as CmsColomboExperienceItem;
+              const expImgUrl = (cmsExp.imageRef?.url || exp.image || '').trim();
+              return (
               <div
                 key={exp.id}
                 className="value"
@@ -176,6 +191,27 @@ export default function DestinationsPage() {
                 }}
               >
                 <div>
+                  {expImgUrl && (
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '180px',
+                        borderRadius: '10px',
+                        overflow: 'hidden',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      <CmsImage
+                        imageRef={cmsExp.imageRef}
+                        src={expImgUrl}
+                        alt={cmsExp.imageRef?.alt || exp.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover"
+                      />
+                    </div>
+                  )}
                   <span
                     className="number"
                     style={{ color: 'var(--terracotta)', fontWeight: 700 }}
@@ -208,7 +244,10 @@ export default function DestinationsPage() {
                       marginBottom: '16px',
                     }}
                   >
-                    <strong>Highlights:</strong> {exp.highlights}
+                    <strong>Highlights:</strong>{' '}
+                    {Array.isArray(exp.highlights)
+                      ? exp.highlights.join(', ')
+                      : exp.highlights}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -218,19 +257,22 @@ export default function DestinationsPage() {
                     style={{ padding: '9px 14px', fontSize: '10.5px' }}
                     onClick={() => setActiveDayBooking(exp)}
                   >
-                    BOOK EXPERIENCE ↗
+                    {pageContent.colomboSection.bookButtonLabel}
                   </button>
                   <Link
-                    href="/contact"
+                    href={
+                      pageContent.colomboSection.enquireButtonHref || '/contact'
+                    }
                     prefetch={false}
                     className="pill"
                     style={{ padding: '9px 14px', fontSize: '10.5px' }}
                   >
-                    ENQUIRE
+                    {pageContent.colomboSection.enquireButtonLabel}
                   </Link>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -238,26 +280,32 @@ export default function DestinationsPage() {
         <div className="dest-custom-cta-box" style={{ marginTop: '56px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              CUSTOM ROUTING &amp; ACCOMMODATION
+              {pageContent.customCtaBox.eyebrow}
             </span>
             <h3
               className="serif"
               style={{ fontSize: '36px', margin: '10px 0', color: '#fff' }}
             >
-              Want to combine culture, tea hills, wildlife &amp; the sea?
+              {pageContent.customCtaBox.heading}
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '520px', lineHeight: 1.8 }}>
-              Our team in Battaramulla designs private day-by-day itineraries
-              matched to the season, your preferred travel pace, and four-star,
-              boutique, or five-star accommodation.
+              {pageContent.customCtaBox.description}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <Link href="/packages" prefetch={false} className="pill light">
-              VIEW 20 SIGNATURE TOURS ↗
+            <Link
+              href={pageContent.customCtaBox.primaryCtaHref || '/packages'}
+              prefetch={false}
+              className="pill light"
+            >
+              {pageContent.customCtaBox.primaryCtaLabel}
             </Link>
-            <Link href="/contact" prefetch={false} className="pill dark">
-              DESIGN MY ROUTE ↗
+            <Link
+              href={pageContent.customCtaBox.secondaryCtaHref || '/contact'}
+              prefetch={false}
+              className="pill dark"
+            >
+              {pageContent.customCtaBox.secondaryCtaLabel}
             </Link>
           </div>
         </div>

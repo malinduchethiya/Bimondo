@@ -1,284 +1,165 @@
 {
   "entities": {
-    "AdminProfile": {
-      "title": "AdminProfile",
-      "description": "Trusted administrator record for RBAC verification.",
+    "CmsSectionDocument": {
+      "title": "CMS Section Document",
+      "description": "Modular website content section document stored in /cms_sections/{docId}, containing structured section fields, repeatable items, soft-deletion state, and revision metadata.",
       "type": "object",
       "properties": {
-        "uid": {
+        "docId": {
           "type": "string",
-          "description": "Firebase Auth UID of the administrator.",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Stable section document identifier matching the Firestore document ID."
         },
-        "email": {
+        "pageId": {
           "type": "string",
-          "format": "email",
-          "description": "Verified administrator email address.",
-          "minLength": 3,
-          "maxLength": 254
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Logical page group identifier (e.g., shared, home, destinations, packages, stays, gallery, our-story, contact, booking)."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Human-readable section title for the admin editor."
+        },
+        "revision": {
+          "type": "integer",
+          "description": "Monotonically increasing revision number used for optimistic concurrency control."
+        },
+        "deleted": {
+          "type": "boolean",
+          "description": "Whether the entire section document is soft-deleted."
+        },
+        "deletedAt": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "ISO-8601 timestamp if soft-deleted, or null."
+        },
+        "deletedBy": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "Firebase Auth UID of the administrator who soft-deleted the section, or null."
         },
         "createdAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Server timestamp when admin was registered."
-        }
-      },
-      "required": ["uid", "email", "createdAt"]
-    },
-    "SiteCmsConfig": {
-      "title": "SiteCmsConfig",
-      "description": "Site-wide CMS metadata and Cloudflare R2 CDN links, including Hero section 4-second slideshow images.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Singleton document ID (main).",
-          "minLength": 1,
-          "maxLength": 64,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "updatedBy": {
-          "type": "string",
-          "description": "UID or admin identifier that updated the CMS document.",
-          "minLength": 1,
-          "maxLength": 128
+          "description": "Server-generated creation timestamp."
         },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Server timestamp of last CMS update."
+          "description": "Server-generated last-update timestamp."
         },
-        "general": {
-          "type": "object",
-          "description": "Brand, contact, Tripadvisor badge, and Hero slideshow settings map."
-        },
-        "tours": {
-          "type": "array",
-          "description": "List of private tour packages (up to 50 items) referencing R2 CDN image URLs."
-        },
-        "stays": {
-          "type": "array",
-          "description": "List of boutique stays (up to 50 items) referencing R2 CDN image URLs."
-        },
-        "destinations": {
-          "type": "array",
-          "description": "List of regional destinations (up to 50 items) referencing R2 CDN image URLs."
-        },
-        "gallery": {
-          "type": "array",
-          "description": "List of gallery photo metadata (up to 100 items) referencing R2 CDN image URLs."
-        },
-        "reviews": {
-          "type": "array",
-          "description": "List of guest reviews / Tourist Thoughts (up to 100 items)."
-        },
-        "faqs": {
-          "type": "array",
-          "description": "List of planning FAQs (up to 100 items)."
-        }
-      },
-      "required": [
-        "id",
-        "updatedBy",
-        "updatedAt",
-        "general",
-        "tours",
-        "stays",
-        "destinations",
-        "gallery",
-        "reviews",
-        "faqs"
-      ]
-    },
-    "CmsCollectionRecord": {
-      "title": "CmsCollectionRecord",
-      "description": "Individual collection document for tours, stays, destinations, gallery, reviews, or faqs synced with Firestore.",
-      "type": "object",
-      "properties": {
-        "id": {
+        "updatedBy": {
           "type": "string",
-          "description": "Document ID.",
-          "minLength": 1,
           "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "updatedBy": {
-          "type": "string",
-          "description": "Admin UID or CMS sync identifier.",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp of last update."
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the administrator who performed the write."
         },
         "payload": {
           "type": "object",
-          "description": "Structured entity fields for the item."
-        }
-      },
-      "required": ["id", "updatedBy", "updatedAt", "payload"]
-    },
-    "R2MediaItem": {
-      "title": "R2MediaItem",
-      "description": "Metadata index of an image object stored in the Cloudflare R2 bucket, linking the R2 object key and R2 public CDN URL to Firebase.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Document ID matching sanitized R2 object identifier.",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "objectKey": {
-          "type": "string",
-          "description": "Object key inside the Cloudflare R2 bucket.",
-          "minLength": 1,
-          "maxLength": 300
-        },
-        "cdnUrl": {
-          "type": "string",
-          "description": "Public Cloudflare R2 CDN URL (https://...) — never data:image base64.",
-          "minLength": 8,
-          "maxLength": 500,
-          "pattern": "^https?://[^\\s]+$"
-        },
-        "folder": {
-          "type": "string",
-          "description": "Logical R2 folder category (tours, stays, destinations, gallery, general).",
-          "enum": ["tours", "stays", "destinations", "gallery", "general"],
-          "maxLength": 32
-        },
-        "fileName": {
-          "type": "string",
-          "description": "Original file name uploaded from device storage.",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "contentType": {
-          "type": "string",
-          "description": "MIME type of the image object in R2.",
-          "minLength": 3,
-          "maxLength": 100
-        },
-        "sizeBytes": {
-          "type": "number",
-          "description": "Size of the object in Cloudflare R2 in bytes."
-        },
-        "uploadedBy": {
-          "type": "string",
-          "description": "Admin UID or CMS identifier who uploaded the R2 object.",
-          "minLength": 1,
-          "maxLength": 128
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp of initial R2 upload."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp of latest R2 update."
+          "description": "Native Firestore Map containing structured section copy, subsections, and repeatable items with { url, key, alt } image references."
         }
       },
       "required": [
-        "id",
-        "objectKey",
-        "cdnUrl",
-        "folder",
-        "fileName",
-        "contentType",
-        "sizeBytes",
-        "uploadedBy",
+        "docId",
+        "pageId",
+        "title",
+        "revision",
+        "deleted",
         "createdAt",
-        "updatedAt"
+        "updatedAt",
+        "updatedBy",
+        "payload"
       ]
     },
     "CustomerEnquiry": {
-      "title": "CustomerEnquiry",
-      "description": "Private customer trip enquiry containing traveller PII, isolated to admin access.",
+      "title": "Customer Enquiry",
+      "description": "Private customer booking or contact enquiry submitted from the website. Never publicly readable.",
       "type": "object",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Enquiry document ID.",
-          "minLength": 1,
           "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique enquiry identifier matching the document ID."
         },
         "name": {
           "type": "string",
-          "description": "Traveller full name.",
-          "minLength": 1,
-          "maxLength": 120
+          "maxLength": 120,
+          "description": "Customer full name."
         },
         "email": {
           "type": "string",
           "format": "email",
-          "description": "Traveller email address.",
-          "minLength": 3,
-          "maxLength": 254
+          "maxLength": 254,
+          "description": "Customer email address."
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Customer telephone or WhatsApp number."
+        },
+        "bookingMethod": {
+          "type": "string",
+          "enum": ["direct_admin", "whatsapp", "email", "callback", "manual"],
+          "maxLength": 32,
+          "description": "Preferred booking or contact channel."
+        },
+        "selectedPackage": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Selected tour package or custom journey label."
         },
         "arrival": {
           "type": "string",
-          "description": "Preferred arrival date.",
-          "minLength": 1,
-          "maxLength": 64
+          "maxLength": 64,
+          "description": "Preferred arrival date or window."
         },
         "guests": {
           "type": "string",
-          "description": "Party size description.",
-          "minLength": 1,
-          "maxLength": 64
+          "maxLength": 64,
+          "description": "Number of guests."
         },
         "duration": {
           "type": "string",
-          "description": "Trip length description.",
-          "minLength": 1,
-          "maxLength": 64
+          "maxLength": 64,
+          "description": "Preferred trip duration."
         },
         "style": {
           "type": "string",
-          "description": "Trip interest style.",
-          "minLength": 1,
-          "maxLength": 100
+          "maxLength": 120,
+          "description": "Preferred travel style summary."
         },
         "message": {
           "type": "string",
-          "description": "Traveller notes.",
-          "maxLength": 2000
+          "maxLength": 2000,
+          "description": "Customer notes and special requests."
         },
         "status": {
           "type": "string",
-          "description": "Concierge workflow status.",
           "enum": ["new", "in_progress", "replied", "archived"],
-          "maxLength": 32
+          "maxLength": 32,
+          "description": "Enquiry workflow status."
         },
         "adminNotes": {
           "type": "string",
-          "description": "Internal concierge notes.",
-          "maxLength": 2000
+          "maxLength": 2000,
+          "description": "Internal administrator notes."
         },
         "createdAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Server timestamp when enquiry was created."
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Server timestamp when enquiry was last updated."
+          "description": "Server-generated submission timestamp."
         }
       },
       "required": [
         "id",
         "name",
         "email",
+        "phone",
+        "bookingMethod",
+        "selectedPackage",
         "arrival",
         "guests",
         "duration",
@@ -286,51 +167,65 @@
         "message",
         "status",
         "adminNotes",
-        "createdAt",
-        "updatedAt"
+        "createdAt"
       ]
+    },
+    "MediaObjectRecord": {
+      "title": "R2 Media Object Lifecycle Record",
+      "description": "Tracks the lifecycle status of an R2 media object (active, deleting, deleted) to prevent concurrent content saves from assigning an image while it is being permanently deleted.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Deterministic encoded media document ID derived from objectKey."
+        },
+        "objectKey": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Exact Cloudflare R2 object key under an approved prefix."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "deleting", "deleted"],
+          "maxLength": 32,
+          "description": "Lifecycle status of the R2 object."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last lifecycle transition timestamp."
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the administrator who updated the lifecycle status."
+        }
+      },
+      "required": ["id", "objectKey", "status", "updatedAt", "updatedBy"]
     }
   },
   "firestore": {
-    "/admins/{adminUid}": {
-      "schema": { "$ref": "#/entities/AdminProfile" },
-      "description": "Administrator registry for RBAC checks."
+    "/cms_sections/{docId}": {
+      "schema": {
+        "$ref": "#/entities/CmsSectionDocument"
+      },
+      "description": "Publicly readable website content sections. Only authenticated administrators with request.auth.token.admin == true can create, update, or delete."
     },
-    "/site_cms/{docId}": {
-      "schema": { "$ref": "#/entities/SiteCmsConfig" },
-      "description": "Publicly readable site CMS configuration storing Cloudflare R2 CDN links and Hero slideshow images."
+    "/customer_enquiries/{enquiryId}": {
+      "schema": {
+        "$ref": "#/entities/CustomerEnquiry"
+      },
+      "description": "Private customer enquiries containing PII. Public visitors may create validated enquiries; only administrators with request.auth.token.admin == true may read, update, or delete."
     },
-    "/tours/{tourId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable tour package documents synced from CMS."
-    },
-    "/stays/{stayId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable boutique stay documents synced from CMS."
-    },
-    "/destinations/{destId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable destination region documents synced from CMS."
-    },
-    "/gallery/{photoId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable gallery photo documents synced from CMS."
-    },
-    "/reviews/{reviewId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable tourist thought review documents synced from CMS."
-    },
-    "/faqs/{faqId}": {
-      "schema": { "$ref": "#/entities/CmsCollectionRecord" },
-      "description": "Publicly readable planning FAQ documents synced from CMS."
-    },
-    "/r2_media/{mediaId}": {
-      "schema": { "$ref": "#/entities/R2MediaItem" },
-      "description": "Catalog of Cloudflare R2 bucket objects and their public CDN URLs accessed through Firebase."
-    },
-    "/enquiries/{enquiryId}": {
-      "schema": { "$ref": "#/entities/CustomerEnquiry" },
-      "description": "Customer trip enquiries containing PII, readable and manageable strictly by verified admins."
+    "/media_objects/{mediaId}": {
+      "schema": {
+        "$ref": "#/entities/MediaObjectRecord"
+      },
+      "description": "Administrator-only R2 media object lifecycle records used to coordinate safe permanent deletion and block concurrent content saves."
     }
   }
 }
+

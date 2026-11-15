@@ -4,7 +4,11 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
-import { StaggerSlideVariant } from '@/lib/cms-defaults';
+import {
+  CmsImageRef,
+  createImageRef,
+  StaggerSlideVariant,
+} from '@/lib/cms-defaults';
 import CmsImage from '@/components/CmsImage';
 
 interface StaggeredPlaceSlide {
@@ -12,6 +16,7 @@ interface StaggeredPlaceSlide {
   name: string;
   subtitle: string;
   image: string;
+  imageRef: CmsImageRef;
   variant: StaggerSlideVariant;
 }
 
@@ -26,85 +31,30 @@ const DEFAULT_VARIANTS: StaggerSlideVariant[] = [
   'compact-mid',
 ];
 
-const FALLBACK_PLACE_SLIDES: StaggeredPlaceSlide[] = [
-  {
-    id: 'sigiriya',
-    name: 'Sigiriya',
-    subtitle: 'Cultural Triangle',
-    image: '',
-    variant: 'tall-up',
-  },
-  {
-    id: 'ella-hills',
-    name: 'Ella & Pekoe Trail',
-    subtitle: 'Hill Country & Hiking',
-    image: '',
-    variant: 'low-down',
-  },
-  {
-    id: 'galle-coast',
-    name: 'Galle & Mirissa',
-    subtitle: 'Sea & Sand Escapes',
-    image: '',
-    variant: 'mid-up',
-  },
-  {
-    id: 'kandy-heritage',
-    name: 'Kandy',
-    subtitle: 'Sacred Hill Capital',
-    image: '',
-    variant: 'compact-mid',
-  },
-  {
-    id: 'yala-safari',
-    name: 'Yala & Udawalawe',
-    subtitle: 'Wildlife & Nature',
-    image: '',
-    variant: 'mid-up',
-  },
-  {
-    id: 'kitulgala-falls',
-    name: 'Kitulgala & Horton Plains',
-    subtitle: 'Waterfalls & Cloud Forests',
-    image: '',
-    variant: 'tall-deep',
-  },
-  {
-    id: 'minneriya',
-    name: 'Minneriya & Wilpattu',
-    subtitle: 'National Park Safaris',
-    image: '',
-    variant: 'low-down',
-  },
-  {
-    id: 'arugam-weligama',
-    name: 'Weligama & Arugam Bay',
-    subtitle: 'Surf & Coastal Lagoons',
-    image: '',
-    variant: 'compact-mid',
-  },
-];
-
 const AUTO_STEP_INTERVAL_MS = 2000;
 
 export default function PlacesSection() {
   const { cms } = useSiteCms();
+  const placesSection = cms.pages.home.places;
 
-  const slides: StaggeredPlaceSlide[] =
-    Array.isArray(cms.destinations) && cms.destinations.length > 0
-      ? cms.destinations.map((dest, idx) => ({
-          id: dest.id,
-          name: dest.name.split(',')[0].trim(),
-          subtitle: dest.regionLabel,
-          image: dest.image,
-          variant:
-            dest.staggerVariant ||
-            DEFAULT_VARIANTS[idx % DEFAULT_VARIANTS.length],
-        }))
-      : FALLBACK_PLACE_SLIDES;
+  const visibleDestinations = Array.isArray(cms.destinations)
+    ? [...cms.destinations]
+        .filter((d) => d.visible !== false)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
+
+  const slides: StaggeredPlaceSlide[] = visibleDestinations.map((dest, idx) => ({
+    id: dest.id,
+    name: dest.name.split(',')[0].trim(),
+    subtitle: dest.regionLabel,
+    image: dest.imageRef?.url || dest.image || '',
+    imageRef: dest.imageRef || createImageRef(dest.image, dest.name),
+    variant:
+      dest.staggerVariant || DEFAULT_VARIANTS[idx % DEFAULT_VARIANTS.length],
+  }));
 
   const totalSlides = slides.length;
-  const infiniteSlides = [...slides, ...slides];
+  const infiniteSlides = totalSlides > 0 ? [...slides, ...slides] : [];
 
   const sectionRef = useRef<HTMLElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -160,6 +110,7 @@ export default function PlacesSection() {
   }, []);
 
   useEffect(() => {
+    if (totalSlides === 0) return;
     const measure = () => {
       const track = trackRef.current;
       if (!track) return;
@@ -181,6 +132,7 @@ export default function PlacesSection() {
   }, [totalSlides]);
 
   useEffect(() => {
+    if (totalSlides === 0) return;
     const observer = new IntersectionObserver(
       (entries) => {
         isVisibleRef.current = Boolean(entries[0]?.isIntersecting);
@@ -211,7 +163,11 @@ export default function PlacesSection() {
         rafIdRef.current = null;
       }
     };
-  }, [startAnimationTick]);
+  }, [startAnimationTick, totalSlides]);
+
+  if (placesSection.visible === false || totalSlides === 0) {
+    return null;
+  }
 
   const handlePrev = () => {
     targetXRef.current -= stepWidthRef.current;
@@ -232,23 +188,25 @@ export default function PlacesSection() {
       <div className="section-head">
         <div>
           <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-            04 / REGIONS WE COVER ACROSS SRI LANKA
+            {placesSection.eyebrow}
           </div>
           <h2 className="serif">
-            From ancient capitals
+            {placesSection.headingLine1}
             <br />
-            <em style={{ color: 'var(--terracotta)' }}>to wild coasts.</em>
+            <em style={{ color: 'var(--terracotta)' }}>
+              {placesSection.headingItalic}
+            </em>
           </h2>
         </div>
         <div>
-          <p>
-            Including our Colombo &amp; Battaramulla home base—with half-day and
-            full-day experiences across Thalangama Wetland, Colombo, Kotte,
-            Kelaniya, and Negombo Lagoon.
-          </p>
+          <p>{placesSection.description}</p>
           <div style={{ marginTop: '12px' }}>
-            <Link className="pill" href="/destinations" prefetch={false}>
-              EXPLORE ALL DESTINATIONS &amp; DAY TRIPS ↗
+            <Link
+              className="pill"
+              href={placesSection.ctaHref || '/destinations'}
+              prefetch={false}
+            >
+              {placesSection.ctaLabel}
             </Link>
           </div>
         </div>
@@ -280,8 +238,9 @@ export default function PlacesSection() {
                 className={`place staggered-place-card variant-${slide.variant}`}
               >
                 <CmsImage
-                  alt={slide.name}
+                  imageRef={slide.imageRef}
                   src={slide.image}
+                  alt={slide.imageRef?.alt || slide.name}
                   fill
                   sizes="(max-width: 720px) 180px, 230px"
                   className="object-cover"

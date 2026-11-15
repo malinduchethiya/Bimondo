@@ -4,114 +4,50 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
-interface FAQItem {
-  id: string;
-  category: 'private' | 'stays' | 'booking';
-  q: string;
-  a: string;
-}
-
-const GUEST_JOURNEY_STEPS = [
-  {
-    num: '01',
-    title: 'Enquiry',
-    desc: 'Reach us via website, email, or WhatsApp.',
-  },
-  {
-    num: '02',
-    title: 'Consultation',
-    desc: 'Discuss your pace, stays, and interests.',
-  },
-  {
-    num: '03',
-    title: 'Itinerary Design',
-    desc: 'Custom day-by-day route & hotel curation.',
-  },
-  {
-    num: '04',
-    title: 'Confirmation',
-    desc: 'Clear quotation & confirmed reservations.',
-  },
-  {
-    num: '05',
-    title: 'Pre-Arrival',
-    desc: 'Packing notes, etiquette & guide details.',
-  },
-  {
-    num: '06',
-    title: 'Arrival & Journey',
-    desc: 'Airport greeting & 24-hour local support.',
-  },
-  {
-    num: '07',
-    title: 'Follow-Up',
-    desc: 'Departure transfer & post-trip care.',
-  },
-];
-
-const FAQ_CATEGORIES = [
-  { id: 'all', label: 'All FAQs' },
-  { id: 'private', label: 'Private Journeys' },
-  { id: 'stays', label: 'Stays & Guides' },
-  { id: 'booking', label: 'Seasons & Booking' },
-] as const;
-
-const FAQS: FAQItem[] = [
-  {
-    id: 'who-is-bimondo',
-    category: 'private',
-    q: 'Who is Bimondo Travels and where are you based?',
-    a: 'Bimondo Travels is a Sri Lankan travel company founded in 2022 by I.M. Bimsara Illangasinghe and based at No. 596/1, Thalangama South, Battaramulla, near Colombo. We plan private, tailor-made journeys across Sri Lanka.',
-  },
-  {
-    id: 'how-journey-works',
-    category: 'booking',
-    q: 'How does the 7-step guest journey work?',
-    a: '(01) Enquiry; (02) Personal consultation; (03) Custom day-by-day itinerary design; (04) Clear quotation & booking confirmation; (05) Pre-arrival briefing; (06) Airport greeting, private journey & 24-hour support; (07) Departure transfer & follow-up.',
-  },
-  {
-    id: 'accommodation-options',
-    category: 'stays',
-    q: 'What types of accommodation do you arrange?',
-    a: 'We arrange curated four-star hotels, characterful boutique properties, and five-star luxury resorts. Hotels and inclusions are confirmed individually at the time of enquiry.',
-  },
-  {
-    id: 'drivers-and-guides',
-    category: 'stays',
-    q: 'Who accompanies us during our journey?',
-    a: 'Private transport with professional drivers and licensed guides, specialist local guides for hiking, birdwatching, and adventure sports, plus 24-hour on-call support from Battaramulla.',
-  },
-  {
-    id: 'wildlife-and-nature',
-    category: 'private',
-    q: 'How do you handle wildlife safaris and adventure safety?',
-    a: 'We partner with safari operators in Yala, Udawalawe, Wilpattu, and Minneriya who respect park rules and animal welfare, and vetted adventure operators. Sightings and sea conditions depend on nature.',
-  },
-  {
-    id: 'best-seasons',
-    category: 'booking',
-    q: 'How do Sri Lanka’s two coastal seasons work?',
-    a: 'Weligama and the South/West Coast are best from November to April, while Arugam Bay and the East Coast are best from May to October.',
-  },
-];
-
 export default function PlanningSection() {
   const { cms } = useSiteCms();
-  const faqsList = cms.faqs && cms.faqs.length > 0 ? cms.faqs : FAQS;
+  const planningFaq = cms.pages.home.planningFaq;
+
+  const visibleFaqs = Array.isArray(cms.faqs)
+    ? [...cms.faqs]
+        .filter((f) => f.visible !== false)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
+
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [openId, setOpenId] = useState<string | null>(
-    faqsList[0]?.id || 'who-is-bimondo'
+    visibleFaqs[0]?.id || 'who-is-bimondo'
   );
+
+  if (planningFaq.visible === false) {
+    return null;
+  }
 
   const filteredFaqs = (
     activeCategory === 'all'
-      ? faqsList
-      : faqsList.filter((item) => item.category === activeCategory)
+      ? visibleFaqs
+      : visibleFaqs.filter((item) => item.category === activeCategory)
   ).slice(0, 6);
 
   const toggleFAQ = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   };
+
+  const faqCategories = [
+    { id: 'all', label: planningFaq.categoryLabels?.all ?? 'All FAQs' },
+    {
+      id: 'private',
+      label: planningFaq.categoryLabels?.private ?? 'Private Journeys',
+    },
+    {
+      id: 'stays',
+      label: planningFaq.categoryLabels?.stays ?? 'Stays & Guides',
+    },
+    {
+      id: 'booking',
+      label: planningFaq.categoryLabels?.booking ?? 'Seasons & Booking',
+    },
+  ];
 
   return (
     <section className="section planning-faq-wrapper" id="planning-faq">
@@ -119,24 +55,20 @@ export default function PlanningSection() {
         <div className="planning-top-split">
           <div className="planning-intro-col">
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              06 / HOW A BIMONDO JOURNEY WORKS
+              {planningFaq.eyebrow}
             </div>
             <h2 className="big-heading serif">
-              Seven clear steps.
+              {planningFaq.headingLine1}
               <br />
               <em style={{ color: 'var(--terracotta)' }}>
-                Personal from day one.
+                {planningFaq.headingItalic}
               </em>
             </h2>
-            <p className="planning-intro-lead">
-              From your first message to your departure flight, every itinerary
-              is designed around your pace with clear written arrangements and
-              24-hour local support.
-            </p>
+            <p className="planning-intro-lead">{planningFaq.lead}</p>
 
             <div className="planning-steps-compact-grid">
-              {GUEST_JOURNEY_STEPS.map((step) => (
-                <div key={step.num} className="planning-step-chip">
+              {(planningFaq.steps || []).map((step) => (
+                <div key={step.id || step.num} className="planning-step-chip">
                   <div className="planning-step-chip-head">
                     <span className="planning-step-num">{step.num}</span>
                     <strong className="planning-step-title">
@@ -148,11 +80,11 @@ export default function PlanningSection() {
               ))}
               <Link
                 className="planning-step-cta-card"
-                href="/contact"
+                href={planningFaq.stepCtaHref || '/contact'}
                 prefetch={false}
               >
-                <span>START YOUR JOURNEY</span>
-                <strong>Step 01 — Enquire ↗</strong>
+                <span>{planningFaq.stepCtaKicker}</span>
+                <strong>{planningFaq.stepCtaLabel}</strong>
               </Link>
             </div>
           </div>
@@ -169,7 +101,7 @@ export default function PlanningSection() {
                 marginBottom: '4px',
               }}
             >
-              COMMON QUESTIONS
+              {planningFaq.faqEyebrow}
             </span>
             <h3
               className="serif"
@@ -179,7 +111,7 @@ export default function PlanningSection() {
                 color: 'var(--ink)',
               }}
             >
-              Planning Your Private Journey
+              {planningFaq.faqHeading}
             </h3>
           </div>
 
@@ -188,7 +120,7 @@ export default function PlanningSection() {
             role="tablist"
             aria-label="FAQ Categories"
           >
-            {FAQ_CATEGORIES.map((cat) => {
+            {faqCategories.map((cat) => {
               const isActive = activeCategory === cat.id;
               return (
                 <button

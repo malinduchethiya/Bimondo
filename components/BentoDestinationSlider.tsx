@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { BENTO_DESTINATIONS, BentoDestination } from '@/lib/bento-destinations';
+import { CmsBentoSlideItem } from '@/lib/cms-defaults';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import CmsImage from '@/components/CmsImage';
 
@@ -25,16 +25,9 @@ const FOUR_SIDES_CONFIG: Record<SwipeSide, SideSwipeConfig> = {
   bottom: { x: 0, y: 48 },
 };
 
-const BENTO_TO_CMS_DEST_ID: Record<string, string> = {
-  sigiriya: 'sigiriya-cultural-triangle',
-  kandy: 'kandy-sacred-capital',
-  galle: 'galle-sea-and-sand',
-  ella: 'ella-hill-country',
-  yala: 'yala-wildlife-rainforest',
-};
-
 export default function BentoDestinationSlider() {
   const { cms } = useSiteCms();
+  const bentoSettings = cms.pages.home.bentoSlider;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -59,38 +52,16 @@ export default function BentoDestinationSlider() {
   const cuisineTileRef = useRef<HTMLDivElement>(null);
   const cuisineImgRef = useRef<HTMLDivElement>(null);
 
-  // Merge live Firestore CMS destinations, tours, stays, and gallery photos into the Bento slides
-  const bentoSlides: BentoDestination[] = useMemo(() => {
-    return BENTO_DESTINATIONS.map((base, idx) => {
-      const targetDestId = BENTO_TO_CMS_DEST_ID[base.id];
-      const cmsDest =
-        cms.destinations?.find((d) => d.id === targetDestId) ||
-        cms.destinations?.[idx];
-      const cmsTour = cms.tours?.find((t) => t.id === base.ctaTourId);
-      const cmsStay = cms.stays?.[idx % Math.max(1, cms.stays?.length || 1)];
-      const cmsGallery =
-        cms.gallery?.[idx % Math.max(1, cms.gallery?.length || 1)];
+  const bentoSlides: CmsBentoSlideItem[] = useMemo(() => {
+    const rawList = Array.isArray(cms.bentoDestinations)
+      ? cms.bentoDestinations.filter((b) => b.visible !== false)
+      : [];
 
-      return {
-        ...base,
-        name: cmsDest ? cmsDest.name.split(',')[0].trim() : base.name,
-        subtitle: cmsDest
-          ? `Sri Lanka · ${cmsDest.regionLabel}`
-          : base.subtitle,
-        description: cmsDest?.description || base.description,
-        exploreText:
-          cmsDest?.highlights && cmsDest.highlights.length > 0
-            ? cmsDest.highlights.join(' · ')
-            : base.exploreText,
-        heroImage: cmsDest?.image || cmsTour?.image || base.heroImage,
-        pathwayImage: cmsTour?.image || base.pathwayImage,
-        tallSceneImage: cmsStay?.image || base.tallSceneImage,
-        natureImage: cmsGallery?.image || base.natureImage,
-      };
-    });
-  }, [cms.destinations, cms.tours, cms.stays, cms.gallery]);
+    return [...rawList].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [cms.bentoDestinations]);
 
-  const safeIndex = currentIndex % bentoSlides.length;
+  const safeIndex =
+    bentoSlides.length > 0 ? currentIndex % bentoSlides.length : 0;
   const dest = bentoSlides[safeIndex];
 
   const getTiles = () =>
@@ -281,6 +252,10 @@ export default function BentoDestinationSlider() {
     [isAnimating, runFourSidesSwipeIn]
   );
 
+  if (bentoSettings?.visible === false || !dest) {
+    return null;
+  }
+
   const handlePrev = () => {
     const nextIdx =
       safeIndex === 0 ? bentoSlides.length - 1 : safeIndex - 1;
@@ -326,8 +301,9 @@ export default function BentoDestinationSlider() {
           <div ref={heroTileRef} className="bento-sr-tile bento-sr-hero">
             <div ref={heroImgRef} className="bento-sr-img-layer">
               <CmsImage
-                src={dest.heroImage}
-                alt={dest.name}
+                imageRef={dest.heroImageRef}
+                src={dest.heroImageRef?.url || dest.heroImage}
+                alt={dest.heroImageRef?.alt || dest.name}
                 fill
                 sizes="(max-width: 900px) 100vw, 50vw"
                 className="object-cover bento-sr-img"
@@ -361,8 +337,9 @@ export default function BentoDestinationSlider() {
           <div ref={pathwayTileRef} className="bento-sr-tile bento-sr-pathway">
             <div ref={pathwayImgRef} className="bento-sr-img-layer">
               <CmsImage
-                src={dest.pathwayImage}
-                alt={`${dest.name} pathway`}
+                imageRef={dest.pathwayImageRef}
+                src={dest.pathwayImageRef?.url || dest.pathwayImage}
+                alt={dest.pathwayImageRef?.alt || `${dest.name} pathway`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
@@ -390,7 +367,7 @@ export default function BentoDestinationSlider() {
               className="bento-sr-tile bento-sr-nav-btn"
               aria-label="Previous destination"
             >
-              PREVIOUS
+              {bentoSettings.prevButtonLabel || 'PREVIOUS'}
             </button>
             <button
               type="button"
@@ -399,7 +376,7 @@ export default function BentoDestinationSlider() {
               className="bento-sr-tile bento-sr-nav-btn"
               aria-label="Next destination"
             >
-              NEXT
+              {bentoSettings.nextButtonLabel || 'NEXT'}
             </button>
           </div>
 
@@ -416,8 +393,9 @@ export default function BentoDestinationSlider() {
           <div ref={tallTileRef} className="bento-sr-tile bento-sr-tall-scene">
             <div ref={tallImgRef} className="bento-sr-img-layer">
               <CmsImage
-                src={dest.tallSceneImage}
-                alt={`${dest.name} atmosphere`}
+                imageRef={dest.tallSceneImageRef}
+                src={dest.tallSceneImageRef?.url || dest.tallSceneImage}
+                alt={dest.tallSceneImageRef?.alt || `${dest.name} atmosphere`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
@@ -438,8 +416,9 @@ export default function BentoDestinationSlider() {
           <div ref={natureTileRef} className="bento-sr-tile bento-sr-nature">
             <div ref={natureImgRef} className="bento-sr-img-layer">
               <CmsImage
-                src={dest.natureImage}
-                alt={`${dest.name} nature`}
+                imageRef={dest.natureImageRef}
+                src={dest.natureImageRef?.url || dest.natureImage}
+                alt={dest.natureImageRef?.alt || `${dest.name} nature`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
                 className="object-cover bento-sr-img"
@@ -456,8 +435,9 @@ export default function BentoDestinationSlider() {
             <div className="bento-sr-cuisine-media">
               <div ref={cuisineImgRef} className="bento-sr-img-layer">
                 <CmsImage
-                  src={dest.cuisineImage}
-                  alt={`${dest.name} cuisine`}
+                  imageRef={dest.cuisineImageRef}
+                  src={dest.cuisineImageRef?.url || dest.cuisineImage}
+                  alt={dest.cuisineImageRef?.alt || `${dest.name} cuisine`}
                   fill
                   sizes="(max-width: 900px) 50vw, 25vw"
                   className="object-cover bento-sr-img"

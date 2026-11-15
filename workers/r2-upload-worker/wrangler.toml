@@ -1,0 +1,29 @@
+#:schema ../../node_modules/wrangler/config-schema.json
+name = "bimondo-r2-upload-worker"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+# ==============================================================================
+# 1. CLOUDFLARE R2 BUCKET BINDING
+# ==============================================================================
+# Replace `bucket_name` and `preview_bucket_name` with your actual R2 bucket
+# names created in the Cloudflare Dashboard -> R2 Object Storage.
+[[r2_buckets]]
+binding = "SITE_IMAGES"
+bucket_name = "YOUR_R2_BUCKET_NAME"
+preview_bucket_name = "YOUR_R2_PREVIEW_BUCKET_NAME"
+
+# ==============================================================================
+# 2. WORKER ENVIRONMENT CONFIGURATION
+# ==============================================================================
+# Note: Do NOT place R2 access keys, Cloudflare API tokens, or Firebase
+# service-account private keys here. This Worker uses the native R2 binding
+# (`SITE_IMAGES`) and verifies Firebase ID tokens against Google's public JWKS.
+[vars]
+FIREBASE_PROJECT_ID = "advance-sandbox-gmzf6"
+FIRESTORE_DATABASE_ID = "ai-studio-bimondotravels-99e233ba-6878-4a9b-b4e4-291cc3474a9a"
+PUBLIC_IMAGE_BASE_URL = "https://cdn.bimondotours.com"
+ALLOWED_ORIGINS = "https://www.bimondotours.com,https://bimondotours.com,http://localhost:3000"
+ALLOWED_UPLOAD_PREFIXES = "pages,shared,tours,gallery"
+MAX_UPLOAD_BYTES = "10485760"
+

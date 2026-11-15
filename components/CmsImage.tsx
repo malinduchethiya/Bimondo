@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSiteCms } from '@/hooks/useSiteCms';
-import { resolveCmsImageUrl } from '@/lib/r2-client';
+import { CmsImageRef } from '@/lib/cms-defaults';
+import { isForbiddenImageUrl } from '@/lib/content-repository';
 
 interface CmsImageProps {
-  src: string;
+  src?: string;
+  imageRef?: CmsImageRef;
   alt: string;
   fill?: boolean;
   sizes?: string;
@@ -15,28 +16,32 @@ interface CmsImageProps {
 }
 
 /**
- * Renders an image directly from the Cloudflare R2 domain URL saved in Firestore.
- * Never falls back to mock or stock images. If no R2 image is assigned yet, renders a clean neutral surface.
+ * Renders an image when a valid URL is configured in the content model,
+ * or a clean minimal placeholder surface when empty or failed to load.
  */
 export default function CmsImage({
   src,
+  imageRef,
   alt,
   fill = true,
-  priority = false,
   className = 'object-cover',
 }: CmsImageProps) {
-  const { cms } = useSiteCms();
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  const resolvedUrl = resolveCmsImageUrl(src, cms.general.r2PublicCdnUrl);
+  const rawUrl = (imageRef?.url || src || '').trim();
+  const resolvedAlt = (imageRef?.alt || alt || '').trim() || 'Image';
+  const canRenderImg =
+    rawUrl.length > 0 &&
+    !isForbiddenImageUrl(rawUrl) &&
+    failedUrl !== rawUrl;
 
-  if (!resolvedUrl || failedSrc === resolvedUrl) {
+  if (!canRenderImg) {
     return (
       <div
-        aria-label={alt}
+        aria-label={resolvedAlt}
         className={`${
           fill ? 'absolute inset-0 w-full h-full' : 'w-full h-full'
-        } bg-stone-200/70 ${className}`.trim()}
+        } bg-stone-200/60 ${className}`.trim()}
       />
     );
   }
@@ -44,18 +49,12 @@ export default function CmsImage({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={resolvedUrl}
-      alt={alt}
-      loading={priority ? 'eager' : 'lazy'}
-      decoding="async"
+      src={rawUrl}
+      alt={resolvedAlt}
       referrerPolicy="no-referrer"
-      onError={() => {
-        if (failedSrc !== resolvedUrl) {
-          setFailedSrc(resolvedUrl);
-        }
-      }}
+      onError={() => setFailedUrl(rawUrl)}
       className={`${
-        fill ? 'absolute inset-0 w-full h-full' : ''
+        fill ? 'absolute inset-0 w-full h-full' : 'w-full h-full'
       } ${className}`.trim()}
     />
   );

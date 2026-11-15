@@ -7,8 +7,12 @@ import {
   navigateToRoute,
   normalizeRoutePath,
 } from '@/components/InstantRouteManager';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function Header() {
+  const { cms } = useSiteCms();
+  const headerContent = cms.pages.shared.header;
+
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
@@ -96,6 +100,14 @@ export default function Header() {
     return false;
   };
 
+  if (activePathname.startsWith('/admin')) {
+    return null;
+  }
+
+  const visibleNavLinks = [...(headerContent.navLinks || [])]
+    .filter((link) => link.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
   return (
     <header
       className={`site-header ${isScrolled ? 'is-scrolled' : ''} ${
@@ -110,9 +122,9 @@ export default function Header() {
           aria-label="Bimondo home"
           onClick={(e) => handleNavClick(e, '/')}
         >
-          <span className="brand-mark">b</span>
-          <span>bimondo</span>
-          <span className="brand-sub">TRAVELS</span>
+          <span className="brand-mark">{headerContent.brandMonogram}</span>
+          <span>{headerContent.brandName}</span>
+          <span className="brand-sub">{headerContent.brandSubtitle}</span>
         </Link>
 
         <nav
@@ -120,68 +132,39 @@ export default function Header() {
           id="navlinks"
           aria-label="Primary Navigation"
         >
-          <Link
-            href="/destinations"
-            prefetch={false}
-            className={`nav-item ${isActive('/destinations') ? 'active' : ''}`}
-            aria-current={isActive('/destinations') ? 'page' : undefined}
-            onClick={(e) => handleNavClick(e, '/destinations')}
-          >
-            Destinations
-          </Link>
-          <Link
-            href="/packages"
-            prefetch={false}
-            className={`nav-item ${isActive('/packages') ? 'active' : ''}`}
-            aria-current={isActive('/packages') ? 'page' : undefined}
-            onClick={(e) => handleNavClick(e, '/packages')}
-          >
-            Packages
-          </Link>
-          <Link
-            href="/stays"
-            prefetch={false}
-            className={`nav-item ${isActive('/stays') ? 'active' : ''}`}
-            aria-current={isActive('/stays') ? 'page' : undefined}
-            onClick={(e) => handleNavClick(e, '/stays')}
-          >
-            Stays
-          </Link>
-          <Link
-            href="/gallery"
-            prefetch={false}
-            className={`nav-item ${isActive('/gallery') ? 'active' : ''}`}
-            aria-current={isActive('/gallery') ? 'page' : undefined}
-            onClick={(e) => handleNavClick(e, '/gallery')}
-          >
-            Gallery
-          </Link>
-          <Link
-            href="/our-story"
-            prefetch={false}
-            className={`nav-item ${isActive('/our-story') ? 'active' : ''}`}
-            aria-current={isActive('/our-story') ? 'page' : undefined}
-            onClick={(e) => handleNavClick(e, '/our-story')}
-          >
-            Our story
-          </Link>
+          {visibleNavLinks.map((link) => (
+            <Link
+              key={link.id}
+              href={link.href || '/'}
+              prefetch={false}
+              className={`nav-item ${isActive(link.href) ? 'active' : ''}`}
+              aria-current={isActive(link.href) ? 'page' : undefined}
+              onClick={(e) => handleNavClick(e, link.href || '/')}
+            >
+              {link.label}
+            </Link>
+          ))}
           <Link
             className="pill dark mobile-nav-cta"
-            href="/contact"
+            href={headerContent.ctaHref || '/contact'}
             prefetch={false}
-            onClick={(e) => handleNavClick(e, '/contact')}
+            onClick={(e) =>
+              handleNavClick(e, headerContent.ctaHref || '/contact')
+            }
           >
-            PLAN YOUR JOURNEY ↗
+            {headerContent.ctaLabel}
           </Link>
         </nav>
 
         <Link
           className="pill dark desktop-nav-cta"
-          href="/contact"
+          href={headerContent.ctaHref || '/contact'}
           prefetch={false}
-          onClick={(e) => handleNavClick(e, '/contact')}
+          onClick={(e) =>
+            handleNavClick(e, headerContent.ctaHref || '/contact')
+          }
         >
-          PLAN YOUR JOURNEY ↗
+          {headerContent.ctaLabel}
         </Link>
 
         <button

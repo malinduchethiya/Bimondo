@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   buildBokunCheckoutUrl,
@@ -15,6 +14,8 @@ import {
   VerifiedPricingQuote,
 } from '@/lib/booking-types';
 
+export const runtime = 'edge';
+
 function formatBokunUtcDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
@@ -22,6 +23,27 @@ function formatBokunUtcDate(d: Date): string {
   )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
     d.getUTCSeconds()
   )}`;
+}
+
+async function computeHmacSha1Base64(
+  secret: string,
+  message: string
+): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  const bytes = new Uint8Array(sig);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 export async function GET(req: NextRequest) {
@@ -71,7 +93,7 @@ export async function GET(req: NextRequest) {
         externalId: '',
         source: 'unconfigured',
         message:
-          'NightsBridge Establishment ID (BBID) is not configured yet. Add your official NightsBridge BBID in Admin Booking Settings (/admin/booking) to enable live accommodation booking.',
+          'NightsBridge Establishment ID (BBID) is not configured yet.',
         checkoutUrl: null,
         days: {},
         quote: null,
@@ -134,7 +156,7 @@ export async function GET(req: NextRequest) {
         externalId: experienceId,
         source: 'unconfigured',
         message:
-          'Bókun Booking Channel UUID or Experience ID is not configured yet. Configure your official Bókun widget credentials in Admin Booking Settings (/admin/booking).',
+          'Bókun Booking Channel UUID or Experience ID is not configured yet.',
         checkoutUrl: null,
         days: {},
         quote: null,
@@ -173,10 +195,10 @@ export async function GET(req: NextRequest) {
         )}&lang=EN`;
         const bokunDate = formatBokunUtcDate(now);
         const signatureInput = `${bokunDate}${creds.bokunAccessKey}GET${pathWithQuery}`;
-        const signature = crypto
-          .createHmac('sha1', creds.bokunSecretKey)
-          .update(signatureInput)
-          .digest('base64');
+        const signature = await computeHmacSha1Base64(
+          creds.bokunSecretKey,
+          signatureInput
+        );
 
         const apiRes = await fetch(`https://api.bokun.io${pathWithQuery}`, {
           method: 'GET',
@@ -343,7 +365,7 @@ export async function GET(req: NextRequest) {
       externalId: '',
       source: 'unconfigured',
       message:
-        'Viator booking link, Partner ID, or Widget reference is not configured for this experience yet. Configure official Viator settings in Admin Booking Settings (/admin/booking).',
+        'Viator booking link, Partner ID, or Widget reference is not configured for this experience yet.',
       checkoutUrl: null,
       days: {},
       quote: null,

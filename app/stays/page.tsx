@@ -5,17 +5,24 @@ import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import CmsImage from '@/components/CmsImage';
 import BookingPanel from '@/components/booking/BookingPanel';
-import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
-import { TOUR_QUALIFICATION_NOTICE } from '@/lib/tours';
+import { AccommodationItem } from '@/lib/booking-types';
+import { CmsStayItem } from '@/lib/cms-defaults';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function StaysPage() {
   const { cms } = useSiteCms();
-  const staysList =
-    cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
+  const pageContent = cms.pages.staysPage;
+
+  const staysList: (CmsStayItem | AccommodationItem)[] = (cms.stays || [])
+    .filter((s) => (s as CmsStayItem).visible !== false)
+    .sort(
+      (a, b) =>
+        ((a as CmsStayItem).order ?? 0) - ((b as CmsStayItem).order ?? 0)
+    );
+
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
-  const [activeStay, setActiveStay] = useState<AccommodationItem>(
-    ACCOMMODATIONS[0]
+  const [activeStay, setActiveStay] = useState<AccommodationItem | null>(
+    staysList[0] ?? null
   );
   const [checkIn, setCheckIn] = useState<string>('');
   const [checkOut, setCheckOut] = useState<string>('');
@@ -37,33 +44,32 @@ export default function StaysPage() {
       ? staysList
       : staysList.filter((s) => s.region === selectedRegion);
 
+  const resolvedActiveStay =
+    (activeStay ? staysList.find((s) => s.id === activeStay.id) : undefined) ||
+    staysList[0] ||
+    null;
+
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO ACCOMMODATION STANDARDS  /  NIGHTSBRIDGE BOOKING"
-        title="Four-star hotels, boutique properties & five-star luxury resorts."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
 
       <section className="section wrap">
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              SECTION 13 · ACCOMMODATION OPTIONS &amp; NIGHTSBRIDGE
+              {pageContent.introSection.eyebrow}
             </div>
             <h2 className="serif">
-              Selected around your{' '}
+              {pageContent.introSection.headingPrefix}{' '}
               <em style={{ color: 'var(--terracotta)' }}>
-                route, pace &amp; preference.
+                {pageContent.introSection.headingItalic}
               </em>
             </h2>
           </div>
-          <p>
-            Across Sri Lanka, we arrange a curated range of four-star hotels,
-            characterful boutique properties, and five-star luxury resorts.
-            Select your check-in and check-out dates below to check availability
-            through our official NightsBridge accommodation integration, or
-            enquire with our team for a complete tailor-made itinerary.
-          </p>
+          <p>{pageContent.introSection.description}</p>
         </div>
 
         {/* Qualification Notice */}
@@ -79,7 +85,8 @@ export default function StaysPage() {
             color: 'var(--ink)',
           }}
         >
-          <strong>Accommodation Policy:</strong> {TOUR_QUALIFICATION_NOTICE}
+          <strong>{pageContent.introSection.policyLabel}</strong>{' '}
+          {pageContent.introSection.policyNotice}
         </div>
 
         {/* Top Quick Date & Guest Filter Bar */}
@@ -167,7 +174,8 @@ export default function StaysPage() {
         <div className="tour-detail-booking-layout">
           <div className="destinations-detail-grid">
             {filtered.map((stay, idx) => {
-              const isSelected = activeStay.id === stay.id;
+              const isSelected = resolvedActiveStay?.id === stay.id;
+              const cmsStay = stay as CmsStayItem;
               return (
                 <article
                   key={stay.id}
@@ -177,15 +185,16 @@ export default function StaysPage() {
                 >
                   <div className="dest-img-wrap">
                     <CmsImage
-                      src={stay.image}
-                      alt={stay.name}
+                      imageRef={cmsStay.imageRef}
+                      src={cmsStay.imageRef?.url || stay.image}
+                      alt={cmsStay.imageRef?.alt || stay.name}
                       fill
                       priority={idx < 2}
                       sizes="(max-width: 768px) 100vw, 50vw"
                       className="object-cover"
                     />
                     <span className="dest-season-badge">
-                      4★ HOTELS · BOUTIQUE · 5★ LUXURY
+                      {pageContent.introSection.badgeLabel}
                     </span>
                   </div>
                   <div className="dest-content">
@@ -199,9 +208,11 @@ export default function StaysPage() {
                     <p className="dest-tagline">{stay.tagline}</p>
                     <p className="dest-desc">{stay.description}</p>
                     <div className="dest-highlights">
-                      <strong>Accommodation standards:</strong>
+                      <strong>
+                        {pageContent.introSection.standardsHeading}
+                      </strong>
                       <ul>
-                        {stay.highlights.map((h, i) => (
+                        {(stay.highlights || []).map((h, i) => (
                           <li key={i}>✳ {h}</li>
                         ))}
                       </ul>
@@ -214,7 +225,7 @@ export default function StaysPage() {
                           color: 'var(--green)',
                         }}
                       >
-                        NIGHTSBRIDGE / CUSTOM ENQUIRY
+                        {pageContent.introSection.providerNote}
                       </span>
                       <button
                         type="button"
@@ -224,7 +235,7 @@ export default function StaysPage() {
                           setMobileModalOpen(true);
                         }}
                       >
-                        CHECK AVAILABILITY ↗
+                        {pageContent.introSection.checkButtonLabel}
                       </button>
                     </div>
                   </div>
@@ -234,67 +245,73 @@ export default function StaysPage() {
           </div>
 
           {/* Sticky Booking Sidebar on Desktop */}
-          <aside
-            className="sticky-booking-sidebar"
-            aria-label="Accommodation Booking Panel"
-          >
-            <BookingPanel
-              key={`${activeStay.id}-${checkIn}-${checkOut}-${adults}-${childrenCount}-${rooms}`}
-              itemId={activeStay.id}
-              itemName={activeStay.name}
-              itemType="accommodation"
-              defaultProvider="nightsbridge"
-              initialCheckIn={checkIn}
-              initialCheckOut={checkOut}
-              initialAdults={adults}
-              initialChildren={childrenCount}
-              initialRooms={rooms}
-              compact
-            />
-          </aside>
+          {resolvedActiveStay && (
+            <aside
+              className="sticky-booking-sidebar"
+              aria-label="Accommodation Booking Panel"
+            >
+              <BookingPanel
+                key={`${resolvedActiveStay.id}-${checkIn}-${checkOut}-${adults}-${childrenCount}-${rooms}`}
+                itemId={resolvedActiveStay.id}
+                itemName={resolvedActiveStay.name}
+                itemType="accommodation"
+                defaultProvider="nightsbridge"
+                initialCheckIn={checkIn}
+                initialCheckOut={checkOut}
+                initialAdults={adults}
+                initialChildren={childrenCount}
+                initialRooms={rooms}
+                compact
+              />
+            </aside>
+          )}
         </div>
 
         {/* Custom Route & Stay Combination CTA */}
         <div className="dest-custom-cta-box" style={{ marginTop: '48px' }}>
           <div>
             <span className="eyebrow" style={{ color: '#a5eff4' }}>
-              TAILOR-MADE STAYS &amp; PRIVATE TRANSPORT
+              {pageContent.customCtaBox.eyebrow}
             </span>
             <h3
               className="serif"
               style={{ fontSize: '32px', margin: '10px 0', color: '#fff' }}
             >
-              Planning a multi-stop journey across Sri Lanka?
+              {pageContent.customCtaBox.heading}
             </h3>
             <p style={{ color: '#e0f5fb', maxWidth: '540px', lineHeight: 1.75 }}>
-              Our Battaramulla team coordinates all hotel reservations, private
-              transport with professional drivers and licensed guides, and
-              24-hour on-call support throughout your stay.
+              {pageContent.customCtaBox.description}
             </p>
           </div>
-          <Link href="/contact" prefetch={false} className="pill light">
-            ENQUIRE WITH OUR TEAM ↗
+          <Link
+            href={pageContent.customCtaBox.ctaHref || '/contact'}
+            prefetch={false}
+            className="pill light"
+          >
+            {pageContent.customCtaBox.ctaLabel}
           </Link>
         </div>
       </section>
 
       {/* Mobile Sticky Bottom Booking Bar */}
-      <div className="mobile-sticky-booking-bar">
-        <div>
-          <small>SELECTED REGION STAY</small>
-          <strong>{activeStay.name}</strong>
+      {resolvedActiveStay && (
+        <div className="mobile-sticky-booking-bar">
+          <div>
+            <small>SELECTED REGION STAY</small>
+            <strong>{resolvedActiveStay.name}</strong>
+          </div>
+          <button
+            type="button"
+            className="pill dark"
+            onClick={() => setMobileModalOpen(true)}
+          >
+            BOOK NOW ↗
+          </button>
         </div>
-        <button
-          type="button"
-          className="pill dark"
-          onClick={() => setMobileModalOpen(true)}
-        >
-          BOOK NOW ↗
-        </button>
-      </div>
+      )}
 
       {/* Mobile / Full Booking Modal */}
-      {mobileModalOpen && (
+      {mobileModalOpen && resolvedActiveStay && (
         <div
           className="modal-overlay"
           onClick={(e) => {
@@ -305,8 +322,8 @@ export default function StaysPage() {
         >
           <div className="modal-card booking-modal-wide">
             <BookingPanel
-              itemId={activeStay.id}
-              itemName={activeStay.name}
+              itemId={resolvedActiveStay.id}
+              itemName={resolvedActiveStay.name}
               itemType="accommodation"
               defaultProvider="nightsbridge"
               initialCheckIn={checkIn}

@@ -172,9 +172,6 @@ export default function HomepageAvailabilityBar() {
             <Link href="/packages" prefetch={false}>
               Browse Tour Packages →
             </Link>
-            <Link href="/admin/booking" prefetch={false}>
-              Booking Settings
-            </Link>
           </div>
         </div>
       </div>

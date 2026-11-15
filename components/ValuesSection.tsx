@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import { CmsImageRef, createImageRef } from '@/lib/cms-defaults';
 import CmsImage from '@/components/CmsImage';
 
 interface TouristThoughtCard {
@@ -11,77 +12,32 @@ interface TouristThoughtCard {
   subtitle: string;
   thought: string;
   image: string;
+  imageRef: CmsImageRef;
 }
-
-const DEFAULT_TOURIST_THOUGHTS: TouristThoughtCard[] = [
-  {
-    id: 'thought-1',
-    name: 'David & Sarah Miller',
-    subtitle: 'United Kingdom · Grand Island Journey',
-    thought:
-      '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
-    image: '',
-  },
-  {
-    id: 'thought-2',
-    name: 'Claire Dubois',
-    subtitle: 'France · Pekoe Trail & South Coast',
-    thought:
-      '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
-    image: '',
-  },
-  {
-    id: 'thought-3',
-    name: 'Liam & Chloe Reynolds',
-    subtitle: 'Australia · Surf, Safari & Coast',
-    thought:
-      '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
-    image: '',
-  },
-  {
-    id: 'thought-4',
-    name: 'Ananya & Rohan Sharma',
-    subtitle: 'India · Cultural Triangle & Hills',
-    thought:
-      '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
-    image: '',
-  },
-  {
-    id: 'thought-5',
-    name: 'Lukas & Hannah Weber',
-    subtitle: 'Germany · Wildlife & Rainforests',
-    thought:
-      '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
-    image: '',
-  },
-  {
-    id: 'thought-6',
-    name: 'Sofía & Mateo Rossi',
-    subtitle: 'Italy · Romance in Ceylon',
-    thought:
-      '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
-    image: '',
-  },
-];
 
 const TRAIN_SPEED_PX_PER_SEC = 85;
 
 export default function ValuesSection() {
   const { cms } = useSiteCms();
+  const reviewsHeading = cms.pages.home.valuesReviews;
 
-  const cards: TouristThoughtCard[] =
-    Array.isArray(cms.reviews) && cms.reviews.length > 0
-      ? cms.reviews.map((rev, idx) => ({
-          id: rev.id || `rev-${idx}`,
-          name: rev.name,
-          subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
-          thought: rev.quote,
-          image: rev.image || '',
-        }))
-      : DEFAULT_TOURIST_THOUGHTS;
+  const visibleReviews = Array.isArray(cms.reviews)
+    ? [...cms.reviews]
+        .filter((r) => r.visible !== false)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    : [];
+
+  const cards: TouristThoughtCard[] = visibleReviews.map((rev, idx) => ({
+    id: rev.id || `rev-${idx}`,
+    name: rev.name,
+    subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
+    thought: rev.quote,
+    image: rev.imageRef?.url || rev.image || '',
+    imageRef: rev.imageRef || createImageRef(rev.image || '', rev.name),
+  }));
 
   const totalCards = cards.length;
-  const trainCards = [...cards, ...cards];
+  const trainCards = totalCards > 0 ? [...cards, ...cards] : [];
   const mobileGridCards = cards.slice(0, 4);
 
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -96,6 +52,7 @@ export default function ValuesSection() {
   const isVisibleRef = useRef<boolean>(false);
 
   useEffect(() => {
+    if (totalCards === 0) return;
     const measureTrack = () => {
       const ribbon = ribbonRef.current;
       if (!ribbon) return;
@@ -117,6 +74,7 @@ export default function ValuesSection() {
   }, [totalCards]);
 
   useEffect(() => {
+    if (totalCards === 0) return;
     let rafId: number | null = null;
     let lastTime = performance.now();
     let lastReportedDot = 0;
@@ -241,6 +199,10 @@ export default function ValuesSection() {
     };
   }, [totalCards]);
 
+  if (reviewsHeading.visible === false || totalCards === 0) {
+    return null;
+  }
+
   const handlePrev = () => {
     targetNudgeRef.current -= singleCardStepRef.current;
   };
@@ -264,10 +226,11 @@ export default function ValuesSection() {
       <div className="wrap sliding-cards-wrap">
         <div className="thoughts-section-heading-bar">
           <span className="eyebrow" style={{ color: '#3b71fe' }}>
-            05 / TRAVELLER THOUGHTS
+            {reviewsHeading.eyebrow}
           </span>
           <h2 className="serif thoughts-section-title">
-            Stories carried <em style={{ color: '#3b71fe' }}>home.</em>
+            {reviewsHeading.headingPrefix}{' '}
+            <em style={{ color: '#3b71fe' }}>{reviewsHeading.headingItalic}</em>
           </h2>
         </div>
 
@@ -301,8 +264,9 @@ export default function ValuesSection() {
                       <span className="sliding-card-overlay" />
                       <div className="sliding-card-avatar">
                         <CmsImage
+                          imageRef={card.imageRef}
                           src={card.image}
-                          alt={card.name}
+                          alt={card.imageRef?.alt || card.name}
                           fill
                           sizes="132px"
                           className="sliding-card-avatar-img"
@@ -363,8 +327,9 @@ export default function ValuesSection() {
               <div className="mobile-thought-card-top">
                 <div className="mobile-thought-avatar">
                   <CmsImage
+                    imageRef={card.imageRef}
                     src={card.image}
-                    alt={card.name}
+                    alt={card.imageRef?.alt || card.name}
                     fill
                     sizes="56px"
                     className="object-cover"

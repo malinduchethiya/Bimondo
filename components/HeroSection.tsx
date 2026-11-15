@@ -9,24 +9,18 @@ const HERO_SLIDESHOW_INTERVAL_MS = 4000;
 
 export default function HeroSection() {
   const { cms } = useSiteCms();
-  const showTripadvisor = cms.general.tripadvisorEnabled !== false;
-  const taBrand = cms.general.tripadvisorBrand || 'Tripadvisor';
-  const taRating = cms.general.tripadvisorRating || '5.0';
-  const taReviewsText =
-    cms.general.tripadvisorReviewsText || 'Based on 165 reviews';
+  const hero = cms.pages.home.hero;
 
-  const heroSlides = Array.isArray(cms.general.heroImages)
-    ? cms.general.heroImages
-        .map((s) => String(s || '').trim())
-        .filter(Boolean)
-    : [];
+  const visibleSlides = [...(hero.slides || [])]
+    .filter((s) => s.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   const [activeSlide, setActiveSlide] = useState<number>(0);
   const heroRef = useRef<HTMLElement | null>(null);
   const isVisibleRef = useRef<boolean>(true);
 
   useEffect(() => {
-    if (heroSlides.length <= 1) return;
+    if (visibleSlides.length <= 1) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -41,7 +35,7 @@ export default function HeroSection() {
 
     const timer = window.setInterval(() => {
       if (isVisibleRef.current && !document.hidden) {
-        setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+        setActiveSlide((prev) => (prev + 1) % visibleSlides.length);
       }
     }, HERO_SLIDESHOW_INTERVAL_MS);
 
@@ -49,25 +43,35 @@ export default function HeroSection() {
       observer.disconnect();
       window.clearInterval(timer);
     };
-  }, [heroSlides.length]);
+  }, [visibleSlides.length]);
+
+  if (hero.visible === false) {
+    return null;
+  }
+
+  const showTripadvisor = hero.tripadvisorEnabled !== false;
+  const taBrand = hero.tripadvisorBrand ?? 'Tripadvisor';
+  const taRating = hero.tripadvisorRating ?? '5.0';
+  const taReviewsText = hero.tripadvisorReviewsText ?? 'Based on 165 reviews';
 
   const safeActiveIndex =
-    heroSlides.length > 0 ? activeSlide % heroSlides.length : 0;
+    visibleSlides.length > 0 ? activeSlide % visibleSlides.length : 0;
 
   return (
     <section ref={heroRef} className="hero" id="home">
       <div className="hero-photo" aria-hidden="true">
-        {heroSlides.length > 0 ? (
-          heroSlides.map((imgSrc, idx) => {
+        {visibleSlides.length > 0 ? (
+          visibleSlides.map((slide, idx) => {
             const isActive = idx === safeActiveIndex;
             return (
               <div
-                key={`${imgSrc}-${idx}`}
+                key={slide.id || `${slide.image?.url}-${idx}`}
                 className={`hero-slide-layer ${isActive ? 'is-active' : ''}`}
               >
                 <CmsImage
-                  src={imgSrc}
-                  alt={`Sri Lanka Hero Slide ${idx + 1}`}
+                  imageRef={slide.image}
+                  src={slide.image?.url}
+                  alt={slide.image?.alt || `Sri Lanka Hero Slide ${idx + 1}`}
                   fill
                   sizes="100vw"
                   priority={idx === 0}
@@ -92,46 +96,48 @@ export default function HeroSection() {
 
       <div className="wrap hero-inner">
         <div className="hero-copy">
-          <div className="eyebrow hero-eyebrow">
-            {(cms.general.siteName || 'BIMONDO TRAVELS').toUpperCase()} —
-            PRIVATE, AUTHENTIC JOURNEYS ACROSS SRI LANKA
-          </div>
+          <div className="eyebrow hero-eyebrow">{hero.eyebrow}</div>
           <h1 className="serif">
-            Not a place{' '}
+            {hero.headlinePart1}{' '}
             <span className="island-word">
-              you visit<span className="period">,</span>
+              {hero.headlineHighlight1}
+              <span className="period">,</span>
             </span>
             <br />
-            <em>but a feeling</em>
+            <em>{hero.headlineItalic}</em>
             <br />
             <span className="stories-word">
-              you carry home<span className="period">.</span>
+              {hero.headlineHighlight2}
+              <span className="period">.</span>
             </span>
           </h1>
-          <p>
-            {cms.general.tagline ||
-              `Private, tailor-made journeys across Sri Lanka—spanning adventure, culture and heritage, sea and sand, and hiking and wildlife—planned personally by our local team in Battaramulla since ${
-                cms.general.foundedYear || '2022'
-              }.`}
-          </p>
+          <p>{hero.description}</p>
           <div className="hero-actions">
-            <Link className="pill dark" href="/packages" prefetch={false}>
-              EXPLORE OUR JOURNEYS ↗
+            <Link
+              className="pill dark"
+              href={hero.primaryCtaHref || '/packages'}
+              prefetch={false}
+            >
+              {hero.primaryCtaLabel}
             </Link>
-            <Link className="pill" href="/our-story" prefetch={false}>
-              OUR STORY ↓
+            <Link
+              className="pill"
+              href={hero.secondaryCtaHref || '/our-story'}
+              prefetch={false}
+            >
+              {hero.secondaryCtaLabel}
             </Link>
           </div>
 
-          {heroSlides.length > 1 && (
+          {visibleSlides.length > 1 && (
             <div
               className="hero-slideshow-dots"
               role="tablist"
               aria-label="Hero background slideshow"
             >
-              {heroSlides.map((_, idx) => (
+              {visibleSlides.map((slide, idx) => (
                 <button
-                  key={`hero-dot-${idx}`}
+                  key={slide.id || `hero-dot-${idx}`}
                   type="button"
                   role="tab"
                   aria-selected={idx === safeActiveIndex}

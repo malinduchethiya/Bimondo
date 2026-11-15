@@ -7,8 +7,12 @@ import {
   BookingProviderId,
   VerifiedBookingConfirmation,
 } from '@/lib/booking-types';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function BookingConfirmationPage() {
+  const { cms } = useSiteCms();
+  const confirmContent = cms.pages.bookingPage.confirmationPage;
+
   const [provider, setProvider] = useState<BookingProviderId>('bokun');
   const [referenceInput, setReferenceInput] = useState<string>('');
   const [verification, setVerification] =
@@ -91,8 +95,8 @@ export default function BookingConfirmationPage() {
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO TRAVELS  /  BOOKING VERIFICATION"
-        title="Booking Status & Provider Confirmation"
+        eyebrow={confirmContent.bannerEyebrow}
+        title={confirmContent.bannerTitle}
       />
 
       <section className="section wrap">
@@ -103,16 +107,23 @@ export default function BookingConfirmationPage() {
             onSubmit={handleManualVerify}
           >
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              VERIFY PROVIDER RESERVATION
+              {confirmContent.formEyebrow}
             </div>
-            <h2 className="serif" style={{ fontSize: '30px', margin: '8px 0 14px' }}>
-              Check Verified Booking Status
+            <h2
+              className="serif"
+              style={{ fontSize: '30px', margin: '8px 0 14px' }}
+            >
+              {confirmContent.formHeading}
             </h2>
-            <p style={{ color: 'var(--muted)', fontSize: '14px', lineHeight: 1.7, margin: '0 0 18px' }}>
-              Returning from an external checkout page does not automatically
-              confirm a reservation. Enter your official booking reference from{' '}
-              <strong>NightsBridge</strong>, <strong>Bókun</strong>, or{' '}
-              <strong>Viator</strong> to verify its status.
+            <p
+              style={{
+                color: 'var(--muted)',
+                fontSize: '14px',
+                lineHeight: 1.7,
+                margin: '0 0 18px',
+              }}
+            >
+              {confirmContent.formDescription}
             </p>
 
             <div className="booking-verify-inputs">
@@ -151,7 +162,9 @@ export default function BookingConfirmationPage() {
                   disabled={loading}
                   style={{ width: '100%', minHeight: '46px' }}
                 >
-                  {loading ? 'VERIFYING…' : 'VERIFY STATUS'}
+                  {loading
+                    ? 'VERIFYING…'
+                    : confirmContent.submitButtonLabel || 'VERIFY STATUS'}
                 </button>
               </div>
             </div>
@@ -167,16 +180,23 @@ export default function BookingConfirmationPage() {
               {verification.verified ? (
                 <>
                   <div className="verified-price-badge">
-                    ✓ VERIFIED CONFIRMED BOOKING ({verification.provider.toUpperCase()})
+                    ✓ VERIFIED CONFIRMED BOOKING (
+                    {verification.provider.toUpperCase()})
                   </div>
-                  <h3 className="serif" style={{ fontSize: '28px', margin: '10px 0' }}>
+                  <h3
+                    className="serif"
+                    style={{ fontSize: '28px', margin: '10px 0' }}
+                  >
                     Reservation Confirmed: {verification.bookingReference}
                   </h3>
                   <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
                     {verification.verificationMessage}
                   </p>
 
-                  <div className="booking-review-grid" style={{ marginTop: '18px' }}>
+                  <div
+                    className="booking-review-grid"
+                    style={{ marginTop: '18px' }}
+                  >
                     <div className="review-kv">
                       <small>BOOKING REFERENCE</small>
                       <strong>{verification.bookingReference}</strong>
@@ -218,7 +238,9 @@ export default function BookingConfirmationPage() {
                     </div>
                     <div className="review-kv">
                       <small>PAYMENT STATUS</small>
-                      <strong>{verification.paymentStatus || 'Confirmed'}</strong>
+                      <strong>
+                        {verification.paymentStatus || 'Confirmed'}
+                      </strong>
                     </div>
                     <div className="review-kv" style={{ gridColumn: '1 / -1' }}>
                       <small>CANCELLATION POLICY</small>
@@ -235,22 +257,45 @@ export default function BookingConfirmationPage() {
                     className="eyebrow"
                     style={{ color: 'var(--terracotta)' }}
                   >
-                    UNVERIFIED CHECKOUT RETURN · {verification.provider.toUpperCase()}
+                    UNVERIFIED CHECKOUT RETURN ·{' '}
+                    {verification.provider.toUpperCase()}
                   </span>
-                  <h3 className="serif" style={{ fontSize: '26px', margin: '8px 0 12px' }}>
+                  <h3
+                    className="serif"
+                    style={{ fontSize: '26px', margin: '8px 0 12px' }}
+                  >
                     Awaiting Official Provider Confirmation
                   </h3>
-                  <p style={{ color: 'var(--ink)', fontSize: '14.5px', lineHeight: 1.72, margin: '0 0 16px' }}>
+                  <p
+                    style={{
+                      color: 'var(--ink)',
+                      fontSize: '14.5px',
+                      lineHeight: 1.72,
+                      margin: '0 0 16px',
+                    }}
+                  >
                     {verification.verificationMessage}
                   </p>
                   {verification.bookingReference && (
-                    <p style={{ fontSize: '13.5px', color: 'var(--muted)', margin: '0 0 16px' }}>
+                    <p
+                      style={{
+                        fontSize: '13.5px',
+                        color: 'var(--muted)',
+                        margin: '0 0 16px',
+                      }}
+                    >
                       Submitted Reference:{' '}
                       <strong>{verification.bookingReference}</strong>
                     </p>
                   )}
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <Link href="/packages" prefetch={false} className="pill dark">
+                  <div
+                    style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}
+                  >
+                    <Link
+                      href="/packages"
+                      prefetch={false}
+                      className="pill dark"
+                    >
                       RETURN TO PACKAGES
                     </Link>
                     <Link href="/stays" prefetch={false} className="pill">

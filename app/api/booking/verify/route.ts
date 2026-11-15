@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerCredentials } from '@/lib/booking-store';
 import {
@@ -7,6 +6,8 @@ import {
   VerifiedBookingConfirmation,
 } from '@/lib/booking-types';
 
+export const runtime = 'edge';
+
 function formatBokunUtcDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
@@ -14,6 +15,27 @@ function formatBokunUtcDate(d: Date): string {
   )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(
     d.getUTCSeconds()
   )}`;
+}
+
+async function computeHmacSha1Base64(
+  secret: string,
+  message: string
+): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  const bytes = new Uint8Array(sig);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 export async function GET(req: NextRequest) {
@@ -49,10 +71,10 @@ export async function GET(req: NextRequest) {
         bookingRef
       )}`;
       const signatureInput = `${bokunDate}${creds.bokunAccessKey}GET${pathWithQuery}`;
-      const signature = crypto
-        .createHmac('sha1', creds.bokunSecretKey)
-        .update(signatureInput)
-        .digest('base64');
+      const signature = await computeHmacSha1Base64(
+        creds.bokunSecretKey,
+        signatureInput
+      );
 
       const apiRes = await fetch(`https://api.bokun.io${pathWithQuery}`, {
         method: 'GET',

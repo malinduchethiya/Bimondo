@@ -1,2207 +1,1484 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Save,
-  Plus,
-  Trash2,
-  ExternalLink,
-  CheckCircle2,
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
   Loader2,
-  RotateCcw,
-  LogIn,
   LogOut,
-  Calendar,
-  Mail,
-  Phone,
-  Download,
-  ShieldAlert,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Trash2,
+  Type,
+  X,
 } from 'lucide-react';
-import { signInWithPopup, signOut } from 'firebase/auth';
-import { auth, googleProvider, PRIMARY_ADMIN_EMAIL } from '@/lib/firebase';
-import { useSiteCms } from '@/hooks/useSiteCms';
 import {
-  getDefaultCmsData,
-  type SiteCmsData,
-  type CmsDestination,
-  type CmsGalleryPhoto,
-  type CmsReviewItem,
-  type CmsFaqItem,
-  type CmsCustomerEnquiry,
-} from '@/lib/cms-defaults';
-import type { Tour } from '@/lib/tours';
-import type { AccommodationItem } from '@/lib/booking-types';
-import type { R2UploadedMediaItem } from '@/lib/r2-client';
-import AdminImageUploadField from '@/components/admin/AdminImageUploadField';
-import R2BucketManagerTab, {
-  type R2QuickAssignTarget,
-} from '@/components/admin/R2BucketManagerTab';
+  AdminFieldItem,
+  AdminPageSchema,
+  buildAdminPagesFromCms,
+} from '@/lib/admin-ui-schema';
+import { SiteCmsData } from '@/lib/cms-defaults';
+import {
+  CmsSectionDocId,
+  listSoftDeletedItems,
+  normalizeCmsData,
+  restoreSoftDeletedEntry,
+  TrashItemEntry,
+} from '@/lib/content-repository';
+import { R2UploadSuccessResponse } from '@/lib/r2-upload-client';
+import { useSiteCms } from '@/hooks/useSiteCms';
+import { useAdminAuth } from '@/components/admin/AdminAuthGuard';
+import AdminImageUploadField, {
+  PendingFieldImageAssignment,
+} from '@/components/admin/AdminImageUploadField';
+import AdminMediaLibrary, {
+  SelectedMediaLibraryAsset,
+} from '@/components/admin/AdminMediaLibrary';
 
-type AdminTabId =
-  | 'hero'
-  | 'reviews'
-  | 'destinations'
-  | 'tours'
-  | 'stays'
-  | 'gallery'
-  | 'faqs'
-  | 'settings'
-  | 'enquiries'
-  | 'r2';
+type FieldFilterMode = 'all' | 'text' | 'image';
 
-const ADMIN_TABS: { id: AdminTabId; number: string; label: string }[] = [
-  { id: 'hero', number: '01', label: 'Hero Section' },
-  { id: 'reviews', number: '02', label: 'Tourist Thoughts' },
-  { id: 'destinations', number: '03', label: 'Iconic Places' },
-  { id: 'tours', number: '04', label: 'Signature Tours' },
-  { id: 'stays', number: '05', label: 'Boutique Stays' },
-  { id: 'gallery', number: '06', label: 'Visual Gallery' },
-  { id: 'faqs', number: '07', label: 'Planning FAQs' },
-  { id: 'settings', number: '08', label: 'Brand & Contact' },
-  { id: 'enquiries', number: '09', label: 'Bookings & Enquiries' },
-  { id: 'r2', number: '10', label: 'Cloudflare R2' },
-];
+interface FeedbackBanner {
+  type: 'success' | 'error' | 'info' | 'conflict';
+  message: string;
+  conflictDetails?: {
+    docId: CmsSectionDocId;
+    title: string;
+    expectedRevision: number;
+    actualRevision: number;
+    updatedBy?: string | null;
+  };
+}
 
-export default function AdminPage() {
+function serializeComparableCms(data: SiteCmsData): string {
+  const normalized = normalizeCmsData(data);
+  const { updatedAt: _ignored, ...rest } = normalized;
+  return JSON.stringify(rest);
+}
+
+const SECTION_TO_FIRESTORE_DOC: Record<string, CmsSectionDocId> = {
+  'global-header': 'shared_header',
+  'global-footer': 'shared_footer',
+  'global-whatsapp': 'shared_whatsapp',
+  'home-hero': 'home_hero',
+  'home-transition': 'home_transition',
+  'home-story': 'home_story',
+  'home-bento': 'home_bento',
+  'home-experience': 'home_experience',
+  'home-places': 'home_places',
+  'home-reviews': 'home_reviews',
+  'home-planning-faq': 'home_planning_faq',
+  'home-contact': 'home_contact',
+  'dest-banner-intro': 'destinations_page',
+  'dest-regions': 'destinations_catalog',
+  'dest-colombo-day': 'destinations_catalog',
+  'pkg-banner': 'packages_page',
+  'pkg-tours-list': 'packages_tours',
+  'stays-banner': 'stays_page',
+  'stays-collection': 'stays_catalog',
+  'gallery-banner': 'gallery_page',
+  'gallery-photos': 'gallery_page',
+  'story-page-banner': 'our_story_page',
+  'story-page-chapters': 'our_story_page',
+  'story-page-milestones': 'our_story_page',
+  'story-page-founders': 'our_story_page',
+  'contact-page-banner': 'contact_page',
+  'contact-page-cards': 'contact_page',
+  'contact-page-faqs': 'contact_page',
+  'booking-page-main': 'booking_page',
+  'booking-confirmation-sub': 'booking_page',
+};
+
+export default function AdminPanelPage() {
+  const { user, signOut } = useAdminAuth();
+  const currentAdminUid = user?.uid || 'admin';
+
   const {
-    cms,
-    authReady,
-    firebaseUser,
-    isVerifiedAdmin,
-    setCms,
-    saveCmsToFirebase,
-    registerR2MediaInFirebase,
-    assignR2ImageToCmsSlot,
-    removeR2MediaFromFirebase,
+    adminCms: savedCms,
+    sectionMeta,
+    existingSectionCount,
+    totalSectionCount,
+    loading: loadingFirestore,
+    loadError,
+    reloadFromRepository,
+    saveCmsToFirestore,
+    initializeFirestoreContent,
   } = useSiteCms();
 
-  const [activeTab, setActiveTab] = useState<AdminTabId>('hero');
-  const [saving, setSaving] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [statusBanner, setStatusBanner] = useState<{
-    type: 'success' | 'error';
-    message: string;
+  const [draftOverride, setDraftOverride] = useState<SiteCmsData | null>(null);
+  const [activePageId, setActivePageId] = useState<string>('home-page');
+  const [activeSectionId, setActiveSectionId] = useState<string>('home-hero');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [fieldFilter, setFieldFilter] = useState<FieldFilterMode>('all');
+  const [collapsedSubsections, setCollapsedSubsections] = useState<
+    Record<string, boolean>
+  >({});
+  const [feedback, setFeedback] = useState<FeedbackBanner | null>(null);
+  const [uploadingFieldIds, setUploadingFieldIds] = useState<
+    Record<string, boolean>
+  >({});
+  const [pendingR2UploadsByFieldId, setPendingR2UploadsByFieldId] = useState<
+    Record<string, PendingFieldImageAssignment>
+  >({});
+
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
+  const [isReloading, setIsReloading] = useState<boolean>(false);
+  const [showTrashView, setShowTrashView] = useState<boolean>(false);
+  const [showMediaLibraryView, setShowMediaLibraryView] =
+    useState<boolean>(false);
+  const [mediaPickerModalState, setMediaPickerModalState] = useState<{
+    field: AdminFieldItem;
+    preferredFolder: string;
   } | null>(null);
 
-  const heroImages = useMemo(
-    () =>
-      Array.isArray(cms.general?.heroImages) &&
-      cms.general.heroImages.length > 0
-        ? cms.general.heroImages
-        : [''],
-    [cms.general]
+  const isAnyUploadInProgress = Object.keys(uploadingFieldIds).length > 0;
+
+  const draft = useMemo(
+    () => (draftOverride ? draftOverride : normalizeCmsData(savedCms)),
+    [draftOverride, savedCms]
   );
 
-  const handleGoogleSignIn = async () => {
-    setSigningIn(true);
-    setAuthError(null);
-    try {
-      const cred = await signInWithPopup(auth, googleProvider);
-      const email = (cred.user?.email || '').toLowerCase();
-      if (email !== PRIMARY_ADMIN_EMAIL || !cred.user?.emailVerified) {
-        setAuthError(
-          `Signed in as ${
-            cred.user?.email || 'unknown'
-          }, which is not the authorized admin (${PRIMARY_ADMIN_EMAIL}).`
-        );
-      }
-    } catch (err) {
-      const code = (err as { code?: string })?.code || '';
-      const message =
-        err instanceof Error ? err.message : 'Google Sign-In failed.';
-      if (code === 'auth/unauthorized-domain') {
-        setAuthError(
-          `Firebase Auth blocked sign-in from this domain (${window.location.hostname}). Add "${window.location.hostname}" to Firebase Console -> Authentication -> Settings -> Authorized domains.`
-        );
-      } else {
-        setAuthError(`Google Sign-In error${code ? ` (${code})` : ''}: ${message}`);
-      }
-    } finally {
-      setSigningIn(false);
-    }
-  };
+  const savedSerialized = useMemo(
+    () => serializeComparableCms(savedCms),
+    [savedCms]
+  );
+  const draftSerialized = useMemo(
+    () => serializeComparableCms(draft),
+    [draft]
+  );
 
-  // Update shared CMS state in memory and mark dirty for text edits
-  const updateDraft = (updater: (prev: SiteCmsData) => SiteCmsData) => {
-    setCms((prev) => updater(prev));
-    setDirty(true);
-  };
+  const hasUnsavedChanges = savedSerialized !== draftSerialized;
 
-  // Persist full CMS state to Firestore and propagate errors to caller
-  const persistToFirestore = async (
-    nextData: SiteCmsData,
-    successMessage = 'Saved to Firestore and updated live site.'
-  ) => {
-    setSaving(true);
-    setStatusBanner(null);
-    try {
-      await saveCmsToFirebase(nextData);
-      setDirty(false);
-      setStatusBanner({ type: 'success', message: successMessage });
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to save to Firestore';
-      setStatusBanner({
-        type: 'error',
-        message: msg,
-      });
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  };
+  const trashItems = useMemo(() => listSoftDeletedItems(draft), [draft]);
 
-  const handleSaveManual = async () => {
-    try {
-      await persistToFirestore(cms, 'All changes saved to Firestore.');
-    } catch {
-      // Banner already displayed
-    }
-  };
+  const pages: AdminPageSchema[] = useMemo(
+    () => buildAdminPagesFromCms(draft, currentAdminUid),
+    [draft, currentAdminUid]
+  );
 
-  const handleResetDefaults = async () => {
-    const defaults = getDefaultCmsData();
-    try {
-      await persistToFirestore(
-        defaults,
-        'Reset all website content in Firestore to defaults.'
-      );
-    } catch {
-      // Banner already displayed
-    }
-  };
-
-  // Quick-assign targets for R2BucketManagerTab
-  const quickAssignTargets = useMemo<R2QuickAssignTarget[]>(() => {
-    const targets: R2QuickAssignTarget[] = [];
-    heroImages.forEach((url, idx) => {
-      targets.push({
-        id: `hero:${idx}`,
-        group: 'Homepage',
-        label: `Hero Slide #${idx + 1}`,
-        currentUrl: url,
-      });
-    });
-    targets.push({
-      id: 'general:storyMainImage',
-      group: 'Homepage',
-      label: 'Our Story Main Image',
-      currentUrl: cms.general?.storyMainImage || '',
-    });
-    targets.push({
-      id: 'general:storySecondaryImage',
-      group: 'Homepage',
-      label: 'Our Story Secondary Image',
-      currentUrl: cms.general?.storySecondaryImage || '',
-    });
-    targets.push({
-      id: 'general:experienceImage',
-      group: 'Homepage',
-      label: 'What We Do / Experience Section Image',
-      currentUrl: cms.general?.experienceImage || '',
-    });
-    cms.destinations.forEach((d) => {
-      targets.push({
-        id: `destination:${d.id}`,
-        group: 'Iconic Places',
-        label: d.name,
-        currentUrl: d.image,
-      });
-    });
-    cms.tours.forEach((t) => {
-      targets.push({
-        id: `tour:${t.id}`,
-        group: 'Signature Tours',
-        label: t.name,
-        currentUrl: t.image,
-      });
-    });
-    cms.stays.forEach((s) => {
-      targets.push({
-        id: `stay:${s.id}`,
-        group: 'Boutique Stays',
-        label: s.name,
-        currentUrl: s.image,
-      });
-    });
-    cms.gallery.forEach((g) => {
-      targets.push({
-        id: `gallery:${g.id}`,
-        group: 'Visual Gallery',
-        label: g.title,
-        currentUrl: g.image,
-      });
-    });
-    cms.reviews.forEach((r) => {
-      targets.push({
-        id: `review:${r.id}`,
-        group: 'Tourist Thoughts',
-        label: r.name,
-        currentUrl: r.image,
-      });
-    });
-    return targets;
-  }, [cms, heroImages]);
-
-  /**
-   * Atomically assigns an R2 image to any target slot and commits `site_cms/main`,
-   * the collection doc, and `r2_media/{id}` in one writeBatch.
-   */
-  const handleAssignFromR2 = async (
-    targetId: string,
-    url: string,
-    label?: string,
-    mediaItem?: R2UploadedMediaItem
-  ) => {
-    const [type, id] = targetId.split(':');
-    setSaving(true);
-    setStatusBanner(null);
-
-    try {
-      if (type === 'hero') {
-        const index = Number(id);
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => {
-            const currentHeroes =
-              Array.isArray(current.general?.heroImages) &&
-              current.general.heroImages.length > 0
-                ? [...current.general.heroImages]
-                : [''];
-            if (
-              !Number.isNaN(index) &&
-              index >= 0 &&
-              index < currentHeroes.length
-            ) {
-              currentHeroes[index] = url;
-            } else {
-              currentHeroes.push(url);
+  const publishedFieldsById = useMemo(() => {
+    const map = new Map<string, { url: string; objectKey: string | null }>();
+    const savedPages = buildAdminPagesFromCms(
+      normalizeCmsData(savedCms),
+      currentAdminUid
+    );
+    for (const p of savedPages) {
+      for (const sec of p.sections) {
+        for (const sub of sec.subsections) {
+          for (const f of sub.fields) {
+            if (f.type === 'image') {
+              map.set(f.id, {
+                url: f.value || '',
+                objectKey: f.objectKey ?? null,
+              });
             }
-            return {
-              ...current,
-              general: {
-                ...current.general,
-                heroImages: currentHeroes.filter(Boolean),
-              },
-            };
-          },
-        });
-      } else if (type === 'general') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            general: {
-              ...current.general,
-              [id]: url,
-            },
-          }),
-        });
-      } else if (type === 'destination') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            destinations: current.destinations.map((d) =>
-              d.id === id ? { ...d, image: url } : d
-            ),
-          }),
-          collectionDoc: {
-            collectionName: 'destinations',
-            docId: id,
-            getPayload: (updated) =>
-              updated.destinations.find((d) => d.id === id),
-          },
-        });
-      } else if (type === 'tour') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            tours: current.tours.map((t) =>
-              t.id === id ? { ...t, image: url } : t
-            ),
-          }),
-          collectionDoc: {
-            collectionName: 'tours',
-            docId: id,
-            getPayload: (updated) => updated.tours.find((t) => t.id === id),
-          },
-        });
-      } else if (type === 'stay') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            stays: current.stays.map((s) =>
-              s.id === id ? { ...s, image: url } : s
-            ),
-          }),
-          collectionDoc: {
-            collectionName: 'stays',
-            docId: id,
-            getPayload: (updated) => updated.stays.find((s) => s.id === id),
-          },
-        });
-      } else if (type === 'gallery') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            gallery: current.gallery.map((g) =>
-              g.id === id ? { ...g, image: url } : g
-            ),
-          }),
-          collectionDoc: {
-            collectionName: 'gallery',
-            docId: id,
-            getPayload: (updated) => updated.gallery.find((g) => g.id === id),
-          },
-        });
-      } else if (type === 'review') {
-        await assignR2ImageToCmsSlot({
-          mediaItem,
-          applyToCms: (current) => ({
-            ...current,
-            reviews: current.reviews.map((r) =>
-              r.id === id ? { ...r, image: url } : r
-            ),
-          }),
-          collectionDoc: {
-            collectionName: 'reviews',
-            docId: id,
-            getPayload: (updated) => updated.reviews.find((r) => r.id === id),
-          },
-        });
+          }
+        }
       }
+    }
+    return map;
+  }, [savedCms, currentAdminUid]);
 
-      setStatusBanner({
-        type: 'success',
-        message: `Assigned R2 image to ${
-          label || targetId
-        } and committed to Firestore.`,
-      });
-    } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Failed to assign image in Firestore.';
-      setStatusBanner({
-        type: 'error',
-        message: msg,
-      });
-      throw err;
-    } finally {
-      setSaving(false);
+  const activePage = useMemo(
+    () => pages.find((p) => p.id === activePageId) || pages[0],
+    [pages, activePageId]
+  );
+
+  const activeSection = useMemo(() => {
+    if (!activePage) return null;
+    return (
+      activePage.sections.find((s) => s.id === activeSectionId) ||
+      activePage.sections[0] ||
+      null
+    );
+  }, [activePage, activeSectionId]);
+
+  const activeFirestoreDocMeta = useMemo(() => {
+    if (!activeSection) return null;
+    const docId = SECTION_TO_FIRESTORE_DOC[activeSection.id];
+    if (!docId) return null;
+    return sectionMeta[docId] || null;
+  }, [activeSection, sectionMeta]);
+
+  const handleSelectPage = (pageId: string) => {
+    setActivePageId(pageId);
+    setShowTrashView(false);
+    setShowMediaLibraryView(false);
+    const targetPage = pages.find((p) => p.id === pageId);
+    if (targetPage && targetPage.sections.length > 0) {
+      setActiveSectionId(targetPage.sections[0].id);
     }
   };
 
-  const handleExportEnquiriesCsv = () => {
-    if (cms.enquiries.length === 0) return;
-    const headers = [
-      'ID',
-      'Status',
-      'Name',
-      'Email',
-      'Phone',
-      'Method',
-      'Package',
-      'Arrival',
-      'Guests',
-      'Duration',
-      'Created At',
-    ];
-    const rows = cms.enquiries.map((e) => [
-      e.id || '',
-      e.status || 'new',
-      e.name || '',
-      e.email || '',
-      e.phone || '',
-      e.bookingMethod || 'direct_admin',
-      e.selectedPackage || '',
-      e.arrival || '',
-      e.guests || '',
-      e.duration || '',
-      e.createdAt || '',
-    ]);
-    const csv = [headers, ...rows]
-      .map((r) =>
-        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      )
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `bimondo-enquiries-${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const applyDraftMutation = (mutator: (prev: SiteCmsData) => SiteCmsData) => {
+    setDraftOverride((prev) =>
+      normalizeCmsData(mutator(prev ?? normalizeCmsData(savedCms)))
+    );
+    if (feedback?.type === 'success' || feedback?.type === 'info') {
+      setFeedback(null);
+    }
   };
 
-  const filteredEnquiries = cms.enquiries.filter((e) =>
-    statusFilter === 'all' ? true : (e.status || 'new') === statusFilter
-  );
+  const getAdminIdToken = async (): Promise<string> => {
+    if (!user) {
+      throw new Error(
+        'You must be signed in as an authorized administrator to upload images.'
+      );
+    }
+    return await user.getIdToken();
+  };
+
+  const handleUploadStart = (fieldId: string) => {
+    setUploadingFieldIds((prev) => ({ ...prev, [fieldId]: true }));
+  };
+
+  const handleUploadEnd = (fieldId: string) => {
+    setUploadingFieldIds((prev) => {
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
+  };
+
+  const handleFieldUploadSuccess = (
+    field: AdminFieldItem,
+    uploaded: R2UploadSuccessResponse
+  ) => {
+    if (field.applyImage) {
+      applyDraftMutation((prev) =>
+        field.applyImage!(prev, { url: uploaded.url, key: uploaded.key })
+      );
+    }
+    setPendingR2UploadsByFieldId((prev) => ({
+      ...prev,
+      [field.id]: {
+        ...uploaded,
+        source: 'uploaded',
+      },
+    }));
+    setFeedback({
+      type: 'info',
+      message: `Uploaded "${uploaded.key}" to Cloudflare R2 (${uploaded.url}). Click "Save Changes" to publish this image reference to Cloud Firestore.`,
+    });
+  };
+
+  const handleFieldSelectFromMediaLibrary = (
+    field: AdminFieldItem,
+    asset: SelectedMediaLibraryAsset
+  ) => {
+    if (field.applyImage) {
+      applyDraftMutation((prev) =>
+        field.applyImage!(prev, { url: asset.url, key: asset.key })
+      );
+    }
+    setPendingR2UploadsByFieldId((prev) => ({
+      ...prev,
+      [field.id]: {
+        key: asset.key,
+        url: asset.url,
+        contentType: asset.contentType,
+        size: asset.size,
+        source: 'library',
+      },
+    }));
+    setMediaPickerModalState(null);
+    setFeedback({
+      type: 'info',
+      message: `Selected "${asset.key}" from Media Library for "${field.label}". You can customize its Alt Text for this placement and click "Save Changes" to publish.`,
+    });
+  };
+
+  const handleFieldRemoveFromPlacement = (field: AdminFieldItem) => {
+    if (field.applyImage) {
+      applyDraftMutation((prev) =>
+        field.applyImage!(prev, { url: '', key: null })
+      );
+    }
+    setPendingR2UploadsByFieldId((prev) => {
+      const next = { ...prev };
+      delete next[field.id];
+      return next;
+    });
+    setFeedback({
+      type: 'info',
+      message: `Removed image from placement "${field.label}" in draft (the R2 object itself was not deleted). Click "Save Changes" to persist.`,
+    });
+  };
+
+  const handleSaveChanges = async () => {
+    if (!user?.uid) {
+      setFeedback({
+        type: 'error',
+        message: 'You must be signed in as an authorized administrator to save.',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    setFeedback(null);
+
+    try {
+      const result = await saveCmsToFirestore(draft, user.uid);
+      if (!result.valid) {
+        if (result.conflict) {
+          setFeedback({
+            type: 'conflict',
+            message: `Concurrent edit conflict detected on "${result.conflict.title}" (/cms_sections/${result.conflict.docId}). Your session loaded revision #${result.conflict.expectedRevision}, but Firestore is now at revision #${result.conflict.actualRevision}. Reload the latest content from Firestore before re-applying your change.`,
+            conflictDetails: result.conflict,
+          });
+        } else {
+          setFeedback({
+            type: 'error',
+            message:
+              result.error ||
+              'Unable to save changes to Cloud Firestore. Your unsaved edits are still preserved in the editor.',
+          });
+        }
+        return;
+      }
+
+      setDraftOverride(null);
+      setPendingR2UploadsByFieldId({});
+      const timeStr = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      const updatedSummary =
+        result.updatedDocIds.length > 0
+          ? `Updated ${result.updatedDocIds.length} Firestore section document(s): ${result.updatedDocIds.join(', ')}`
+          : 'No section documents required updates';
+      setFeedback({
+        type: 'success',
+        message: `Confirmed by Cloud Firestore at ${timeStr}. ${updatedSummary}.`,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelUnsaved = () => {
+    if (isAnyUploadInProgress) return;
+    const hadPendingR2Uploads =
+      Object.keys(pendingR2UploadsByFieldId).length > 0;
+    setDraftOverride(null);
+    setPendingR2UploadsByFieldId({});
+    setFeedback({
+      type: 'info',
+      message: hadPendingR2Uploads
+        ? 'Discarded unsaved content edits and restored the last saved Firestore state. Note: Image files already uploaded to Cloudflare R2 remain stored in the bucket and were not deleted.'
+        : 'Discarded unsaved local edits and restored the last loaded/saved Firestore state.',
+    });
+  };
+
+  const handleReloadFromFirestore = async () => {
+    if (isAnyUploadInProgress) return;
+    setIsReloading(true);
+    setFeedback(null);
+    try {
+      await reloadFromRepository();
+      setDraftOverride(null);
+      setPendingR2UploadsByFieldId({});
+      setFeedback({
+        type: 'info',
+        message:
+          'Reloaded latest published documents and revision numbers from Cloud Firestore.',
+      });
+    } finally {
+      setIsReloading(false);
+    }
+  };
+
+  const handleInitializeWebsiteContent = async () => {
+    if (!user?.uid) {
+      setFeedback({
+        type: 'error',
+        message:
+          'You must be signed in as an authorized administrator to initialize Firestore content.',
+      });
+      return;
+    }
+
+    setIsInitializing(true);
+    setFeedback(null);
+
+    try {
+      const res = await initializeFirestoreContent(user.uid);
+      if (!res.success) {
+        const failedList = res.failedDocs
+          .map((f) => `${f.docId} (${f.error})`)
+          .join('; ');
+        setFeedback({
+          type: 'error',
+          message: `Initial import partially failed. Created: ${res.createdDocIds.length}, Skipped existing: ${res.skippedDocIds.length}, Failed: ${res.failedDocs.length} — ${failedList}. You can safely click "Initialize Website Content" again to retry.`,
+        });
+        return;
+      }
+
+      setDraftOverride(null);
+      setFeedback({
+        type: 'success',
+        message:
+          res.createdDocIds.length > 0
+            ? `Initialized ${res.createdDocIds.length} missing section document(s) in Cloud Firestore (${res.skippedDocIds.length} existing document(s) preserved untouched).`
+            : `All ${res.skippedDocIds.length} section documents already exist in Cloud Firestore. Existing edits were preserved without overwriting.`,
+      });
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
+  const handleRestoreTrashItem = (entry: TrashItemEntry) => {
+    applyDraftMutation((prev) => restoreSoftDeletedEntry(prev, entry));
+    setFeedback({
+      type: 'info',
+      message: `Restored "${entry.title}" (ID: ${entry.id}) in draft. Click "Save Changes" to persist restoration to Cloud Firestore.`,
+    });
+  };
+
+  const toggleSubsectionCollapse = (subId: string) => {
+    setCollapsedSubsections((prev) => ({
+      ...prev,
+      [subId]: !prev[subId],
+    }));
+  };
+
+  const filteredSubsections = useMemo(() => {
+    if (!activeSection) return [];
+    const q = searchQuery.trim().toLowerCase();
+
+    return activeSection.subsections
+      .map((sub) => {
+        const matchingFields = sub.fields.filter((f) => {
+          if (fieldFilter === 'text' && f.type === 'image') return false;
+          if (fieldFilter === 'image' && f.type !== 'image') return false;
+          if (!q) return true;
+          return (
+            f.label.toLowerCase().includes(q) ||
+            f.value.toLowerCase().includes(q) ||
+            (f.altText && f.altText.toLowerCase().includes(q)) ||
+            sub.title.toLowerCase().includes(q)
+          );
+        });
+        return {
+          ...sub,
+          fields: matchingFields,
+        };
+      })
+      .filter((sub) => sub.fields.length > 0);
+  }, [activeSection, searchQuery, fieldFilter]);
+
+  const handleFieldValueChange = (field: AdminFieldItem, nextVal: string) => {
+    if (field.type === 'image') {
+      if (field.applyImage) {
+        applyDraftMutation((prev) => field.applyImage!(prev, { url: nextVal }));
+      }
+      return;
+    }
+    if (field.applyText) {
+      applyDraftMutation((prev) => field.applyText!(prev, nextVal));
+    }
+  };
+
+  const handleImageAltChange = (field: AdminFieldItem, nextAlt: string) => {
+    if (field.applyImage) {
+      applyDraftMutation((prev) => field.applyImage!(prev, { alt: nextAlt }));
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans">
       {/* Top Bar */}
-      <header className="sticky top-0 z-30 bg-white border-b border-stone-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-sm tracking-tight text-stone-900">
-              Bimondo CMS &amp; R2 Admin
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200 px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-semibold tracking-tight text-slate-900 whitespace-nowrap shrink-0">
+            Bimondo Admin
+          </span>
+          <span
+            aria-hidden="true"
+            className="hidden sm:inline text-slate-300 text-xs"
+          >
+            /
+          </span>
+          <span className="hidden sm:inline text-xs text-slate-600 font-medium truncate">
+            {showMediaLibraryView
+              ? 'Media Library'
+              : showTrashView
+                ? 'Trash'
+                : activePage?.title || 'Editor'}
+          </span>
+          {hasUnsavedChanges && (
+            <span className="hidden md:inline text-xs text-amber-700 font-medium whitespace-nowrap ml-2">
+              Unsaved changes
             </span>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-900"
-            >
-              View Live Site
-              <ExternalLink className="w-3 h-3" />
-            </Link>
-          </div>
+          )}
+        </div>
 
-          <div className="flex items-center gap-2">
-            {firebaseUser ? (
-              <div className="flex items-center gap-2 text-xs text-stone-600 mr-2">
-                <span
-                  className={`px-2 py-0.5 rounded border font-mono ${
-                    isVerifiedAdmin
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      : 'bg-amber-50 border-amber-200 text-amber-800'
-                  }`}
-                >
-                  {firebaseUser.email}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthError(null);
-                    signOut(auth);
-                  }}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-stone-200 rounded hover:bg-stone-100"
-                >
-                  <LogOut className="w-3 h-3" />
-                  Sign out
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={signingIn}
-                onClick={handleGoogleSignIn}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded hover:bg-stone-50 disabled:opacity-50"
-              >
-                {signingIn ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <LogIn className="w-3.5 h-3.5" />
-                )}
-                Admin Google Sign-In
-              </button>
-            )}
-
+        <div className="flex items-center gap-2 shrink-0 overflow-x-auto">
+          {(hasUnsavedChanges || isSaving) && (
             <button
               type="button"
-              onClick={handleResetDefaults}
-              disabled={!isVerifiedAdmin || saving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-600 bg-white border border-stone-300 rounded hover:bg-stone-50 disabled:opacity-50"
+              onClick={handleCancelUnsaved}
+              disabled={!hasUnsavedChanges || isSaving || isAnyUploadInProgress}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset
+              <X className="w-3.5 h-3.5" />
+              Discard
             </button>
+          )}
 
-            <button
-              type="button"
-              onClick={handleSaveManual}
-              disabled={!isVerifiedAdmin || saving}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-            >
-              {saving ? (
+          <button
+            type="button"
+            onClick={handleSaveChanges}
+            disabled={!hasUnsavedChanges || isSaving || isAnyUploadInProgress}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+              hasUnsavedChanges && !isSaving && !isAnyUploadInProgress
+                ? 'text-white bg-slate-900 hover:bg-slate-800 cursor-pointer'
+                : 'text-slate-400 bg-slate-100 cursor-not-allowed'
+            }`}
+          >
+            {isSaving ? (
+              <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5" />
-              )}
-              {saving
-                ? 'Saving...'
-                : dirty
-                ? 'Save Changes *'
-                : 'Save to Firestore'}
-            </button>
-          </div>
+                Saving…
+              </>
+            ) : isAnyUploadInProgress ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Uploading…
+              </>
+            ) : (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Save Changes
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowMediaLibraryView((prev) => {
+                const next = !prev;
+                if (next) setShowTrashView(false);
+                return next;
+              });
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              showMediaLibraryView
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            Media
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowTrashView((prev) => {
+                const next = !prev;
+                if (next) setShowMediaLibraryView(false);
+                return next;
+              });
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              showTrashView
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Trash ({trashItems.length})
+          </button>
+
+          <Link
+            href={activePage?.routePath || '/'}
+            prefetch={false}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0"
+          >
+            View Site
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+
+          <button
+            type="button"
+            onClick={signOut}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out
+          </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Navigation Sidebar */}
-        <aside className="lg:col-span-3 space-y-1">
-          {ADMIN_TABS.map((tab) => {
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-medium rounded border text-left transition-colors ${
-                  active
-                    ? 'bg-stone-900 text-white border-stone-900'
-                    : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-100'
-                }`}
-              >
-                <span>
-                  <span className="font-mono mr-2 text-stone-400">
-                    {tab.number}
-                  </span>
-                  {tab.label}
-                </span>
-                {tab.id === 'enquiries' && cms.enquiries.length > 0 && (
-                  <span
-                    className={`px-1.5 py-0.5 text-[10px] rounded font-mono ${
-                      active
-                        ? 'bg-stone-700 text-white'
-                        : 'bg-stone-100 text-stone-700'
+      {/* Main Workspace Layout: Left Page Sidebar + Main Content Area */}
+      <div className="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] min-h-[calc(100vh-3.5rem)]">
+        {/* Left Sidebar: Pages Hierarchy */}
+        <aside className="bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-4 lg:p-5">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-xs font-semibold text-slate-500 tracking-wide">
+              Site Pages ({pages.length})
+            </h2>
+            <button
+              type="button"
+              onClick={handleReloadFromFirestore}
+              disabled={isReloading || isSaving || isAnyUploadInProgress}
+              title="Reload latest published content from Cloud Firestore"
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-900 disabled:opacity-50 cursor-pointer"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${isReloading ? 'animate-spin' : ''}`}
+              />
+              Reload
+            </button>
+          </div>
+
+          <nav
+            aria-label="Site Pages"
+            className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0"
+          >
+            {pages.map((page) => {
+              const isSelected =
+                !showTrashView &&
+                !showMediaLibraryView &&
+                page.id === activePage?.id;
+              const totalSections = page.sections.length;
+              const totalSubsections = page.sections.reduce(
+                (acc, sec) => acc + sec.subsections.length,
+                0
+              );
+
+              return (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => handleSelectPage(page.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-md transition-colors shrink-0 lg:shrink cursor-pointer ${
+                    isSelected
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium whitespace-nowrap truncate">
+                      {page.title}
+                    </span>
+                    <span
+                      className={`text-[11px] font-mono tabular-nums whitespace-nowrap shrink-0 ${
+                        isSelected ? 'text-slate-300' : 'text-slate-400'
+                      }`}
+                    >
+                      {totalSections}s · {totalSubsections}sub
+                    </span>
+                  </div>
+                  <div
+                    className={`text-[11px] font-mono truncate mt-0.5 ${
+                      isSelected ? 'text-slate-300' : 'text-slate-400'
                     }`}
                   >
-                    {cms.enquiries.length}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    {page.routePath}
+                  </div>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Current Page Quick Summary */}
+          {activePage && !showTrashView && (
+            <div className="hidden lg:block mt-6 pt-5 border-t border-slate-200 text-xs text-slate-500 space-y-2">
+              <div className="font-medium text-slate-800">
+                Structure Overview
+              </div>
+              <div className="flex items-center justify-between tabular-nums">
+                <span>Sections</span>
+                <span className="font-mono text-slate-800">
+                  {activePage.sections.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between tabular-nums">
+                <span>Subsections / Items</span>
+                <span className="font-mono text-slate-800">
+                  {activePage.sections.reduce(
+                    (sum, s) => sum + s.subsections.length,
+                    0
+                  )}
+                </span>
+              </div>
+              <div className="flex items-center justify-between tabular-nums">
+                <span>Soft-Deleted in Trash</span>
+                <span className="font-mono text-slate-800">
+                  {trashItems.length}
+                </span>
+              </div>
+            </div>
+          )}
         </aside>
 
-        {/* Main Content Panel */}
-        <main className="lg:col-span-9 space-y-6">
-          {/* Verified Admin Gate Banner */}
-          {authReady && !isVerifiedAdmin && (
-            <div className="p-4 rounded border border-amber-300 bg-amber-50 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
-                <div className="space-y-1">
-                  <p className="font-semibold">
-                    Verified Admin Sign-In Required
-                  </p>
-                  <p className="text-amber-800">
-                    {firebaseUser
-                      ? `Signed in as ${firebaseUser.email}, which does not have admin write permissions. Sign in with ${PRIMARY_ADMIN_EMAIL} to upload to R2 or publish changes to Firestore.`
-                      : `Sign in with your authorized Google account (${PRIMARY_ADMIN_EMAIL}) to upload images to Cloudflare R2 and publish updates to Firestore.`}
-                  </p>
-                </div>
+        {/* Right Main Content Viewport */}
+        <main className="p-5 lg:p-8 space-y-6 min-w-0">
+          {!loadingFirestore && existingSectionCount < totalSectionCount && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 text-xs bg-white border border-slate-200 rounded-md">
+              <div className="flex items-center gap-2 text-slate-700">
+                <Database className="w-4 h-4 text-slate-500 shrink-0" />
+                <span>
+                  {existingSectionCount} of {totalSectionCount} website content
+                  sections are initialized in Firestore.
+                </span>
               </div>
               <button
                 type="button"
-                disabled={signingIn}
-                onClick={handleGoogleSignIn}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 shrink-0 disabled:opacity-50"
+                onClick={handleInitializeWebsiteContent}
+                disabled={isInitializing || isSaving || isAnyUploadInProgress}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                {signingIn ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                {isInitializing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Initializing…
+                  </>
                 ) : (
-                  <LogIn className="w-3.5 h-3.5" />
+                  'Initialize Website Content'
                 )}
-                Sign In with Google
               </button>
             </div>
           )}
-
-          {/* Google Sign-In Error Banner */}
-          {authError && (
-            <div className="p-3.5 rounded border border-red-200 bg-red-50 text-red-700 text-xs flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{authError}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setAuthError(null)}
-                className="text-[11px] underline opacity-75 hover:opacity-100"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {/* Status Notification */}
-          {statusBanner && (
+          {loadError && (
             <div
-              className={`p-3.5 rounded border text-xs flex items-center justify-between gap-2 ${
-                statusBanner.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : 'bg-red-50 border-red-200 text-red-700'
-              }`}
+              role="alert"
+              className="flex items-center justify-between gap-4 px-4 py-3 text-xs rounded-md border bg-amber-50 text-amber-900 border-amber-200"
             >
               <div className="flex items-center gap-2">
-                {statusBanner.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                )}
-                <span>{statusBanner.message}</span>
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  Firestore read warning: {loadError}. Displaying bundled default
+                  content for any unreachable sections.
+                </span>
               </div>
               <button
                 type="button"
-                onClick={() => setStatusBanner(null)}
-                className="text-[11px] underline opacity-75 hover:opacity-100"
+                onClick={handleReloadFromFirestore}
+                className="px-2.5 py-1 text-xs font-medium bg-white border border-amber-300 rounded hover:bg-amber-100 cursor-pointer shrink-0"
               >
-                Dismiss
+                Retry Fetch
               </button>
             </div>
           )}
 
-          {/* 01. HERO SECTION */}
-          {activeTab === 'hero' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div>
-                <h2 className="text-base font-semibold text-stone-900">
-                  01. Hero Section
-                </h2>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Configure the main hero headline and background slideshow
-                  images served from Cloudflare R2 and saved in Firestore (
-                  <code className="font-mono">site_cms/main</code>).
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    Site Name / Headline Brand
-                  </label>
-                  <input
-                    type="text"
-                    value={cms.general.siteName}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: { ...prev.general, siteName: e.target.value },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    Hero Tagline / Subtitle
-                  </label>
-                  <input
-                    type="text"
-                    value={cms.general.tagline}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: { ...prev.general, tagline: e.target.value },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded"
-                  />
+          {feedback && (
+            <div
+              role="status"
+              className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 py-3.5 text-xs rounded-md border ${
+                feedback.type === 'error' || feedback.type === 'conflict'
+                  ? 'bg-red-50 text-red-900 border-red-200'
+                  : feedback.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                    : 'bg-white text-slate-800 border-slate-300'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                {feedback.type === 'error' || feedback.type === 'conflict' ? (
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-1">
+                  <div className="leading-relaxed">{feedback.message}</div>
+                  {feedback.type === 'conflict' && feedback.conflictDetails && (
+                    <div className="text-[11px] font-mono text-red-800">
+                      Section Doc: /cms_sections/{feedback.conflictDetails.docId}{' '}
+                      · Expected Rev #{feedback.conflictDetails.expectedRevision}{' '}
+                      · Remote Rev #{feedback.conflictDetails.actualRevision}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-4 pt-4 border-t border-stone-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-700">
-                    Hero Slideshow Images ({heroImages.length})
-                  </h3>
+              <div className="flex items-center gap-2 shrink-0">
+                {feedback.type === 'conflict' && (
                   <button
                     type="button"
-                    disabled={!isVerifiedAdmin}
-                    onClick={() =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: {
-                          ...prev.general,
-                          heroImages: [...heroImages, ''],
-                        },
-                      }))
-                    }
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-stone-700 bg-stone-100 rounded hover:bg-stone-200 disabled:opacity-50"
+                    onClick={handleReloadFromFirestore}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-red-700 hover:bg-red-800 rounded cursor-pointer"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Slide
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Reload Latest from Firestore
                   </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {heroImages.map((imgUrl, idx) => (
-                    <div
-                      key={idx}
-                      className="border border-stone-200 rounded p-4 space-y-3 bg-stone-50/50"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-stone-700">
-                          Hero Slide #{idx + 1}
-                        </span>
-                        {heroImages.length > 1 && (
-                          <button
-                            type="button"
-                            disabled={!isVerifiedAdmin}
-                            onClick={() => {
-                              const next = heroImages.filter(
-                                (_, i) => i !== idx
-                              );
-                              persistToFirestore(
-                                {
-                                  ...cms,
-                                  general: { ...cms.general, heroImages: next },
-                                },
-                                `Removed Hero Slide #${
-                                  idx + 1
-                                } and updated Firestore.`
-                              ).catch(() => {});
-                            }}
-                            className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Remove
-                          </button>
-                        )}
-                      </div>
-
-                      <AdminImageUploadField
-                        label={`Hero Slide #${idx + 1} (R2 general/)`}
-                        slotId={`hero:${idx}`}
-                        value={imgUrl}
-                        folder="general"
-                        onR2Deleted={(_, docId) =>
-                          removeR2MediaFromFirebase(docId)
-                        }
-                        onOpenR2Settings={() => setActiveTab('r2')}
-                        onChange={async (newUrl, uploadedItem) => {
-                          await handleAssignFromR2(
-                            `hero:${idx}`,
-                            newUrl,
-                            `Hero Slide #${idx + 1}`,
-                            uploadedItem
-                          );
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Homepage Story & Experience Section Images */}
-              <div className="space-y-4 pt-4 border-t border-stone-200">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-700">
-                  Homepage Section Images (Our Story &amp; What We Do)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <AdminImageUploadField
-                    label="Our Story — Main Image (R2 general/)"
-                    slotId="general:storyMainImage"
-                    value={cms.general.storyMainImage || ''}
-                    folder="general"
-                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                    onOpenR2Settings={() => setActiveTab('r2')}
-                    onChange={async (newUrl, uploadedItem) => {
-                      await handleAssignFromR2(
-                        'general:storyMainImage',
-                        newUrl,
-                        'Our Story Main Image',
-                        uploadedItem
-                      );
-                    }}
-                  />
-
-                  <AdminImageUploadField
-                    label="Our Story — Secondary Image (R2 general/)"
-                    slotId="general:storySecondaryImage"
-                    value={cms.general.storySecondaryImage || ''}
-                    folder="general"
-                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                    onOpenR2Settings={() => setActiveTab('r2')}
-                    onChange={async (newUrl, uploadedItem) => {
-                      await handleAssignFromR2(
-                        'general:storySecondaryImage',
-                        newUrl,
-                        'Our Story Secondary Image',
-                        uploadedItem
-                      );
-                    }}
-                  />
-
-                  <AdminImageUploadField
-                    label="What We Do — Experience Image (R2 general/)"
-                    slotId="general:experienceImage"
-                    value={cms.general.experienceImage || ''}
-                    folder="general"
-                    onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                    onOpenR2Settings={() => setActiveTab('r2')}
-                    onChange={async (newUrl, uploadedItem) => {
-                      await handleAssignFromR2(
-                        'general:experienceImage',
-                        newUrl,
-                        'What We Do Experience Image',
-                        uploadedItem
-                      );
-                    }}
-                  />
-                </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setFeedback(null)}
+                  className="text-slate-500 hover:text-slate-900 font-medium cursor-pointer"
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           )}
 
-          {/* 02. TOURIST THOUGHTS (REVIEWS) */}
-          {activeTab === 'reviews' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
+          {/* =================================================================
+              MEDIA LIBRARY VIEW OR TRASH VIEW OR PAGE EDITOR
+             ================================================================= */}
+          {showMediaLibraryView ? (
+            <AdminMediaLibrary
+              mode="screen"
+              initialFolder="pages/home/hero"
+              savedCms={savedCms}
+              draftCms={draft}
+              loadingFirestore={loadingFirestore}
+              existingSectionCount={existingSectionCount}
+              totalSectionCount={totalSectionCount}
+              firestoreLoadError={loadError}
+              getAdminIdToken={getAdminIdToken}
+              onClose={() => setShowMediaLibraryView(false)}
+            />
+          ) : showTrashView ? (
+            <div className="bg-white border border-slate-200 rounded-md p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
                 <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    02. Tourist Thoughts (Guest Reviews)
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Manage guest stories, ratings, and traveler photos synced to
-                    Firestore (<code className="font-mono">/reviews</code>).
+                  <div className="text-xs font-mono text-slate-500">
+                    SOFT DELETION &amp; RESTORATION · /cms_sections
+                  </div>
+                  <h1 className="text-xl font-semibold text-slate-900 mt-0.5">
+                    Trash ({trashItems.length} Soft-Deleted Item
+                    {trashItems.length === 1 ? '' : 's'})
+                  </h1>
+                  <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
+                    Soft-deleted sections and repeatable items are hidden from
+                    the public website and active editor while keeping their
+                    stable IDs, text, and R2 image references intact. Restoring
+                    an item returns its exact stable ID and content.
                   </p>
                 </div>
+
                 <button
                   type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const newReview: CmsReviewItem = {
-                      id: `thought-${Date.now()}`,
-                      name: 'New Guest',
-                      location: 'United Kingdom',
-                      rating: 5,
-                      tour: 'Signature Sri Lanka Journey',
-                      date: 'Visited 2026',
-                      quote:
-                        'An unforgettable private journey through Sri Lanka.',
-                      image: '',
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      reviews: [newReview, ...prev.reviews],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
+                  onClick={() => setShowTrashView(false)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md cursor-pointer shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Review
+                  Back to Page Editor
                 </button>
               </div>
 
-              <div className="space-y-4">
-                {cms.reviews.map((rev, idx) => (
-                  <div
-                    key={rev.id}
-                    className="border border-stone-200 rounded p-4 space-y-4 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        {idx + 1}. {rev.name} ({rev.location})
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.reviews.filter(
-                            (r) => r.id !== rev.id
-                          );
-                          persistToFirestore(
-                            { ...cms, reviews: next },
-                            `Removed review "${rev.name}" from Firestore.`
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Guest Name
-                        </label>
-                        <input
-                          type="text"
-                          value={rev.name}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              reviews: prev.reviews.map((r) =>
-                                r.id === rev.id
-                                  ? { ...r, name: e.target.value }
-                                  : r
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Country / Location
-                        </label>
-                        <input
-                          type="text"
-                          value={rev.location}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              reviews: prev.reviews.map((r) =>
-                                r.id === rev.id
-                                  ? { ...r, location: e.target.value }
-                                  : r
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Tour Taken
-                        </label>
-                        <input
-                          type="text"
-                          value={rev.tour}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              reviews: prev.reviews.map((r) =>
-                                r.id === rev.id
-                                  ? { ...r, tour: e.target.value }
-                                  : r
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                        Review Quote
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={rev.quote}
-                        onChange={(e) =>
-                          updateDraft((prev) => ({
-                            ...prev,
-                            reviews: prev.reviews.map((r) =>
-                              r.id === rev.id
-                                ? { ...r, quote: e.target.value }
-                                : r
-                            ),
-                          }))
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                      />
-                    </div>
-
-                    <AdminImageUploadField
-                      label="Guest Photo (R2 general/ folder)"
-                      slotId={`review:${rev.id}`}
-                      value={rev.image || ''}
-                      folder="general"
-                      onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                      onOpenR2Settings={() => setActiveTab('r2')}
-                      onChange={async (newUrl, uploadedItem) => {
-                        await handleAssignFromR2(
-                          `review:${rev.id}`,
-                          newUrl,
-                          `Review: ${rev.name}`,
-                          uploadedItem
-                        );
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 03. ICONIC PLACES (DESTINATIONS) */}
-          {activeTab === 'destinations' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    03. Iconic Places (Destinations)
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Manage destination cards and R2 images synced to Firestore (
-                    <code className="font-mono">/destinations</code>).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const newDest: CmsDestination = {
-                      id: `dest-${Date.now()}`,
-                      name: 'New Destination',
-                      region: 'culture',
-                      regionLabel: 'Cultural Triangle',
-                      season: 'Year-round',
-                      tagline: 'Cultural & Scenic Region',
-                      description:
-                        'Discover ancient heritage and breathtaking natural landscapes.',
-                      highlights: ['Private Guided Tour', 'Scenic Views'],
-                      image: '',
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      destinations: [...prev.destinations, newDest],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Destination
-                </button>
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3.5 text-xs text-amber-950 leading-relaxed">
+                <strong>Transparency Note on Public Readability:</strong> Soft
+                deletion (<code className="font-mono">deletedAt</code> /{' '}
+                <code className="font-mono">deletedBy</code>) hides items from
+                public website rendering without destroying stable IDs or image
+                references. Because soft-deleted items remain inside publicly
+                readable <code className="font-mono">/cms_sections</code>{' '}
+                documents, soft deletion is a publishing visibility state rather
+                than a confidential draft store.
               </div>
 
-              <div className="space-y-4">
-                {cms.destinations.map((dest, idx) => (
-                  <div
-                    key={dest.id}
-                    className="border border-stone-200 rounded p-4 space-y-4 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        {idx + 1}. {dest.name} ({dest.regionLabel})
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.destinations.filter(
-                            (d) => d.id !== dest.id
-                          );
-                          persistToFirestore(
-                            { ...cms, destinations: next },
-                            `Deleted destination "${dest.name}" from Firestore.`
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Destination Name
-                        </label>
-                        <input
-                          type="text"
-                          value={dest.name}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              destinations: prev.destinations.map((d) =>
-                                d.id === dest.id
-                                  ? { ...d, name: e.target.value }
-                                  : d
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Tagline
-                        </label>
-                        <input
-                          type="text"
-                          value={dest.tagline}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              destinations: prev.destinations.map((d) =>
-                                d.id === dest.id
-                                  ? { ...d, tagline: e.target.value }
-                                  : d
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Best Season
-                        </label>
-                        <input
-                          type="text"
-                          value={dest.season}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              destinations: prev.destinations.map((d) =>
-                                d.id === dest.id
-                                  ? { ...d, season: e.target.value }
-                                  : d
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                        Description
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={dest.description}
-                        onChange={(e) =>
-                          updateDraft((prev) => ({
-                            ...prev,
-                            destinations: prev.destinations.map((d) =>
-                              d.id === dest.id
-                                ? { ...d, description: e.target.value }
-                                : d
-                            ),
-                          }))
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                      />
-                    </div>
-
-                    <AdminImageUploadField
-                      label="Destination Image (R2 destinations/ folder)"
-                      slotId={`destination:${dest.id}`}
-                      value={dest.image}
-                      folder="destinations"
-                      onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                      onOpenR2Settings={() => setActiveTab('r2')}
-                      onChange={async (newUrl, uploadedItem) => {
-                        await handleAssignFromR2(
-                          `destination:${dest.id}`,
-                          newUrl,
-                          `Destination: ${dest.name}`,
-                          uploadedItem
-                        );
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 04. SIGNATURE TOURS */}
-          {activeTab === 'tours' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    04. Signature Tours
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Manage curated tour packages and cover images synced to
-                    Firestore (<code className="font-mono">/tours</code>).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const fallbackTheme = cms.tours[0]?.theme || {
-                      primary: '#1E3A2F',
-                      accent: '#C89B5B',
-                      bgGradient:
-                        'linear-gradient(135deg, #1E3A2F 0%, #0F2019 100%)',
-                      glowColor: 'rgba(200, 155, 91, 0.25)',
-                      cardBorder: 'rgba(200, 155, 91, 0.3)',
-                      tagBg: 'rgba(200, 155, 91, 0.15)',
-                      tagColor: '#E5C384',
-                    };
-                    const newTour: Tour = {
-                      id: `tour-${Date.now()}`,
-                      name: 'New Private Sri Lanka Journey',
-                      days: 7,
-                      durationLabel: '7 Days / 6 Nights',
-                      category: 'heritage',
-                      categoryLabel: 'Cultural & Heritage',
-                      route: 'Colombo · Sigiriya · Kandy · Ella · Galle',
-                      description:
-                        'A private tailor-made journey across Sri Lanka.',
-                      highlights:
-                        'Private Chauffeur-Guide, Boutique Stays, Cultural Icons',
-                      image: '',
-                      theme: fallbackTheme,
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      tours: [...prev.tours, newTour],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Tour Package
-                </button>
-              </div>
-
-              <div className="space-y-5">
-                {cms.tours.map((tour, idx) => (
-                  <div
-                    key={tour.id}
-                    className="border border-stone-200 rounded p-4 space-y-4 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        {idx + 1}. {tour.name} (
-                        {tour.durationLabel || `${tour.days} Days`})
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.tours.filter(
-                            (t) => t.id !== tour.id
-                          );
-                          persistToFirestore(
-                            { ...cms, tours: next },
-                            `Removed tour "${tour.name}" from Firestore.`
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Tour Name
-                        </label>
-                        <input
-                          type="text"
-                          value={tour.name}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              tours: prev.tours.map((t) =>
-                                t.id === tour.id
-                                  ? { ...t, name: e.target.value }
-                                  : t
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Days
-                        </label>
-                        <input
-                          type="number"
-                          value={tour.days}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              tours: prev.tours.map((t) =>
-                                t.id === tour.id
-                                  ? { ...t, days: Number(e.target.value) || 1 }
-                                  : t
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Category Label
-                        </label>
-                        <input
-                          type="text"
-                          value={tour.categoryLabel}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              tours: prev.tours.map((t) =>
-                                t.id === tour.id
-                                  ? { ...t, categoryLabel: e.target.value }
-                                  : t
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Route
-                        </label>
-                        <input
-                          type="text"
-                          value={tour.route}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              tours: prev.tours.map((t) =>
-                                t.id === tour.id
-                                  ? { ...t, route: e.target.value }
-                                  : t
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Highlights
-                        </label>
-                        <input
-                          type="text"
-                          value={tour.highlights}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              tours: prev.tours.map((t) =>
-                                t.id === tour.id
-                                  ? { ...t, highlights: e.target.value }
-                                  : t
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                        Description
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={tour.description}
-                        onChange={(e) =>
-                          updateDraft((prev) => ({
-                            ...prev,
-                            tours: prev.tours.map((t) =>
-                              t.id === tour.id
-                                ? { ...t, description: e.target.value }
-                                : t
-                            ),
-                          }))
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                      />
-                    </div>
-
-                    <AdminImageUploadField
-                      label="Tour Cover Image (R2 tours/ folder)"
-                      slotId={`tour:${tour.id}`}
-                      value={tour.image}
-                      folder="tours"
-                      onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                      onOpenR2Settings={() => setActiveTab('r2')}
-                      onChange={async (newUrl, uploadedItem) => {
-                        await handleAssignFromR2(
-                          `tour:${tour.id}`,
-                          newUrl,
-                          `Tour: ${tour.name}`,
-                          uploadedItem
-                        );
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 05. BOUTIQUE STAYS */}
-          {activeTab === 'stays' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    05. Boutique Stays
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Manage partner boutique hotels, luxury lodges, and R2 images
-                    synced to Firestore (<code className="font-mono">/stays</code>
-                    ).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const newStay: AccommodationItem = {
-                      id: `stay-${Date.now()}`,
-                      name: 'New Boutique Sanctuary',
-                      location: 'Hill Country, Sri Lanka',
-                      region: 'hills',
-                      regionLabel: 'Tea Country & Hills',
-                      tagline: 'Tea Estate Sanctuary',
-                      description:
-                        'Intimate architectural sanctuary surrounded by nature.',
-                      highlights: ['Infinity Pool', 'Spa', 'Fine Dining'],
-                      maxGuestsPerRoom: 3,
-                      image: '',
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      stays: [...prev.stays, newStay],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Stay
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {cms.stays.map((stay, idx) => (
-                  <div
-                    key={stay.id}
-                    className="border border-stone-200 rounded p-4 space-y-4 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        {idx + 1}. {stay.name} ({stay.location})
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.stays.filter(
-                            (s) => s.id !== stay.id
-                          );
-                          persistToFirestore(
-                            { ...cms, stays: next },
-                            `Removed stay "${stay.name}" from Firestore.`
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Property Name
-                        </label>
-                        <input
-                          type="text"
-                          value={stay.name}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              stays: prev.stays.map((s) =>
-                                s.id === stay.id
-                                  ? { ...s, name: e.target.value }
-                                  : s
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          value={stay.location}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              stays: prev.stays.map((s) =>
-                                s.id === stay.id
-                                  ? { ...s, location: e.target.value }
-                                  : s
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Tagline / Style
-                        </label>
-                        <input
-                          type="text"
-                          value={stay.tagline}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              stays: prev.stays.map((s) =>
-                                s.id === stay.id
-                                  ? { ...s, tagline: e.target.value }
-                                  : s
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                        Description
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={stay.description}
-                        onChange={(e) =>
-                          updateDraft((prev) => ({
-                            ...prev,
-                            stays: prev.stays.map((s) =>
-                              s.id === stay.id
-                                ? { ...s, description: e.target.value }
-                                : s
-                            ),
-                          }))
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                      />
-                    </div>
-
-                    <AdminImageUploadField
-                      label="Stay Image (R2 stays/ folder)"
-                      slotId={`stay:${stay.id}`}
-                      value={stay.image}
-                      folder="stays"
-                      onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                      onOpenR2Settings={() => setActiveTab('r2')}
-                      onChange={async (newUrl, uploadedItem) => {
-                        await handleAssignFromR2(
-                          `stay:${stay.id}`,
-                          newUrl,
-                          `Stay: ${stay.name}`,
-                          uploadedItem
-                        );
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 06. VISUAL GALLERY */}
-          {activeTab === 'gallery' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    06. Visual Gallery
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Curate visual gallery moments served from Cloudflare R2 and
-                    synced to Firestore (<code className="font-mono">/gallery</code>
-                    ).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const newItem: CmsGalleryPhoto = {
-                      id: `gal-${Date.now()}`,
-                      title: 'New Gallery Moment',
-                      location: 'Sri Lanka',
-                      category: 'culture',
-                      categoryLabel: 'Sacred Heritage',
-                      image: '',
-                      description: 'Captured on a private Bimondo journey.',
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      gallery: [...prev.gallery, newItem],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Gallery Photo
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {cms.gallery.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="border border-stone-200 rounded p-4 space-y-3 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        {idx + 1}. {item.title}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.gallery.filter(
-                            (g) => g.id !== item.id
-                          );
-                          persistToFirestore(
-                            { ...cms, gallery: next },
-                            `Removed gallery item "${item.title}" from Firestore.`
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Title
-                        </label>
-                        <input
-                          type="text"
-                          value={item.title}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              gallery: prev.gallery.map((g) =>
-                                g.id === item.id
-                                  ? { ...g, title: e.target.value }
-                                  : g
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          value={item.location}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              gallery: prev.gallery.map((g) =>
-                                g.id === item.id
-                                  ? { ...g, location: e.target.value }
-                                  : g
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <AdminImageUploadField
-                      label="Gallery Image (R2 gallery/ folder)"
-                      slotId={`gallery:${item.id}`}
-                      value={item.image}
-                      folder="gallery"
-                      onR2Deleted={(_, docId) => removeR2MediaFromFirebase(docId)}
-                      onOpenR2Settings={() => setActiveTab('r2')}
-                      onChange={async (newUrl, uploadedItem) => {
-                        await handleAssignFromR2(
-                          `gallery:${item.id}`,
-                          newUrl,
-                          `Gallery: ${item.title}`,
-                          uploadedItem
-                        );
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 07. PLANNING FAQS */}
-          {activeTab === 'faqs' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    07. Planning FAQs
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Manage frequently asked questions synced to Firestore (
-                    <code className="font-mono">/faqs</code>).
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!isVerifiedAdmin}
-                  onClick={() => {
-                    const newFaq: CmsFaqItem = {
-                      id: `faq-${Date.now()}`,
-                      category: 'booking',
-                      q: 'How far in advance should we book?',
-                      a: 'We recommend booking 2 to 4 months ahead for peak season boutique stays.',
-                    };
-                    updateDraft((prev) => ({
-                      ...prev,
-                      faqs: [...prev.faqs, newFaq],
-                    }));
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-stone-900 rounded hover:bg-stone-800 disabled:opacity-50"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add FAQ
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {cms.faqs.map((faq, idx) => (
-                  <div
-                    key={faq.id}
-                    className="border border-stone-200 rounded p-4 space-y-3 bg-stone-50/40"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-stone-800">
-                        FAQ #{idx + 1}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={!isVerifiedAdmin}
-                        onClick={() => {
-                          const next = cms.faqs.filter((f) => f.id !== faq.id);
-                          persistToFirestore(
-                            { ...cms, faqs: next },
-                            'Removed FAQ item from Firestore.'
-                          ).catch(() => {});
-                        }}
-                        className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Category
-                        </label>
-                        <select
-                          value={faq.category}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              faqs: prev.faqs.map((f) =>
-                                f.id === faq.id
-                                  ? {
-                                      ...f,
-                                      category: e.target.value as
-                                        | 'private'
-                                        | 'stays'
-                                        | 'booking',
-                                    }
-                                  : f
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        >
-                          <option value="private">Private Tours</option>
-                          <option value="stays">Stays &amp; Transport</option>
-                          <option value="booking">Booking &amp; Seasons</option>
-                        </select>
-                      </div>
-
-                      <div className="md:col-span-3">
-                        <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                          Question
-                        </label>
-                        <input
-                          type="text"
-                          value={faq.q}
-                          onChange={(e) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              faqs: prev.faqs.map((f) =>
-                                f.id === faq.id
-                                  ? { ...f, q: e.target.value }
-                                  : f
-                              ),
-                            }))
-                          }
-                          className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                        Answer
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={faq.a}
-                        onChange={(e) =>
-                          updateDraft((prev) => ({
-                            ...prev,
-                            faqs: prev.faqs.map((f) =>
-                              f.id === faq.id ? { ...f, a: e.target.value } : f
-                            ),
-                          }))
-                        }
-                        className="w-full px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 08. BRAND & CONTACT */}
-          {activeTab === 'settings' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div>
-                <h2 className="text-base font-semibold text-stone-900">
-                  08. Brand &amp; Contact Settings
-                </h2>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  Configure contact details and WhatsApp number stored in
-                  Firestore (<code className="font-mono">site_cms/main</code>).
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    WhatsApp Number (digits only, e.g. 94762232054)
-                  </label>
-                  <input
-                    type="text"
-                    value={cms.general.whatsappNumber}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: {
-                          ...prev.general,
-                          whatsappNumber: e.target.value,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    value={cms.general.contactEmail}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: {
-                          ...prev.general,
-                          contactEmail: e.target.value,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    Office Location Label
-                  </label>
-                  <input
-                    type="text"
-                    value={cms.general.locationLabel}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: {
-                          ...prev.general,
-                          locationLabel: e.target.value,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
-                    Instagram URL
-                  </label>
-                  <input
-                    type="url"
-                    value={cms.general.instagramUrl}
-                    onChange={(e) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        general: {
-                          ...prev.general,
-                          instagramUrl: e.target.value,
-                        },
-                      }))
-                    }
-                    className="w-full px-3 py-2 text-xs border border-stone-300 rounded"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 09. BOOKINGS & ENQUIRIES */}
-          {activeTab === 'enquiries' && (
-            <div className="border border-stone-200 bg-white p-6 rounded-md space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-base font-semibold text-stone-900">
-                    09. Bookings &amp; Enquiries ({filteredEnquiries.length})
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Real-time customer enquiries from Direct Admin, WhatsApp,
-                    Email, and Callback channels stored in Firestore (
-                    <code className="font-mono">/enquiries</code>).
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs border border-stone-300 rounded bg-white"
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="new">New</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="replied">Replied</option>
-                    <option value="archived">Archived</option>
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={handleExportEnquiriesCsv}
-                    disabled={cms.enquiries.length === 0}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-700 bg-white border border-stone-300 rounded hover:bg-stone-50 disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-
-              {filteredEnquiries.length === 0 ? (
-                <div className="p-10 text-center border border-stone-200 rounded bg-stone-50 text-xs text-stone-500">
-                  No booking enquiries match the current filter.
+              {trashItems.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-md">
+                  Trash is empty. No sections or repeatable items are currently
+                  soft-deleted.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filteredEnquiries.map((enq: CmsCustomerEnquiry) => (
+                <div className="divide-y divide-slate-200 border border-slate-200 rounded-md">
+                  {trashItems.map((entry) => (
                     <div
-                      key={enq.id}
-                      className="border border-stone-200 rounded p-4 space-y-3 bg-stone-50/40"
+                      key={`${entry.collectionKey}:${entry.id}`}
+                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-stone-900">
-                            {enq.id.slice(0, 10)}
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2 py-0.5 text-[11px] font-mono bg-slate-100 text-slate-700 rounded border border-slate-200">
+                            {entry.locationLabel}
                           </span>
-                          <span className="text-xs font-medium text-stone-800">
-                            {enq.name}
-                          </span>
-                          {enq.bookingMethod && (
-                            <span className="px-2 py-0.5 text-[10px] font-mono uppercase bg-stone-200 text-stone-700 rounded">
-                              {enq.bookingMethod}
-                            </span>
-                          )}
-                          <span className="text-xs text-stone-500">
-                            ·{' '}
-                            {enq.selectedPackage ||
-                              enq.style ||
-                              'Custom Journey'}
-                          </span>
+                          <code className="text-[11px] font-mono text-slate-500">
+                            ID: {entry.id}
+                          </code>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <select
-                            disabled={!isVerifiedAdmin}
-                            value={enq.status || 'new'}
-                            onChange={(e) => {
-                              const nextStatus = e.target
-                                .value as CmsCustomerEnquiry['status'];
-                              const nextList = cms.enquiries.map((item) =>
-                                item.id === enq.id
-                                  ? { ...item, status: nextStatus }
-                                  : item
-                              );
-                              persistToFirestore(
-                                { ...cms, enquiries: nextList },
-                                `Updated enquiry status for ${enq.name}.`
-                              ).catch(() => {});
-                            }}
-                            className="px-2 py-1 text-xs border border-stone-300 rounded bg-white"
-                          >
-                            <option value="new">New</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="replied">Replied</option>
-                            <option value="archived">Archived</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            disabled={!isVerifiedAdmin}
-                            onClick={() => {
-                              const nextList = cms.enquiries.filter(
-                                (item) => item.id !== enq.id
-                              );
-                              persistToFirestore(
-                                { ...cms, enquiries: nextList },
-                                `Deleted enquiry from ${enq.name}.`
-                              ).catch(() => {});
-                            }}
-                            className="p-1 text-stone-400 hover:text-red-600 disabled:opacity-40"
-                            title="Delete enquiry"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div className="text-sm font-semibold text-slate-900 truncate">
+                          {entry.title}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          Deleted at: {entry.deletedAt}
+                          {entry.deletedBy ? ` · by UID: ${entry.deletedBy}` : ''}
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-stone-600">
-                        {enq.email && (
-                          <a
-                            href={`mailto:${enq.email}`}
-                            className="inline-flex items-center gap-1 hover:text-stone-900 underline"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                            {enq.email}
-                          </a>
-                        )}
-                        {enq.phone && (
-                          <a
-                            href={`https://wa.me/${enq.phone.replace(
-                              /\D/g,
-                              ''
-                            )}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 hover:text-stone-900 underline"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                            {enq.phone}
-                          </a>
-                        )}
-                        {enq.arrival && (
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5" />
-                            {enq.arrival}
-                          </span>
-                        )}
-                        {enq.guests && <span>{enq.guests}</span>}
-                        {enq.duration && <span>· {enq.duration}</span>}
-                      </div>
-
-                      {enq.message && (
-                        <p className="text-xs text-stone-700 bg-white p-2.5 rounded border border-stone-200">
-                          {enq.message}
-                        </p>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreTrashItem(entry)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md cursor-pointer shrink-0"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Restore Item
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
+          ) : (
+            <>
+              {/* Page Header & Search / Filter Toolbar */}
+              {activePage && (
+                <div className="bg-white border border-slate-200 rounded-md p-5 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-mono text-slate-500">
+                        PAGE · {activePage.routePath}
+                      </div>
+                      <h1 className="text-xl font-semibold text-slate-900 mt-0.5">
+                        {activePage.title}
+                      </h1>
+                      <p className="text-xs text-slate-600 mt-1 max-w-3xl">
+                        {activePage.description}
+                      </p>
+                    </div>
 
-          {/* 10. CLOUDFLARE R2 & FIRESTORE MEDIA */}
-          {activeTab === 'r2' && (
-            <R2BucketManagerTab
-              quickAssignTargets={quickAssignTargets}
-              onAssignToTarget={handleAssignFromR2}
-              onRegisterMediaInFirestore={registerR2MediaInFirebase}
-              onRemoveMediaFromFirestore={removeR2MediaFromFirebase}
-              onAssignUrlToHero={async (url, mediaItem) => {
-                await assignR2ImageToCmsSlot({
-                  mediaItem,
-                  applyToCms: (current) => ({
-                    ...current,
-                    general: {
-                      ...current.general,
-                      heroImages: [
-                        ...(current.general.heroImages || []).filter(Boolean),
-                        url,
-                      ],
-                    },
-                  }),
-                });
-              }}
-              onAssignUrlToGallery={async (url, title, mediaItem) => {
-                const newItemId = `gal-${Date.now()}`;
-                const newItem: CmsGalleryPhoto = {
-                  id: newItemId,
-                  title: title || 'Sri Lanka Moment',
-                  location: 'Sri Lanka',
-                  category: 'culture',
-                  categoryLabel: 'Sacred Heritage',
-                  description: 'Uploaded via Cloudflare R2.',
-                  image: url,
-                };
-                await assignR2ImageToCmsSlot({
-                  mediaItem,
-                  applyToCms: (current) => ({
-                    ...current,
-                    gallery: [...current.gallery, newItem],
-                  }),
-                  collectionDoc: {
-                    collectionName: 'gallery',
-                    docId: newItemId,
-                    getPayload: () => newItem,
-                  },
-                });
-              }}
-            />
+                    {/* Search & Type Filter */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="search"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Filter fields or text..."
+                          className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 w-48 sm:w-56"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-md">
+                        <button
+                          type="button"
+                          onClick={() => setFieldFilter('all')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer ${
+                            fieldFilter === 'all'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFieldFilter('text')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer ${
+                            fieldFilter === 'text'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFieldFilter('image')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded transition-colors cursor-pointer ${
+                            fieldFilter === 'image'
+                              ? 'bg-white text-slate-900 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          Images
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section Selector Tabs within the Active Page */}
+                  <div className="pt-3 border-t border-slate-200">
+                    <div className="text-[11px] font-medium text-slate-500 mb-2">
+                      Select Section ({activePage.sections.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activePage.sections.map((section) => {
+                        const isSecActive = section.id === activeSection?.id;
+                        const isHidden = section.visible === false;
+                        const isDeleted = section.sectionDeleted === true;
+                        return (
+                          <button
+                            key={section.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveSectionId(section.id);
+                            }}
+                            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-2 cursor-pointer border ${
+                              isSecActive
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span
+                              className={`font-mono text-[11px] ${
+                                isSecActive ? 'text-slate-300' : 'text-slate-400'
+                              }`}
+                            >
+                              {section.code}
+                            </span>
+                            <span>{section.title}</span>
+                            {isDeleted && (
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                                In Trash
+                              </span>
+                            )}
+                            {!isDeleted && isHidden && (
+                              <EyeOff className="w-3 h-3 text-amber-500" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Section Header & Repeatable / Visibility / Soft-Delete Controls */}
+              {activeSection && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-mono font-medium text-slate-500">
+                          {activeSection.code}
+                        </span>
+                        <h2 className="text-base font-semibold text-slate-900">
+                          {activeSection.title}
+                        </h2>
+                        {activeFirestoreDocMeta && (
+                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            /cms_sections/{activeFirestoreDocMeta.docId} ·{' '}
+                            {activeFirestoreDocMeta.existsInFirestore
+                              ? `Rev #${activeFirestoreDocMeta.revision}`
+                              : 'Not initialized in Firestore (using default)'}
+                          </span>
+                        )}
+                        {activeSection.sectionDeleted && (
+                          <span className="px-2 py-0.5 text-[11px] font-medium bg-red-50 text-red-800 border border-red-200 rounded">
+                            Soft-Deleted (In Trash)
+                          </span>
+                        )}
+                        {!activeSection.sectionDeleted &&
+                          activeSection.visible === false && (
+                            <span className="px-2 py-0.5 text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                              Hidden on public website
+                            </span>
+                          )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {activeSection.description}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {/* Section Visibility Toggle (separate from soft deletion) */}
+                      {activeSection.canToggleSectionVisible &&
+                        activeSection.onToggleSectionVisible && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              applyDraftMutation(
+                                activeSection.onToggleSectionVisible!
+                              )
+                            }
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
+                              activeSection.visible !== false
+                                ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                            }`}
+                          >
+                            {activeSection.visible !== false ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                                Visible on Site
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                                Hidden on Site
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                      {/* Section Soft-Delete / Restore Toggle */}
+                      {activeSection.canSoftDeleteSection &&
+                        activeSection.onSoftDeleteSection && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              applyDraftMutation(
+                                activeSection.onSoftDeleteSection!
+                              )
+                            }
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
+                              activeSection.sectionDeleted
+                                ? 'bg-red-50 text-red-900 border-red-300 hover:bg-red-100'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                            }`}
+                          >
+                            {activeSection.sectionDeleted ? (
+                              <>
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Restore Section from Trash
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Move Section to Trash
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                      {/* Add Repeatable Item Button */}
+                      {activeSection.addRepeatableLabel &&
+                        activeSection.onAddRepeatable && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              applyDraftMutation(activeSection.onAddRepeatable!)
+                            }
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            {activeSection.addRepeatableLabel}
+                          </button>
+                        )}
+                    </div>
+                  </div>
+
+                  {/* Subsections List */}
+                  {filteredSubsections.length === 0 ? (
+                    <div className="bg-white border border-slate-200 rounded-md p-8 text-center text-xs text-slate-500">
+                      No editable fields match the current filter in this
+                      section.
+                    </div>
+                  ) : (
+                    filteredSubsections.map((sub) => {
+                      const isCollapsed = Boolean(collapsedSubsections[sub.id]);
+                      const isSubHidden = sub.visible === false;
+
+                      return (
+                        <section
+                          key={sub.id}
+                          className="bg-white border border-slate-200 rounded-md overflow-hidden"
+                        >
+                          {/* Subsection Header */}
+                          <div className="w-full px-5 py-3.5 bg-slate-50/70 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleSubsectionCollapse(sub.id)}
+                              className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer"
+                            >
+                              {isCollapsed ? (
+                                <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+                              )}
+                              <span className="text-xs font-mono text-slate-500 shrink-0">
+                                SUB {sub.code}
+                              </span>
+                              <span className="text-sm font-semibold text-slate-900 truncate">
+                                {sub.title}
+                              </span>
+                              {sub.repeatableItemId && (
+                                <span className="hidden sm:inline-block text-[11px] font-mono text-slate-400">
+                                  ID: {sub.repeatableItemId}
+                                </span>
+                              )}
+                              {isSubHidden && (
+                                <span className="px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                                  Hidden
+                                </span>
+                              )}
+                            </button>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Item Visibility Toggle */}
+                              {sub.canToggleVisible && sub.onToggleVisible && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    applyDraftMutation(sub.onToggleVisible!)
+                                  }
+                                  title={
+                                    isSubHidden
+                                      ? 'Show this item on the public website'
+                                      : 'Hide this item on the public website'
+                                  }
+                                  className={`p-1.5 text-xs rounded border transition-colors cursor-pointer ${
+                                    isSubHidden
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {isSubHidden ? (
+                                    <EyeOff className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <Eye className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              )}
+
+                              {/* Move Up */}
+                              {sub.onMoveUp && (
+                                <button
+                                  type="button"
+                                  disabled={!sub.canMoveUp}
+                                  onClick={() =>
+                                    applyDraftMutation(sub.onMoveUp!)
+                                  }
+                                  title="Move item up"
+                                  className={`p-1.5 text-xs rounded border transition-colors ${
+                                    sub.canMoveUp
+                                      ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                                      : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <ArrowUp className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Move Down */}
+                              {sub.onMoveDown && (
+                                <button
+                                  type="button"
+                                  disabled={!sub.canMoveDown}
+                                  onClick={() =>
+                                    applyDraftMutation(sub.onMoveDown!)
+                                  }
+                                  title="Move item down"
+                                  className={`p-1.5 text-xs rounded border transition-colors ${
+                                    sub.canMoveDown
+                                      ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                                      : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <ArrowDown className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* Soft-Delete Item to Trash */}
+                              {sub.onRemove && (
+                                <button
+                                  type="button"
+                                  disabled={!sub.canRemove}
+                                  onClick={() =>
+                                    applyDraftMutation(sub.onRemove!)
+                                  }
+                                  title="Move item to Trash (soft delete)"
+                                  className={`p-1.5 text-xs rounded border transition-colors ${
+                                    sub.canRemove
+                                      ? 'bg-white text-red-600 border-slate-200 hover:bg-red-50 hover:border-red-200 cursor-pointer'
+                                      : 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              <span className="text-[11px] font-mono text-slate-500 ml-1">
+                                {sub.fields.length} field
+                                {sub.fields.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Subsection Fields Body */}
+                          {!isCollapsed && (
+                            <div className="p-5 space-y-5">
+                              {sub.description && (
+                                <p className="text-xs text-slate-500 border-b border-slate-100 pb-3">
+                                  {sub.description}
+                                </p>
+                              )}
+
+                              <div className="grid grid-cols-1 gap-5">
+                                {sub.fields.map((field) => {
+                                  const isImage = field.type === 'image';
+                                  const currentValue = field.value ?? '';
+                                  const publishedFieldState =
+                                    publishedFieldsById.get(field.id);
+
+                                  return (
+                                    <div
+                                      key={field.id}
+                                      className="space-y-1.5 border-b border-slate-100 pb-4 last:border-b-0 last:pb-0"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <label
+                                          htmlFor={field.id}
+                                          className="text-xs font-medium text-slate-800 flex items-center gap-1.5"
+                                        >
+                                          {isImage ? (
+                                            <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                                          ) : (
+                                            <Type className="w-3.5 h-3.5 text-slate-400" />
+                                          )}
+                                          <span>{field.label}</span>
+                                        </label>
+
+                                        <span className="text-[11px] font-mono text-slate-400">
+                                          {isImage
+                                            ? 'IMAGE ASSET'
+                                            : field.type === 'textarea'
+                                              ? 'MULTILINE TEXT'
+                                              : 'TEXT'}
+                                        </span>
+                                      </div>
+
+                                      {field.helperText && (
+                                        <p className="text-[11px] text-slate-500">
+                                          {field.helperText}
+                                        </p>
+                                      )}
+
+                                      {/* Field Editor Input */}
+                                      {field.type === 'textarea' && (
+                                        <textarea
+                                          id={field.id}
+                                          rows={3}
+                                          value={currentValue}
+                                          onChange={(e) =>
+                                            handleFieldValueChange(
+                                              field,
+                                              e.target.value
+                                            )
+                                          }
+                                          placeholder={
+                                            field.placeholder || 'Enter text...'
+                                          }
+                                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-500"
+                                        />
+                                      )}
+
+                                      {field.type === 'text' && (
+                                        <input
+                                          id={field.id}
+                                          type="text"
+                                          value={currentValue}
+                                          onChange={(e) =>
+                                            handleFieldValueChange(
+                                              field,
+                                              e.target.value
+                                            )
+                                          }
+                                          placeholder={
+                                            field.placeholder || 'Enter text...'
+                                          }
+                                          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-500"
+                                        />
+                                      )}
+
+                                      {field.type === 'image' && (
+                                        <AdminImageUploadField
+                                          field={field}
+                                          sectionId={activeSection.id}
+                                          isSectionSaving={isSaving}
+                                          isAnyUploadInProgress={
+                                            isAnyUploadInProgress
+                                          }
+                                          pendingUploadInfo={
+                                            pendingR2UploadsByFieldId[field.id]
+                                          }
+                                          publishedUrl={
+                                            publishedFieldState?.url || ''
+                                          }
+                                          publishedObjectKey={
+                                            publishedFieldState?.objectKey ??
+                                            null
+                                          }
+                                          getAdminIdToken={getAdminIdToken}
+                                          onChangeUrl={(nextUrl) =>
+                                            handleFieldValueChange(
+                                              field,
+                                              nextUrl
+                                            )
+                                          }
+                                          onChangeAlt={(nextAlt) =>
+                                            handleImageAltChange(field, nextAlt)
+                                          }
+                                          onUploadSuccess={(uploaded) =>
+                                            handleFieldUploadSuccess(
+                                              field,
+                                              uploaded
+                                            )
+                                          }
+                                          onOpenMediaLibraryPicker={(
+                                            preferredFolder
+                                          ) =>
+                                            setMediaPickerModalState({
+                                              field,
+                                              preferredFolder,
+                                            })
+                                          }
+                                          onRemoveFromPlacement={() =>
+                                            handleFieldRemoveFromPlacement(
+                                              field
+                                            )
+                                          }
+                                          onUploadStart={handleUploadStart}
+                                          onUploadEnd={handleUploadEnd}
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
+
+      {/* Modal Picker when "Choose from Media Library…" is clicked on an Image Field */}
+      {mediaPickerModalState && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose Image from Media Library"
+          className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 overflow-y-auto"
+        >
+          <div className="max-w-6xl w-full max-h-[92vh] overflow-y-auto shadow-2xl rounded-md">
+            <AdminMediaLibrary
+              mode="picker"
+              initialFolder={mediaPickerModalState.preferredFolder}
+              savedCms={savedCms}
+              draftCms={draft}
+              loadingFirestore={loadingFirestore}
+              existingSectionCount={existingSectionCount}
+              totalSectionCount={totalSectionCount}
+              firestoreLoadError={loadError}
+              getAdminIdToken={getAdminIdToken}
+              onSelectMedia={(asset) =>
+                handleFieldSelectFromMediaLibrary(
+                  mediaPickerModalState.field,
+                  asset
+                )
+              }
+              onClose={() => setMediaPickerModalState(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,66 +4,90 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import PageBanner from '@/components/PageBanner';
 import BookingPanel from '@/components/booking/BookingPanel';
-import { ACCOMMODATIONS, BookingItemType } from '@/lib/booking-types';
+import { BookingItemType } from '@/lib/booking-types';
 import {
-  TOURS,
-  COLOMBO_DAY_EXPERIENCES,
-  TOUR_QUALIFICATION_NOTICE,
-} from '@/lib/tours';
+  CmsColomboExperienceItem,
+  CmsStayItem,
+  CmsTourItem,
+} from '@/lib/cms-defaults';
 import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function BookingPage() {
   const { cms } = useSiteCms();
-  const toursList =
-    cms.tours && cms.tours.length > 0 ? cms.tours : TOURS;
-  const staysList =
-    cms.stays && cms.stays.length > 0 ? cms.stays : ACCOMMODATIONS;
+  const pageContent = cms.pages.bookingPage;
+
+  const toursList = (cms.tours || [])
+    .filter((t) => (t as CmsTourItem).visible !== false)
+    .sort(
+      (a, b) =>
+        ((a as CmsTourItem).order ?? 0) - ((b as CmsTourItem).order ?? 0)
+    );
+
+  const staysList = (cms.stays || [])
+    .filter((s) => (s as CmsStayItem).visible !== false)
+    .sort(
+      (a, b) =>
+        ((a as CmsStayItem).order ?? 0) - ((b as CmsStayItem).order ?? 0)
+    );
+
+  const dayExperiencesList = (cms.colomboExperiences || [])
+    .filter((e) => (e as CmsColomboExperienceItem).visible !== false)
+    .sort(
+      (a, b) =>
+        ((a as CmsColomboExperienceItem).order ?? 0) -
+        ((b as CmsColomboExperienceItem).order ?? 0)
+    );
 
   const [bookingCategory, setBookingCategory] =
     useState<BookingItemType>('tour');
   const [selectedItemId, setSelectedItemId] = useState<string>(
-    toursList[0]?.id || 'ceylon-grand-circuit'
+    toursList[0]?.id || ''
   );
 
   const handleCategorySwitch = (nextCat: BookingItemType) => {
     setBookingCategory(nextCat);
     if (nextCat === 'accommodation') {
-      setSelectedItemId(
-        staysList[0]?.id || 'stay-sigiriya-water-gardens'
-      );
+      setSelectedItemId(staysList[0]?.id || '');
     } else if (nextCat === 'experience') {
-      setSelectedItemId(
-        COLOMBO_DAY_EXPERIENCES[0]?.id || 'thalangama-wetland-birdwalk'
-      );
+      setSelectedItemId(dayExperiencesList[0]?.id || '');
     } else {
-      setSelectedItemId(toursList[0]?.id || 'ceylon-grand-circuit');
+      setSelectedItemId(toursList[0]?.id || '');
     }
   };
 
-  const selectedStay = staysList.find((s) => s.id === selectedItemId);
-  const selectedTour = toursList.find((t) => t.id === selectedItemId);
-  const selectedDayExp = COLOMBO_DAY_EXPERIENCES.find(
-    (d) => d.id === selectedItemId
-  );
+  const selectedStay =
+    staysList.find((s) => s.id === selectedItemId) || staysList[0];
+  const selectedTour =
+    toursList.find((t) => t.id === selectedItemId) || toursList[0];
+  const selectedDayExp =
+    dayExperiencesList.find((d) => d.id === selectedItemId) ||
+    dayExperiencesList[0];
+
+  const resolvedItemId =
+    bookingCategory === 'accommodation'
+      ? selectedStay?.id || ''
+      : bookingCategory === 'experience'
+        ? selectedDayExp?.id || ''
+        : selectedTour?.id || '';
 
   const selectedItemName =
     bookingCategory === 'accommodation'
       ? selectedStay?.name || 'Sri Lanka Accommodation'
       : bookingCategory === 'experience'
-      ? selectedDayExp
-        ? `${selectedDayExp.name} (${selectedDayExp.duration})`
-        : 'Colombo & Battaramulla Day Experience'
-      : selectedTour
-      ? `${selectedTour.name} (${
-          selectedTour.durationLabel || `${selectedTour.days} Days`
-        })`
-      : 'Private Sri Lanka Journey';
+        ? selectedDayExp
+          ? `${selectedDayExp.name} (${selectedDayExp.duration})`
+          : 'Colombo & Battaramulla Day Experience'
+        : selectedTour
+          ? `${selectedTour.name} (${
+              selectedTour.durationLabel || `${selectedTour.days} Days`
+            })`
+          : 'Private Sri Lanka Journey';
 
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO ONLINE BOOKING  /  NIGHTSBRIDGE · BÓKUN · VIATOR"
-        title="Check real-time availability & book your Sri Lanka journey."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
 
       <section className="section wrap">
@@ -79,18 +103,21 @@ export default function BookingPage() {
             color: 'var(--ink)',
           }}
         >
-          <strong>Important Note:</strong> {TOUR_QUALIFICATION_NOTICE}
+          <strong>{pageContent.selectorSection.qualificationLabel}</strong>{' '}
+          {pageContent.selectorSection.qualificationNotice}
         </div>
 
         <div className="booking-page-selector-card">
           <div className="homepage-booking-top">
             <div>
               <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-                STEP 1 · SELECT YOUR JOURNEY, DAY EXPERIENCE OR ACCOMMODATION
+                {pageContent.selectorSection.stepEyebrow}
               </div>
               <h2 className="serif homepage-booking-title">
-                What would you like to{' '}
-                <em style={{ color: 'var(--terracotta)' }}>book today?</em>
+                {pageContent.selectorSection.stepHeadingPrefix}{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  {pageContent.selectorSection.stepHeadingItalic}
+                </em>
               </h2>
             </div>
 
@@ -104,7 +131,7 @@ export default function BookingPage() {
                 }`}
                 onClick={() => handleCategorySwitch('tour')}
               >
-                Signature Journeys (20)
+                {pageContent.selectorSection.tabToursLabel}
               </button>
               <button
                 type="button"
@@ -115,7 +142,7 @@ export default function BookingPage() {
                 }`}
                 onClick={() => handleCategorySwitch('experience')}
               >
-                Colombo Day Experiences (6)
+                {pageContent.selectorSection.tabDayExpLabel}
               </button>
               <button
                 type="button"
@@ -126,7 +153,7 @@ export default function BookingPage() {
                 }`}
                 onClick={() => handleCategorySwitch('accommodation')}
               >
-                Accommodation (NightsBridge)
+                {pageContent.selectorSection.tabStaysLabel}
               </button>
             </div>
           </div>
@@ -138,12 +165,12 @@ export default function BookingPage() {
                 {bookingCategory === 'accommodation'
                   ? 'SELECT REGIONAL ACCOMMODATION (NIGHTSBRIDGE)'
                   : bookingCategory === 'experience'
-                  ? 'SELECT COLOMBO & BATTARAMULLA DAY EXPERIENCE'
-                  : 'SELECT PRIVATE SIGNATURE JOURNEY (BÓKUN / VIATOR)'}
+                    ? 'SELECT COLOMBO & BATTARAMULLA DAY EXPERIENCE'
+                    : 'SELECT PRIVATE SIGNATURE JOURNEY (BÓKUN / VIATOR)'}
               </label>
               <select
                 id="booking-page-item-select"
-                value={selectedItemId}
+                value={resolvedItemId}
                 onChange={(e) => setSelectedItemId(e.target.value)}
               >
                 {bookingCategory === 'accommodation'
@@ -153,48 +180,64 @@ export default function BookingPage() {
                       </option>
                     ))
                   : bookingCategory === 'experience'
-                  ? COLOMBO_DAY_EXPERIENCES.map((exp) => (
-                      <option key={exp.id} value={exp.id}>
-                        {exp.name} ({exp.duration} · {exp.location})
-                      </option>
-                    ))
-                  : toursList.map((tour) => (
-                      <option key={tour.id} value={tour.id}>
-                        {tour.name} (
-                        {tour.durationLabel || `${tour.days} Days`} ·{' '}
-                        {tour.route})
-                      </option>
-                    ))}
+                    ? dayExperiencesList.map((exp) => (
+                        <option key={exp.id} value={exp.id}>
+                          {exp.name} ({exp.duration} · {exp.location})
+                        </option>
+                      ))
+                    : toursList.map((tour) => (
+                        <option key={tour.id} value={tour.id}>
+                          {tour.name} (
+                          {tour.durationLabel || `${tour.days} Days`} ·{' '}
+                          {Array.isArray(tour.route)
+                            ? tour.route.join(' → ')
+                            : tour.route}
+                          )
+                        </option>
+                      ))}
               </select>
             </div>
 
             <div className="booking-page-quick-links">
-              <Link href="/packages" prefetch={false} className="pill">
-                VIEW ALL 20 TOURS
-              </Link>
-              <Link href="/stays" prefetch={false} className="pill">
-                ACCOMMODATION OPTIONS
-              </Link>
               <Link
-                href="/booking/confirmation"
+                href={pageContent.selectorSection.quickLinkToursHref || '/packages'}
                 prefetch={false}
                 className="pill"
               >
-                VERIFY EXISTING BOOKING
+                {pageContent.selectorSection.quickLinkToursLabel}
+              </Link>
+              <Link
+                href={pageContent.selectorSection.quickLinkStaysHref || '/stays'}
+                prefetch={false}
+                className="pill"
+              >
+                {pageContent.selectorSection.quickLinkStaysLabel}
+              </Link>
+              <Link
+                href={
+                  pageContent.selectorSection.quickLinkVerifyHref ||
+                  '/booking/confirmation'
+                }
+                prefetch={false}
+                className="pill"
+              >
+                {pageContent.selectorSection.quickLinkVerifyLabel}
               </Link>
             </div>
           </div>
         </div>
 
         {/* Full Interactive Booking Calendar, Dynamic Pricing & Official Provider Checkout */}
-        <div style={{ marginTop: '24px' }}>
-          <BookingPanel
-            key={`${bookingCategory}-${selectedItemId}`}
-            itemId={selectedItemId}
-            itemName={selectedItemName}
-            itemType={bookingCategory}
-          />
-        </div>
+        {resolvedItemId && (
+          <div style={{ marginTop: '24px' }}>
+            <BookingPanel
+              key={`${bookingCategory}-${resolvedItemId}`}
+              itemId={resolvedItemId}
+              itemName={selectedItemName}
+              itemType={bookingCategory}
+            />
+          </div>
+        )}
       </section>
     </main>
   );

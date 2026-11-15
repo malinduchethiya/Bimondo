@@ -1,33 +1,21 @@
+'use client';
+
 import React from 'react';
 import PageBanner from '@/components/PageBanner';
 import ContactSection from '@/components/ContactSection';
 import FaqSection from '@/components/FaqSection';
+import { useSiteCms } from '@/hooks/useSiteCms';
 
 export default function ContactPage() {
-  const companyDetails = [
-    { label: 'Company Name', value: 'Bimondo Travels' },
-    { label: 'Founder', value: 'I.M. Bimsara Illangasinghe' },
-    { label: 'Year Established', value: '2022' },
-    {
-      label: 'Address',
-      value: 'No. 596/1, Thalangama South, Battaramulla, Sri Lanka',
-    },
-    { label: 'Phone / WhatsApp', value: '+94 76 223 2054' },
-    { label: 'Email', value: 'tours@bimondo.com' },
-    { label: 'Website', value: 'www.bimondotours.com' },
-    { label: 'Facebook', value: 'Bimondo tours' },
-    { label: 'Instagram', value: '@Bimondo.tours' },
-    {
-      label: 'Primary Markets',
-      value: 'United Kingdom and Europe · India · Australia',
-    },
-  ];
+  const { cms } = useSiteCms();
+  const pageContent = cms.pages.contactPage;
+  const companyDetails = pageContent.detailsSection.items || [];
 
   return (
     <main>
       <PageBanner
-        eyebrow="BIMONDO TRAVELS  /  CONTACT & COMPANY DETAILS"
-        title="Plan your private journey across Sri Lanka."
+        eyebrow={pageContent.banner.eyebrow}
+        title={pageContent.banner.title}
       />
       <ContactSection />
 
@@ -36,18 +24,16 @@ export default function ContactPage() {
         <div className="section-head">
           <div>
             <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-              19 / OFFICIAL COMPANY PROFILE DETAILS
+              {pageContent.detailsSection.eyebrow}
             </div>
             <h2 className="serif">
-              Direct contact &amp;{' '}
-              <em style={{ color: 'var(--terracotta)' }}>office information.</em>
+              {pageContent.detailsSection.headingPrefix}{' '}
+              <em style={{ color: 'var(--terracotta)' }}>
+                {pageContent.detailsSection.headingItalic}
+              </em>
             </h2>
           </div>
-          <p>
-            Reach our team in Thalangama South, Battaramulla directly by
-            WhatsApp, phone, or email—with 24-hour on-call support for guests
-            travelling in Sri Lanka.
-          </p>
+          <p>{pageContent.detailsSection.description}</p>
         </div>
 
         <div
@@ -60,7 +46,7 @@ export default function ContactPage() {
         >
           {companyDetails.map((item) => (
             <div
-              key={item.label}
+              key={item.id || item.label}
               style={{
                 padding: '16px 20px',
                 borderRadius: '14px',

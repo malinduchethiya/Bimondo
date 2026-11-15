@@ -1,47 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import {
   BookingSubmissionMethod,
   CmsCustomerEnquiry,
 } from '@/lib/cms-defaults';
 
-const BOOKING_METHODS: {
-  id: BookingSubmissionMethod;
-  label: string;
-  shortDesc: string;
-  submitText: string;
-}[] = [
-  {
-    id: 'direct_admin',
-    label: 'Direct Admin Booking',
-    shortDesc: 'Instant booking logged directly in the Admin Panel',
-    submitText: 'SEND DIRECT BOOKING TO ADMIN DESK →',
-  },
-  {
-    id: 'whatsapp',
-    label: 'WhatsApp Concierge',
-    shortDesc: 'Logs to Admin Panel + opens WhatsApp chat',
-    submitText: 'LOG BOOKING & OPEN WHATSAPP ↗',
-  },
-  {
-    id: 'email',
-    label: 'Email Quote Request',
-    shortDesc: 'Logs to Admin Panel + prepares formal email quote',
-    submitText: 'LOG BOOKING & REQUEST EMAIL QUOTE ↗',
-  },
-  {
-    id: 'callback',
-    label: 'Phone / Call Back',
-    shortDesc: 'Logs priority callback request to Admin Panel',
-    submitText: 'REQUEST CONCIERGE CALLBACK →',
-  },
-];
-
 export default function ContactSection() {
-  const { cms, submitCustomerEnquiryToFirebase } = useSiteCms();
+  const { cms, submitCustomerEnquiry } = useSiteCms();
+  const contactSection = cms.pages.home.contactSection;
+  const bookingMethods = contactSection.methods || [];
+
   const [formData, setFormData] = useState<{
     name: string;
     email: string;
@@ -74,6 +44,10 @@ export default function ContactSection() {
     methodLabel: string;
   } | null>(null);
 
+  if (contactSection.visible === false) {
+    return null;
+  }
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -84,9 +58,15 @@ export default function ContactSection() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  const activeMethodMeta =
-    BOOKING_METHODS.find((m) => m.id === formData.bookingMethod) ||
-    BOOKING_METHODS[0];
+  const activeMethodMeta = bookingMethods.find(
+    (m) => m.id === formData.bookingMethod
+  ) ||
+    bookingMethods[0] || {
+      id: 'direct_admin' as BookingSubmissionMethod,
+      label: 'Direct Booking Request',
+      shortDesc: 'Instant booking request for our Battaramulla travel desk',
+      submitText: 'SEND BOOKING REQUEST →',
+    };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +80,7 @@ export default function ContactSection() {
 
     let savedRecord: CmsCustomerEnquiry | null = null;
     try {
-      savedRecord = await submitCustomerEnquiryToFirebase({
+      savedRecord = await submitCustomerEnquiry({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
@@ -154,23 +134,27 @@ export default function ContactSection() {
     });
   };
 
+  const visibleTours = [...(cms.tours || [])]
+    .filter((t) => t.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const visibleStays = [...(cms.stays || [])]
+    .filter((s) => s.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
   return (
     <section className="contact" id="contact">
       <div className="wrap contact-grid">
         <div>
-          <div className="eyebrow">07 / CONTACT &amp; MULTI-CHANNEL BOOKING</div>
+          <div className="eyebrow">{contactSection.eyebrow}</div>
           <h2>
-            Plan your
+            {contactSection.headingLine1}
             <br />
-            Sri Lanka
+            {contactSection.headingLine2}
             <br />
-            <em>journey.</em>
+            <em>{contactSection.headingItalic}</em>
           </h2>
-          <p>
-            Choose how you prefer to book or enquire. Every method logs your
-            request directly into our Battaramulla Admin Desk with an instant
-            booking reference.
-          </p>
+          <p>{contactSection.lead}</p>
           <div
             style={{
               fontSize: '0.92rem',
@@ -253,7 +237,7 @@ export default function ContactSection() {
               role="radiogroup"
               aria-label="Booking Method"
             >
-              {BOOKING_METHODS.map((method) => {
+              {bookingMethods.map((method) => {
                 const isSelected = formData.bookingMethod === method.id;
                 return (
                   <label
@@ -351,7 +335,7 @@ export default function ContactSection() {
                 Custom Tailor-Made Sri Lanka Journey
               </option>
               <optgroup label="Signature Private Tours">
-                {cms.tours.map((tour) => (
+                {visibleTours.map((tour) => (
                   <option
                     key={tour.id}
                     value={`Tour: ${tour.name} (${tour.days})`}
@@ -361,7 +345,7 @@ export default function ContactSection() {
                 ))}
               </optgroup>
               <optgroup label="Handpicked Boutique Stays">
-                {cms.stays.map((stay) => (
+                {visibleStays.map((stay) => (
                   <option
                     key={stay.id}
                     value={`Stay: ${stay.name} (${stay.location})`}
@@ -440,7 +424,7 @@ export default function ContactSection() {
             <div className="field wide booking-confirmation-box" role="status">
               <div className="booking-confirmation-head">
                 <strong>
-                  ✓ Booking Logged to Admin Panel (
+                  ✓ Booking Reference Prepared (
                   {lastBooking.record?.id
                     ? lastBooking.record.id.toUpperCase()
                     : 'SAVED'}
@@ -450,8 +434,8 @@ export default function ContactSection() {
               </div>
               <p>
                 Your request for{' '}
-                <strong>{formData.selectedPackage}</strong> has been recorded in
-                our Battaramulla Admin Desk.
+                <strong>{formData.selectedPackage}</strong> is ready for our
+                Battaramulla travel desk.
               </p>
               <div className="booking-confirmation-actions">
                 {formData.bookingMethod === 'whatsapp' && (
@@ -477,16 +461,12 @@ export default function ContactSection() {
                 >
                   WHATSAPP COPY ↗
                 </a>
-                <Link href="/admin" prefetch={false} className="pill">
-                  VIEW IN ADMIN PANEL ↗
-                </Link>
               </div>
             </div>
           )}
 
           <small className="field wide" style={{ color: 'var(--muted)' }}>
-            All booking methods save directly to the Admin Panel (Customer
-            Enquiries) &amp; Firebase Firestore.
+            {contactSection.footnote}
           </small>
         </form>
       </div>
