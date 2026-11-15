@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node -e \"process.exit(process.env.WORKERS_CI || process.env.CF_PAGES ? 0 : 1)\" && opennextjs-cloudflare build || next build",
     "build:cf": "opennextjs-cloudflare build",
     "deploy:cf": "opennextjs-cloudflare build && wrangler deploy",
     "start": "next start",
