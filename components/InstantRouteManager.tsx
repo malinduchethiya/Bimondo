@@ -13,7 +13,6 @@ import OurStoryPage from '@/app/our-story/page';
 import ContactPage from '@/app/contact/page';
 import BookingPage from '@/app/booking/page';
 import BookingConfirmationPage from '@/app/booking/confirmation/page';
-import AdminPanelPage from '@/app/admin/page';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -29,7 +28,6 @@ const VALID_PATHS = new Set([
   '/contact',
   '/booking',
   '/booking/confirmation',
-  '/admin',
 ]);
 
 export function normalizeRoutePath(rawPath: string | null | undefined): string {
@@ -206,8 +204,6 @@ export default function InstantRouteManager({
       return <BookingPage key="route-booking" />;
     case '/booking/confirmation':
       return <BookingConfirmationPage key="route-booking-confirmation" />;
-    case '/admin':
-      return <AdminPanelPage key="route-admin" />;
     default:
       return <>{children}</>;
   }

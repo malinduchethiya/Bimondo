@@ -87,7 +87,12 @@ export default function Footer() {
           <span>
             © {year} {footer.copyrightAddress}
           </span>
-          <span>{footer.bottomRightNote}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <span>{footer.bottomRightNote}</span>
+            <a href="/admin" style={{ opacity: 0.78, textDecoration: 'underline', textUnderlineOffset: '3px' }}>
+              Admin Sign In
+            </a>
+          </span>
         </div>
       </div>
     </footer>
