@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-dm-sans: 'DM Sans';
+  --font-dm-serif: 'DM Serif Display';
   --cream: #eaf3f6;
   --paper: #f7fbfc;
   --ink: #153c50;

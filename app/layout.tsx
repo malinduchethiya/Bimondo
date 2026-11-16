@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans, DM_Serif_Display } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -7,21 +6,6 @@ import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 import MomentumScroll from '@/components/MomentumScroll';
 import SiteGsapAnimations from '@/components/SiteGsapAnimations';
 import InstantRouteManager from '@/components/InstantRouteManager';
-
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-dm-sans',
-  display: 'swap',
-});
-
-const dmSerifDisplay = DM_Serif_Display({
-  subsets: ['latin'],
-  weight: ['400'],
-  style: ['normal', 'italic'],
-  variable: '--font-dm-serif',
-  display: 'swap',
-});
 
 export const viewport: Viewport = {
   themeColor: '#eaf3f6',
@@ -48,7 +32,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmSerifDisplay.variable}`}>
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap"
+        />
+      </head>
       <body suppressHydrationWarning>
         <MomentumScroll />
         <SiteGsapAnimations />

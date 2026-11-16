@@ -16,7 +16,6 @@ import { isForbiddenImageUrl } from '@/lib/content-repository';
 import {
   APPROVED_UPLOAD_FOLDER_PRESETS,
   getDefaultFolderForSection,
-  getUploadWorkerEndpointResolution,
   PUBLIC_CDN_BASE_URL,
   R2ClientUploadError,
   R2UploadErrorCategory,
@@ -53,7 +52,7 @@ interface AdminImageUploadFieldProps {
 }
 
 const ERROR_CATEGORY_LABELS: Record<R2UploadErrorCategory, string> = {
-  unconfigured: 'Worker Endpoint Not Configured',
+  unconfigured: 'R2 Binding Not Available (503)',
   auth: 'Authentication Error (401)',
   forbidden: 'Authorization / Origin Denied (403)',
   invalid_file: 'Invalid Image File / Signature Mismatch',
@@ -231,7 +230,6 @@ export default function AdminImageUploadField({
   const matchingPreset = APPROVED_UPLOAD_FOLDER_PRESETS.find(
     (p) => p.value === folderCheck.normalizedFolder
   );
-  const workerResolution = getUploadWorkerEndpointResolution();
 
   // Display local preview if a file is staged for upload, otherwise the draft/saved URL
   const displayPreviewSrc =
@@ -487,17 +485,6 @@ export default function AdminImageUploadField({
                 )}
               </button>
             </div>
-
-            {!workerResolution.isConfigured && (
-              <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2.5 py-1.5">
-                <strong>Setup Note:</strong> Set{' '}
-                <code className="font-mono">
-                  NEXT_PUBLIC_R2_UPLOAD_WORKER_URL
-                </code>{' '}
-                to your deployed Cloudflare Worker URL to enable live R2
-                uploads and Media Library browsing.
-              </div>
-            )}
 
             {/* Distinct Upload Error State */}
             {uploadError && (

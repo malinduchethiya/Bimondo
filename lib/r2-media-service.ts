@@ -4,6 +4,7 @@ import {
   JWK,
   jwtVerify,
 } from 'jose';
+import firebaseConfig from '../firebase-applet-config.json';
 
 export interface R2PutOptions {
   httpMetadata?: {
@@ -50,14 +51,18 @@ export interface R2BucketBinding {
   delete?(keys: string | string[]): Promise<void>;
 }
 
-export interface WorkerEnv {
-  SITE_IMAGES: R2BucketBinding;
-  FIREBASE_PROJECT_ID: string;
+export interface R2MediaWorkerEnv {
+  BIMONDO_IMAGES?: R2BucketBinding;
+  FIREBASE_PROJECT_ID?: string;
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID?: string;
   FIRESTORE_DATABASE_ID?: string;
+  NEXT_PUBLIC_FIREBASE_FIRESTORE_DATABASE_ID?: string;
   PUBLIC_IMAGE_BASE_URL?: string;
+  NEXT_PUBLIC_IMAGE_BASE_URL?: string;
   ALLOWED_ORIGINS?: string;
   ALLOWED_UPLOAD_PREFIXES?: string;
   MAX_UPLOAD_BYTES?: string;
+  [key: string]: unknown;
 }
 
 export interface VerifiedAdminClaims {
@@ -106,21 +111,9 @@ export interface FirestoreDeletionCoordinator {
   }>;
 }
 
-export interface WorkerHandlerOptions {
-  /**
-   * Optional custom JWK resolver for deterministic unit testing.
-   * In production, defaults to Google's official Firebase SecureToken JWKS endpoint
-   * with Cache-Control caching and automatic key-rotation refresh on unknown `kid`.
-   */
+export interface R2HandlerOptions {
   jwkResolver?: JwkResolver;
-  /**
-   * Optional UUID/unique-suffix generator override for testing.
-   */
   uniqueIdGenerator?: () => string;
-  /**
-   * Optional Firestore coordinator override for testing backend reference checks
-   * and concurrency locks during permanent media deletion.
-   */
   firestoreCoordinator?: FirestoreDeletionCoordinator;
 }
 
@@ -132,8 +125,8 @@ const FIREBASE_JWKS_URL =
 
 const DEFAULT_PUBLIC_IMAGE_BASE_URL = 'https://cdn.bimondotours.com';
 const DEFAULT_ALLOWED_PREFIXES = ['pages', 'shared', 'tours', 'gallery'];
-const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB (10,485,760 bytes)
-const MULTIPART_ENVELOPE_OVERHEAD_BYTES = 64 * 1024; // 64 KiB allowance for multipart boundaries/headers
+const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
+const MULTIPART_ENVELOPE_OVERHEAD_BYTES = 64 * 1024; // 64 KiB boundary overhead
 const DEFAULT_MEDIA_LIST_LIMIT = 24;
 const MAX_MEDIA_LIST_LIMIT = 100;
 
@@ -169,6 +162,74 @@ interface CachedJwksState {
 }
 
 let cachedJwks: CachedJwksState | null = null;
+
+function resolveFirebaseProjectId(env: R2MediaWorkerEnv): string {
+  const fromEnv =
+    (typeof env.FIREBASE_PROJECT_ID === 'string' && env.FIREBASE_PROJECT_ID.trim()) ||
+    (typeof env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === 'string' &&
+      env.NEXT_PUBLIC_FIREBASE_PROJECT_ID.trim()) ||
+    '';
+  if (fromEnv && fromEnv !== 'YOUR_FIREBASE_PROJECT_ID') {
+    return fromEnv;
+  }
+  return firebaseConfig.projectId;
+}
+
+function resolveFirestoreDatabaseId(env: R2MediaWorkerEnv): string {
+  const fromEnv =
+    (typeof env.FIRESTORE_DATABASE_ID === 'string' &&
+      env.FIRESTORE_DATABASE_ID.trim()) ||
+    (typeof env.NEXT_PUBLIC_FIREBASE_FIRESTORE_DATABASE_ID === 'string' &&
+      env.NEXT_PUBLIC_FIREBASE_FIRESTORE_DATABASE_ID.trim()) ||
+    '';
+  return fromEnv || firebaseConfig.firestoreDatabaseId || '(default)';
+}
+
+function resolvePublicImageBaseUrl(env: R2MediaWorkerEnv): string {
+  const raw =
+    (typeof env.PUBLIC_IMAGE_BASE_URL === 'string' &&
+      env.PUBLIC_IMAGE_BASE_URL.trim()) ||
+    (typeof env.NEXT_PUBLIC_IMAGE_BASE_URL === 'string' &&
+      env.NEXT_PUBLIC_IMAGE_BASE_URL.trim()) ||
+    '';
+  if (!raw) {
+    return DEFAULT_PUBLIC_IMAGE_BASE_URL;
+  }
+  const repaired = raw.replace(/^ttps:\/\//i, 'https://').replace(/\/+$/, '');
+  try {
+    const parsed = new URL(repaired);
+    if (parsed.protocol === 'https:') {
+      return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+    }
+  } catch {
+    // Invalid URL falls back to default CDN base URL
+  }
+  return DEFAULT_PUBLIC_IMAGE_BASE_URL;
+}
+
+function resolveR2BucketBinding(env: R2MediaWorkerEnv): R2BucketBinding | null {
+  if (env.BIMONDO_IMAGES && typeof env.BIMONDO_IMAGES === 'object') {
+    return env.BIMONDO_IMAGES;
+  }
+  return null;
+}
+
+/**
+ * Resolves Cloudflare Worker runtime bindings merged with process.env
+ * for Next.js API Routes (compatible with @opennextjs/cloudflare and standard Node dev).
+ */
+export function resolveNextRuntimeEnv(): R2MediaWorkerEnv {
+  const cfContextSymbol = Symbol.for('__cloudflare-context__');
+  const globalRecord = globalThis as Record<PropertyKey, unknown>;
+  const cfContext = globalRecord[cfContextSymbol] as
+    | { env?: Record<string, unknown> }
+    | undefined;
+
+  return {
+    ...(process.env as Record<string, unknown>),
+    ...(cfContext?.env || {}),
+  } as R2MediaWorkerEnv;
+}
 
 function parseMaxAgeMs(cacheControlHeader: string | null): number {
   if (!cacheControlHeader) return 3600 * 1000;
@@ -230,7 +291,6 @@ const defaultFirebaseJwkResolver: JwkResolver = async (
   let keys = await fetchFirebaseJwks(false);
   let matchingJwk = keys.get(kid);
 
-  // Key rotation handling: if `kid` is not in cached JWKS and cache wasn't just fetched, refresh once
   if (!matchingJwk) {
     const recentlyFetched =
       cachedJwks && Date.now() - cachedJwks.fetchedAtMs < 10_000;
@@ -287,10 +347,6 @@ function extractRawBearerToken(authorizationHeader: string | null): string {
   return match[1].trim();
 }
 
-/**
- * Cryptographically verifies a Firebase Authentication ID token and enforces `admin === true`.
- * Rejects missing/invalid tokens with 401 and authenticated non-admin tokens with 403.
- */
 export async function verifyFirebaseAdminIdToken(
   authorizationHeader: string | null,
   firebaseProjectId: string,
@@ -300,8 +356,8 @@ export async function verifyFirebaseAdminIdToken(
   if (!projectId || projectId === 'YOUR_FIREBASE_PROJECT_ID') {
     throw new WorkerHttpError(
       500,
-      'WORKER_MISCONFIGURED',
-      'Worker FIREBASE_PROJECT_ID is not configured.'
+      'SERVER_MISCONFIGURED',
+      'FIREBASE_PROJECT_ID is not configured.'
     );
   }
 
@@ -413,7 +469,6 @@ export async function verifyFirebaseAdminIdToken(
     (normalizedEmail === 'bimondotours@gmail.com' ||
       normalizedEmail === 'merlinfiverr0@gmail.com');
 
-  // Enforce custom claim admin === true or verified allowlisted admin email (403 Forbidden otherwise)
   if (payload.admin !== true && !isBootstrappedVerifiedAdmin) {
     throw new WorkerHttpError(
       403,
@@ -436,9 +491,6 @@ export interface DetectedImageFormat {
   allowedExtensions: string[];
 }
 
-/**
- * Inspects actual binary magic bytes to determine the true image format.
- */
 export function detectImageFormatFromBytes(
   bytes: Uint8Array
 ): DetectedImageFormat | null {
@@ -520,10 +572,6 @@ export function detectImageFormatFromBytes(
   return null;
 }
 
-/**
- * Validates that the file's actual binary signature, declared MIME type, and filename extension
- * all belong to an allowed image format (JPEG, PNG, WebP, GIF) and agree with each other.
- */
 export function validateUploadedImageFile(params: {
   bytes: Uint8Array;
   declaredMimeType: string;
@@ -579,11 +627,6 @@ export function validateUploadedImageFile(params: {
   return detected;
 }
 
-/**
- * Normalizes and validates the requested destination folder or listing prefix.
- * Rejects path traversal, backslashes, control characters, double slashes,
- * and folders outside the approved prefixes (`pages/`, `shared/`, `tours/`, `gallery/`).
- */
 export function validateAndNormalizeUploadFolder(
   rawFolder: unknown,
   allowedPrefixes: string[] = DEFAULT_ALLOWED_PREFIXES
@@ -605,7 +648,6 @@ export function validateAndNormalizeUploadFolder(
     );
   }
 
-  // Reject backslashes, control characters, and URI/wildcard characters before trimming slashes
   if (/\\/.test(raw)) {
     throw new WorkerHttpError(
       400,
@@ -685,9 +727,6 @@ export function validateAndNormalizeUploadFolder(
   return normalizedSegments.join('/');
 }
 
-/**
- * Validates an exact R2 object key for administrative operations (such as permanent deletion).
- */
 export function validateMediaObjectKey(
   rawKey: unknown,
   allowedPrefixes: string[] = DEFAULT_ALLOWED_PREFIXES
@@ -756,9 +795,6 @@ export function validateMediaObjectKey(
   return `${normalizedFolder}/${filePart}`;
 }
 
-/**
- * Validates cursor and limit parameters for `GET /media`.
- */
 export function validateMediaListParams(params: {
   rawPrefix: string | null;
   rawCursor: string | null;
@@ -839,9 +875,6 @@ function workerFnv1aHex(input: string, seed = 0x811c9dc5): string {
   return hash.toString(16).padStart(8, '0');
 }
 
-/**
- * Deterministic Firestore document ID for `/media_objects/{mediaId}` matching `/lib/media-usage.ts`.
- */
 export function encodeWorkerMediaDocId(objectKey: string): string {
   const normalized = (objectKey || '').trim().replace(/^\/+|\/+$/g, '');
   if (!normalized) return 'invalid_empty_key';
@@ -883,10 +916,6 @@ function generateDefaultUniqueSuffix(): string {
     .join('');
 }
 
-/**
- * Generates a unique, safe R2 object key preserving the validated folder and image format extension.
- * Example: pages/home/hero/sigiriya-9b1deb4d-3b7d.webp
- */
 export function buildUniqueObjectKey(params: {
   normalizedFolder: string;
   originalFilename: string;
@@ -913,9 +942,6 @@ export function buildUniqueObjectKey(params: {
   return `${normalizedFolder}/${sanitizedBase}-${suffix}${canonicalExtension}`;
 }
 
-/**
- * Constructs the public CDN URL from the configured base URL and object key.
- */
 export function buildPublicCdnUrl(
   publicBaseUrl: string,
   objectKey: string
@@ -930,16 +956,16 @@ export function buildPublicCdnUrl(
   } catch {
     throw new WorkerHttpError(
       500,
-      'WORKER_MISCONFIGURED',
-      'Worker PUBLIC_IMAGE_BASE_URL is not a valid URL.'
+      'SERVER_MISCONFIGURED',
+      'PUBLIC_IMAGE_BASE_URL is not a valid URL.'
     );
   }
 
   if (parsedBase.protocol !== 'https:' && parsedBase.protocol !== 'http:') {
     throw new WorkerHttpError(
       500,
-      'WORKER_MISCONFIGURED',
-      'Worker PUBLIC_IMAGE_BASE_URL must use https://.'
+      'SERVER_MISCONFIGURED',
+      'PUBLIC_IMAGE_BASE_URL must use https://.'
     );
   }
 
@@ -951,10 +977,6 @@ export function buildPublicCdnUrl(
   return `${trimmedBase}/${encodedPath}`;
 }
 
-/**
- * Scans a raw CMS section payload (including active, hidden, and soft-deleted items)
- * to determine whether `targetKey` or `targetCdnUrl` is referenced anywhere inside it.
- */
 export function findKeyReferencesInSectionPayload(params: {
   docId: string;
   title?: string;
@@ -996,9 +1018,6 @@ export function findKeyReferencesInSectionPayload(params: {
   return Array.from(new Set(matches));
 }
 
-/**
- * Parses a Firestore REST API Value object into a native JS value.
- */
 function parseFirestoreRestValue(val: Record<string, unknown> | undefined): unknown {
   if (!val || typeof val !== 'object') return null;
   if ('nullValue' in val) return null;
@@ -1026,10 +1045,6 @@ function parseFirestoreRestValue(val: Record<string, unknown> | undefined): unkn
   return null;
 }
 
-/**
- * Creates a default Cloud Firestore REST API coordinator authenticated with the caller's
- * verified Firebase admin ID token.
- */
 export function createRestFirestoreDeletionCoordinator(params: {
   projectId: string;
   databaseId: string;
@@ -1204,10 +1219,6 @@ export function createRestFirestoreDeletionCoordinator(params: {
   };
 }
 
-/**
- * Reads a Request body stream while strictly enforcing a maximum byte limit during streaming.
- * Does not rely on the Content-Length header alone.
- */
 export async function readRequestBodyWithLimit(
   request: Request,
   maxBodyBytes: number
@@ -1266,12 +1277,58 @@ export async function readRequestBodyWithLimit(
   return combined;
 }
 
-function parseAllowedOrigins(raw: string | undefined): Set<string> {
-  const list = (raw || '')
+function parseAllowedOrigins(raw: string | undefined): string[] {
+  return (raw || '')
     .split(',')
     .map((o) => o.trim().replace(/\/+$/, ''))
     .filter(Boolean);
-  return new Set(list);
+}
+
+export function isOriginAllowedByPolicy(
+  requestOrigin: string | null,
+  allowedPatterns: string[]
+): boolean {
+  if (!requestOrigin) return false;
+  if (allowedPatterns.length === 0) return false;
+
+  let parsedOrigin: URL;
+  try {
+    parsedOrigin = new URL(requestOrigin);
+  } catch {
+    return false;
+  }
+
+  for (const pattern of allowedPatterns) {
+    if (pattern === '*') return true;
+    if (pattern === requestOrigin) return true;
+
+    const wildcardIdx = pattern.indexOf('*.');
+    if (wildcardIdx !== -1) {
+      const schemeSep = pattern.indexOf('://');
+      if (schemeSep !== -1 && wildcardIdx === schemeSep + 3) {
+        const expectedProtocol = `${pattern.slice(0, schemeSep)}:`;
+        const rootDomain = pattern.slice(wildcardIdx + 2).toLowerCase();
+        const originHost = parsedOrigin.hostname.toLowerCase();
+        const originPort = parsedOrigin.port;
+
+        const domainAndPortParts = rootDomain.split(':');
+        const expectedHostSuffix = domainAndPortParts[0];
+        const expectedPort = domainAndPortParts[1] || '';
+
+        if (
+          parsedOrigin.protocol === expectedProtocol &&
+          originPort === expectedPort &&
+          expectedHostSuffix.length > 0 &&
+          originHost.endsWith(`.${expectedHostSuffix}`) &&
+          originHost.length > expectedHostSuffix.length + 1
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 function parseAllowedPrefixes(raw: string | undefined): string[] {
@@ -1317,391 +1374,168 @@ function jsonResponse(
   });
 }
 
-/**
- * Handles `GET /media` — authenticated media listing beneath approved prefixes with cursor pagination.
- */
-async function handleMediaListRequest(
+function resolveCorsForRequest(
   request: Request,
-  env: WorkerEnv,
-  corsHeaders: Record<string, string>,
-  options: WorkerHandlerOptions
-): Promise<Response> {
-  if (!env.SITE_IMAGES || typeof env.SITE_IMAGES.list !== 'function') {
-    throw new WorkerHttpError(
-      500,
-      'R2_BINDING_MISSING',
-      'Worker R2 bucket binding SITE_IMAGES does not support list().'
-    );
-  }
-
-  // 1. Verify Firebase ID token and require custom claim `admin === true`
-  await verifyFirebaseAdminIdToken(
-    request.headers.get('Authorization'),
-    env.FIREBASE_PROJECT_ID,
-    options.jwkResolver
-  );
-
-  // 2. Validate prefix, cursor, and limit
+  env: R2MediaWorkerEnv
+): { blockedResponse?: Response; corsHeaders: Record<string, string> } {
   const url = new URL(request.url);
-  const allowedPrefixes = parseAllowedPrefixes(env.ALLOWED_UPLOAD_PREFIXES);
-  const { normalizedFolder, r2Prefix, cursor, limit } = validateMediaListParams({
-    rawPrefix: url.searchParams.get('prefix'),
-    rawCursor: url.searchParams.get('cursor'),
-    rawLimit: url.searchParams.get('limit'),
-    allowedPrefixes,
-  });
-
-  // 3. List objects in R2 under the approved prefix (never listing the whole bucket)
-  const listResult = await env.SITE_IMAGES.list({
-    prefix: r2Prefix,
-    limit,
-    cursor,
-    include: ['httpMetadata', 'customMetadata'],
-  });
-
-  const publicBaseUrl =
-    env.PUBLIC_IMAGE_BASE_URL || DEFAULT_PUBLIC_IMAGE_BASE_URL;
-
-  const discoveredSubfolders = new Set<string>();
-  if (Array.isArray(listResult.delimitedPrefixes)) {
-    for (const dp of listResult.delimitedPrefixes) {
-      const cleaned = dp.replace(/^\/+|\/+$/g, '');
-      if (cleaned && cleaned !== normalizedFolder) {
-        discoveredSubfolders.add(cleaned);
-      }
-    }
-  }
-
-  const items = (listResult.objects || [])
-    .filter((obj) => obj && typeof obj.key === 'string' && !obj.key.endsWith('/'))
-    .map((obj) => {
-      // Discover any immediate child subfolder from returned object keys
-      if (obj.key.startsWith(r2Prefix)) {
-        const remainder = obj.key.slice(r2Prefix.length);
-        const slashIdx = remainder.indexOf('/');
-        if (slashIdx > 0) {
-          const childFolder = `${normalizedFolder}/${remainder.slice(0, slashIdx)}`;
-          discoveredSubfolders.add(childFolder);
-        }
-      }
-
-      const uploadedAt =
-        obj.uploaded instanceof Date
-          ? obj.uploaded.toISOString()
-          : typeof obj.uploaded === 'string' && obj.uploaded.trim().length > 0
-            ? obj.uploaded
-            : new Date(0).toISOString();
-
-      const contentType =
-        obj.httpMetadata?.contentType || inferContentTypeFromKey(obj.key);
-
-      return {
-        key: obj.key,
-        url: buildPublicCdnUrl(publicBaseUrl, obj.key),
-        size: typeof obj.size === 'number' ? obj.size : 0,
-        uploadedAt,
-        contentType,
-      };
-    });
-
-  return jsonResponse(
-    200,
-    {
-      prefix: normalizedFolder,
-      items,
-      subfolders: Array.from(discoveredSubfolders).sort(),
-      truncated: Boolean(listResult.truncated),
-      cursor: listResult.truncated ? listResult.cursor || null : null,
-      limit,
-    },
-    corsHeaders
-  );
-}
-
-/**
- * Handles `POST /media/delete` and `DELETE /media` — authenticated permanent R2 deletion
- * with backend Firestore reference verification and `/media_objects/{mediaId}` concurrency lock.
- */
-async function handleMediaDeleteRequest(
-  request: Request,
-  env: WorkerEnv,
-  corsHeaders: Record<string, string>,
-  options: WorkerHandlerOptions
-): Promise<Response> {
-  if (!env.SITE_IMAGES || typeof env.SITE_IMAGES.delete !== 'function') {
-    throw new WorkerHttpError(
-      500,
-      'R2_BINDING_MISSING',
-      'Worker R2 bucket binding SITE_IMAGES does not support delete().'
-    );
-  }
-
-  // 1. Verify Firebase ID token and require custom claim `admin === true`
-  const authHeader = request.headers.get('Authorization');
-  const verifiedAdmin = await verifyFirebaseAdminIdToken(
-    authHeader,
-    env.FIREBASE_PROJECT_ID,
-    options.jwkResolver
-  );
-  const rawIdToken = extractRawBearerToken(authHeader);
-
-  // 2. Parse and validate the exact R2 object key
-  const url = new URL(request.url);
-  let requestedKey: unknown = url.searchParams.get('key');
-
-  if (!requestedKey && request.body) {
-    let bodyJson: Record<string, unknown>;
-    try {
-      bodyJson = (await request.json()) as Record<string, unknown>;
-    } catch {
-      throw new WorkerHttpError(
-        400,
-        'INVALID_JSON_BODY',
-        'Request body must be valid JSON containing { "key": "<r2-object-key>" }.'
-      );
-    }
-    requestedKey = bodyJson?.key;
-  }
-
-  const allowedPrefixes = parseAllowedPrefixes(env.ALLOWED_UPLOAD_PREFIXES);
-  const objectKey = validateMediaObjectKey(requestedKey, allowedPrefixes);
-  const mediaId = encodeWorkerMediaDocId(objectKey);
-
-  // 3. Coordinate lifecycle lock & authoritative reference check with Firestore
-  const coordinator =
-    options.firestoreCoordinator ||
-    createRestFirestoreDeletionCoordinator({
-      projectId: env.FIREBASE_PROJECT_ID,
-      databaseId:
-        env.FIRESTORE_DATABASE_ID ||
-        'ai-studio-bimondotravels-99e233ba-6878-4a9b-b4e4-291cc3474a9a',
-      idToken: rawIdToken,
-    });
-
-  let existingLifecycle: MediaLifecycleDocState | null = null;
-  try {
-    existingLifecycle = await coordinator.getMediaLifecycleDoc(mediaId);
-  } catch (err) {
-    throw new WorkerHttpError(
-      409,
-      'USAGE_CHECK_INCOMPLETE',
-      `Unable to read media lifecycle state before deletion: ${
-        err instanceof Error ? err.message : 'Firestore error'
-      }`
-    );
-  }
-
-  const wasAlreadyDeleting = existingLifecycle?.status === 'deleting';
-
-  // Step 3a: Lock `/media_objects/{mediaId}` to `status: 'deleting'` before scanning `/cms_sections`
-  // so any concurrent content save transaction in Firestore is immediately blocked.
-  try {
-    await coordinator.setMediaLifecycleStatus({
-      mediaId,
-      objectKey,
-      status: 'deleting',
-      adminUid: verifiedAdmin.uid,
-    });
-  } catch (err) {
-    throw new WorkerHttpError(
-      409,
-      'USAGE_CHECK_INCOMPLETE',
-      `Unable to acquire deletion lock in Firestore (/media_objects/${mediaId}): ${
-        err instanceof Error ? err.message : 'Firestore write failed'
-      }`
-    );
-  }
-
-  // Step 3b: Authoritatively fetch all 22 `/cms_sections` documents
-  const sectionCheck = await coordinator.fetchAllCmsSectionDocs();
-  if (!sectionCheck.complete) {
-    if (!wasAlreadyDeleting) {
-      await coordinator
-        .setMediaLifecycleStatus({
-          mediaId,
-          objectKey,
-          status: 'active',
-          adminUid: verifiedAdmin.uid,
-        })
-        .catch(() => undefined);
-    }
-    throw new WorkerHttpError(
-      409,
-      'USAGE_CHECK_INCOMPLETE',
-      sectionCheck.reason ||
-        'Usage check is incomplete. Refusing to permanently delete R2 object until all CMS sections can be inspected.'
-    );
-  }
-
-  // Step 3c: Scan all 22 sections (including active, hidden, and soft-deleted Trash content)
-  const publicBaseUrl =
-    env.PUBLIC_IMAGE_BASE_URL || DEFAULT_PUBLIC_IMAGE_BASE_URL;
-  const foundReferences: string[] = [];
-
-  for (const secDoc of sectionCheck.docs) {
-    const refs = findKeyReferencesInSectionPayload({
-      docId: secDoc.docId,
-      title: secDoc.title,
-      payload: secDoc.payload,
-      targetKey: objectKey,
-      publicBaseUrl,
-    });
-    for (const r of refs) {
-      foundReferences.push(r);
-    }
-  }
-
-  if (foundReferences.length > 0) {
-    // Roll back lifecycle status to 'active' because the image is still referenced
-    await coordinator
-      .setMediaLifecycleStatus({
-        mediaId,
-        objectKey,
-        status: 'active',
-        adminUid: verifiedAdmin.uid,
-      })
-      .catch(() => undefined);
-
-    throw new WorkerHttpError(
-      409,
-      'IMAGE_IN_USE',
-      `Refusing to delete "${objectKey}" because it is currently referenced in ${foundReferences.length} saved content placement(s): ${foundReferences.slice(0, 5).join('; ')}. Remove or replace all placements and save before deleting.`,
-      {
-        key: objectKey,
-        references: foundReferences,
-      }
-    );
-  }
-
-  // Step 4: Delete object from R2 bucket
-  try {
-    await env.SITE_IMAGES.delete(objectKey);
-  } catch (err) {
-    // Leave `/media_objects/{mediaId}` in `status: 'deleting'` as a retryable deletion state
-    throw new WorkerHttpError(
-      502,
-      'R2_DELETE_RETRYABLE',
-      `R2 bucket deletion failed while "${objectKey}" is locked in "deleting" state: ${
-        err instanceof Error ? err.message : 'R2 delete error'
-      }. Retry deletion to complete cleanup.`,
-      {
-        key: objectKey,
-        mediaId,
-        lifecycleStatus: 'deleting',
-        retryable: true,
-      }
-    );
-  }
-
-  // Step 5: Mark `/media_objects/{mediaId}` as `'deleted'`
-  await coordinator
-    .setMediaLifecycleStatus({
-      mediaId,
-      objectKey,
-      status: 'deleted',
-      adminUid: verifiedAdmin.uid,
-    })
-    .catch(() => undefined);
-
-  return jsonResponse(
-    200,
-    {
-      deleted: true,
-      key: objectKey,
-      mediaId,
-      lifecycleStatus: 'deleted',
-      cacheNotice:
-        'Object permanently deleted from R2 bucket. Copies already cached by Cloudflare CDN (https://cdn.bimondotours.com) with long-lived Cache-Control headers may remain accessible at edge PoPs until cache expiration or a separate cache purge.',
-    },
-    corsHeaders
-  );
-}
-
-/**
- * Main Cloudflare Worker fetch handler for:
- * - `POST /upload` (authenticated R2 image upload)
- * - `GET /media` (authenticated R2 media listing by approved prefix with cursor pagination)
- * - `POST /media/delete` & `DELETE /media` (authenticated R2 permanent deletion with backend reference check)
- */
-export async function handleUploadWorkerRequest(
-  request: Request,
-  env: WorkerEnv,
-  options: WorkerHandlerOptions = {}
-): Promise<Response> {
-  const allowedOrigins = parseAllowedOrigins(env.ALLOWED_ORIGINS);
   const requestOriginRaw = request.headers.get('Origin');
   const requestOrigin = requestOriginRaw
     ? requestOriginRaw.trim().replace(/\/+$/, '')
     : null;
 
-  const isOriginAllowed =
-    requestOrigin !== null &&
-    (allowedOrigins.has(requestOrigin) || allowedOrigins.has('*'));
-
-  const corsHeaders = buildCorsHeaders(isOriginAllowed ? requestOrigin : null);
-
-  // If an Origin header is sent from an unapproved origin, reject immediately
-  if (requestOrigin !== null && allowedOrigins.size > 0 && !isOriginAllowed) {
-    return jsonResponse(
-      403,
-      {
-        error: `Origin "${requestOrigin}" is not in the Worker ALLOWED_ORIGINS allowlist.`,
-        code: 'ORIGIN_FORBIDDEN',
-      },
-      {}
-    );
+  if (!requestOrigin) {
+    return { corsHeaders: {} };
   }
 
-  const url = new URL(request.url);
-  const isKnownRoute =
-    url.pathname === '/upload' ||
-    url.pathname === '/media' ||
-    url.pathname === '/media/delete';
-
-  // Handle CORS preflight
-  if (request.method === 'OPTIONS') {
-    if (!isKnownRoute) {
-      return jsonResponse(
-        404,
-        { error: 'Not found.', code: 'NOT_FOUND' },
-        corsHeaders
-      );
-    }
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders,
-    });
+  const isSameOrigin = requestOrigin === url.origin.replace(/\/+$/, '');
+  if (isSameOrigin) {
+    return { corsHeaders: buildCorsHeaders(requestOrigin) };
   }
 
-  if (!isKnownRoute) {
+  const allowedOrigins = parseAllowedOrigins(
+    typeof env.ALLOWED_ORIGINS === 'string' ? env.ALLOWED_ORIGINS : undefined
+  );
+  if (allowedOrigins.length === 0) {
+    // Reject arbitrary third-party cross-origin requests unless explicitly allowlisted
+    return {
+      blockedResponse: jsonResponse(
+        403,
+        {
+          error: `Cross-origin request from "${requestOrigin}" is forbidden.`,
+          code: 'ORIGIN_FORBIDDEN',
+        },
+        {}
+      ),
+      corsHeaders: {},
+    };
+  }
+
+  const isAllowed = isOriginAllowedByPolicy(requestOrigin, allowedOrigins);
+  if (!isAllowed) {
+    return {
+      blockedResponse: jsonResponse(
+        403,
+        {
+          error: `Origin "${requestOrigin}" is not in ALLOWED_ORIGINS.`,
+          code: 'ORIGIN_FORBIDDEN',
+        },
+        {}
+      ),
+      corsHeaders: {},
+    };
+  }
+
+  return { corsHeaders: buildCorsHeaders(requestOrigin) };
+}
+
+function formatCaughtError(
+  err: unknown,
+  corsHeaders: Record<string, string>
+): Response {
+  if (err instanceof WorkerHttpError) {
     return jsonResponse(
-      404,
+      err.status,
       {
-        error:
-          'Endpoint not found. Available authenticated routes: POST /upload, GET /media, POST /media/delete.',
-        code: 'NOT_FOUND',
+        error: err.message,
+        code: err.code,
+        ...(err.details ? err.details : {}),
       },
       corsHeaders
     );
   }
 
+  const message =
+    err instanceof Error ? err.message : 'Unexpected R2 media API error.';
+  return jsonResponse(
+    500,
+    {
+      error: message,
+      code: 'INTERNAL_SERVER_ERROR',
+    },
+    corsHeaders
+  );
+}
+
+/**
+ * Handles `GET /api/media/health`.
+ */
+export async function handleR2MediaHealth(
+  request: Request,
+  env: R2MediaWorkerEnv
+): Promise<Response> {
+  const { blockedResponse, corsHeaders } = resolveCorsForRequest(request, env);
+  if (blockedResponse) return blockedResponse;
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (request.method !== 'GET') {
+    return jsonResponse(
+      405,
+      {
+        error: `Method ${request.method} not allowed. Use GET.`,
+        code: 'METHOD_NOT_ALLOWED',
+      },
+      corsHeaders,
+      { Allow: 'GET, OPTIONS' }
+    );
+  }
+
+  const bucket = resolveR2BucketBinding(env);
+  const bucketBound = Boolean(
+    bucket &&
+      typeof bucket.put === 'function' &&
+      typeof bucket.list === 'function'
+  );
+
+  return jsonResponse(
+    bucketBound ? 200 : 503,
+    {
+      ok: bucketBound,
+      service: 'bimondo-r2-media-api',
+      binding: 'BIMONDO_IMAGES',
+      bucketBound,
+      publicImageBaseUrl: resolvePublicImageBaseUrl(env),
+      firebaseProjectId: resolveFirebaseProjectId(env),
+      firestoreDatabaseId: resolveFirestoreDatabaseId(env),
+      allowedPrefixes: parseAllowedPrefixes(
+        typeof env.ALLOWED_UPLOAD_PREFIXES === 'string'
+          ? env.ALLOWED_UPLOAD_PREFIXES
+          : undefined
+      ),
+      maxUploadBytes: parseMaxUploadBytes(
+        typeof env.MAX_UPLOAD_BYTES === 'string'
+          ? env.MAX_UPLOAD_BYTES
+          : undefined
+      ),
+    },
+    corsHeaders
+  );
+}
+
+/**
+ * Handles `GET /api/media` — authenticated R2 bucket listing beneath approved prefixes.
+ */
+export async function handleR2MediaList(
+  request: Request,
+  env: R2MediaWorkerEnv,
+  options: R2HandlerOptions = {}
+): Promise<Response> {
+  const { blockedResponse, corsHeaders } = resolveCorsForRequest(request, env);
+  if (blockedResponse) return blockedResponse;
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
   try {
-    if (url.pathname === '/media') {
-      if (request.method === 'GET') {
-        return await handleMediaListRequest(request, env, corsHeaders, options);
-      }
-      if (request.method === 'DELETE') {
-        return await handleMediaDeleteRequest(
-          request,
-          env,
-          corsHeaders,
-          options
-        );
-      }
+    if (request.method !== 'GET') {
       return jsonResponse(
         405,
         {
-          error: `Method ${request.method} not allowed on /media. Use GET /media or DELETE /media.`,
+          error: `Method ${request.method} not allowed. Use GET.`,
           code: 'METHOD_NOT_ALLOWED',
         },
         corsHeaders,
@@ -1709,26 +1543,123 @@ export async function handleUploadWorkerRequest(
       );
     }
 
-    if (url.pathname === '/media/delete') {
-      if (request.method !== 'POST' && request.method !== 'DELETE') {
-        return jsonResponse(
-          405,
-          {
-            error: `Method ${request.method} not allowed on /media/delete. Use POST /media/delete.`,
-            code: 'METHOD_NOT_ALLOWED',
-          },
-          corsHeaders,
-          { Allow: 'POST, DELETE, OPTIONS' }
-        );
-      }
-      return await handleMediaDeleteRequest(request, env, corsHeaders, options);
+    const firebaseProjectId = resolveFirebaseProjectId(env);
+    await verifyFirebaseAdminIdToken(
+      request.headers.get('Authorization'),
+      firebaseProjectId,
+      options.jwkResolver
+    );
+
+    const bucket = resolveR2BucketBinding(env);
+    if (!bucket || typeof bucket.list !== 'function') {
+      throw new WorkerHttpError(
+        503,
+        'R2_BINDING_MISSING',
+        'Cloudflare R2 bucket binding env.BIMONDO_IMAGES is not available in this runtime. Deploy to Cloudflare Workers ("bimondo") with the BIMONDO_IMAGES binding attached.'
+      );
     }
 
+    const url = new URL(request.url);
+    const allowedPrefixes = parseAllowedPrefixes(
+      typeof env.ALLOWED_UPLOAD_PREFIXES === 'string'
+        ? env.ALLOWED_UPLOAD_PREFIXES
+        : undefined
+    );
+    const { normalizedFolder, r2Prefix, cursor, limit } =
+      validateMediaListParams({
+        rawPrefix: url.searchParams.get('prefix'),
+        rawCursor: url.searchParams.get('cursor'),
+        rawLimit: url.searchParams.get('limit'),
+        allowedPrefixes,
+      });
+
+    const listResult = await bucket.list({
+      prefix: r2Prefix,
+      limit,
+      cursor,
+      include: ['httpMetadata', 'customMetadata'],
+    });
+
+    const publicBaseUrl = resolvePublicImageBaseUrl(env);
+    const discoveredSubfolders = new Set<string>();
+    if (Array.isArray(listResult.delimitedPrefixes)) {
+      for (const dp of listResult.delimitedPrefixes) {
+        const cleaned = dp.replace(/^\/+|\/+$/g, '');
+        if (cleaned && cleaned !== normalizedFolder) {
+          discoveredSubfolders.add(cleaned);
+        }
+      }
+    }
+
+    const items = (listResult.objects || [])
+      .filter((obj) => obj && typeof obj.key === 'string' && !obj.key.endsWith('/'))
+      .map((obj) => {
+        if (obj.key.startsWith(r2Prefix)) {
+          const remainder = obj.key.slice(r2Prefix.length);
+          const slashIdx = remainder.indexOf('/');
+          if (slashIdx > 0) {
+            const childFolder = `${normalizedFolder}/${remainder.slice(0, slashIdx)}`;
+            discoveredSubfolders.add(childFolder);
+          }
+        }
+
+        const uploadedAt =
+          obj.uploaded instanceof Date
+            ? obj.uploaded.toISOString()
+            : typeof obj.uploaded === 'string' && obj.uploaded.trim().length > 0
+              ? obj.uploaded
+              : new Date(0).toISOString();
+
+        const contentType =
+          obj.httpMetadata?.contentType || inferContentTypeFromKey(obj.key);
+
+        return {
+          key: obj.key,
+          url: buildPublicCdnUrl(publicBaseUrl, obj.key),
+          size: typeof obj.size === 'number' ? obj.size : 0,
+          uploadedAt,
+          contentType,
+        };
+      });
+
+    return jsonResponse(
+      200,
+      {
+        prefix: normalizedFolder,
+        items,
+        subfolders: Array.from(discoveredSubfolders).sort(),
+        truncated: Boolean(listResult.truncated),
+        cursor: listResult.truncated ? listResult.cursor || null : null,
+        limit,
+      },
+      corsHeaders
+    );
+  } catch (err) {
+    return formatCaughtError(err, corsHeaders);
+  }
+}
+
+/**
+ * Handles `POST /api/media/upload` — authenticated image upload directly to `env.BIMONDO_IMAGES`.
+ */
+export async function handleR2MediaUpload(
+  request: Request,
+  env: R2MediaWorkerEnv,
+  options: R2HandlerOptions = {}
+): Promise<Response> {
+  const { blockedResponse, corsHeaders } = resolveCorsForRequest(request, env);
+  if (blockedResponse) return blockedResponse;
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  try {
     if (request.method !== 'POST') {
       return jsonResponse(
         405,
         {
-          error: `Method ${request.method} not allowed. Use POST /upload.`,
+          error: `Method ${request.method} not allowed. Use POST.`,
           code: 'METHOD_NOT_ALLOWED',
         },
         corsHeaders,
@@ -1736,22 +1667,22 @@ export async function handleUploadWorkerRequest(
       );
     }
 
-    if (!env.SITE_IMAGES || typeof env.SITE_IMAGES.put !== 'function') {
-      throw new WorkerHttpError(
-        500,
-        'R2_BINDING_MISSING',
-        'Worker R2 bucket binding SITE_IMAGES is not configured.'
-      );
-    }
-
-    // 1. Verify Firebase ID token and require custom claim `admin === true`
+    const firebaseProjectId = resolveFirebaseProjectId(env);
     await verifyFirebaseAdminIdToken(
       request.headers.get('Authorization'),
-      env.FIREBASE_PROJECT_ID,
+      firebaseProjectId,
       options.jwkResolver
     );
 
-    // 2. Verify multipart/form-data Content-Type
+    const bucket = resolveR2BucketBinding(env);
+    if (!bucket || typeof bucket.put !== 'function') {
+      throw new WorkerHttpError(
+        503,
+        'R2_BINDING_MISSING',
+        'Cloudflare R2 bucket binding env.BIMONDO_IMAGES is not available in this runtime. Deploy to Cloudflare Workers ("bimondo") with the BIMONDO_IMAGES binding attached.'
+      );
+    }
+
     const contentType = request.headers.get('Content-Type') || '';
     if (!contentType.toLowerCase().includes('multipart/form-data')) {
       throw new WorkerHttpError(
@@ -1761,8 +1692,11 @@ export async function handleUploadWorkerRequest(
       );
     }
 
-    // 3. Enforce max upload size while reading the request stream
-    const maxUploadBytes = parseMaxUploadBytes(env.MAX_UPLOAD_BYTES);
+    const maxUploadBytes = parseMaxUploadBytes(
+      typeof env.MAX_UPLOAD_BYTES === 'string'
+        ? env.MAX_UPLOAD_BYTES
+        : undefined
+    );
     const rawBodyBytes = await readRequestBodyWithLimit(
       request,
       maxUploadBytes + MULTIPART_ENVELOPE_OVERHEAD_BYTES
@@ -1788,7 +1722,11 @@ export async function handleUploadWorkerRequest(
     const fileEntry = formData.get('file');
     const folderEntry = formData.get('folder');
 
-    if (!fileEntry || typeof fileEntry === 'string' || !('arrayBuffer' in fileEntry)) {
+    if (
+      !fileEntry ||
+      typeof fileEntry === 'string' ||
+      !('arrayBuffer' in fileEntry)
+    ) {
       throw new WorkerHttpError(
         400,
         'MISSING_FILE',
@@ -1809,21 +1747,22 @@ export async function handleUploadWorkerRequest(
       );
     }
 
-    // 4. Validate requested folder against approved prefixes
-    const allowedPrefixes = parseAllowedPrefixes(env.ALLOWED_UPLOAD_PREFIXES);
+    const allowedPrefixes = parseAllowedPrefixes(
+      typeof env.ALLOWED_UPLOAD_PREFIXES === 'string'
+        ? env.ALLOWED_UPLOAD_PREFIXES
+        : undefined
+    );
     const normalizedFolder = validateAndNormalizeUploadFolder(
       typeof folderEntry === 'string' ? folderEntry : '',
       allowedPrefixes
     );
 
-    // 5. Validate binary magic bytes, declared MIME type, and file extension
     const detectedFormat = validateUploadedImageFile({
       bytes: fileBytes,
       declaredMimeType: uploadedFile.type,
       filename: uploadedFile.name,
     });
 
-    // 6. Generate unique object key (never overwriting existing objects)
     let objectKey = buildUniqueObjectKey({
       normalizedFolder,
       originalFilename: uploadedFile.name,
@@ -1833,8 +1772,8 @@ export async function handleUploadWorkerRequest(
         : undefined,
     });
 
-    if (typeof env.SITE_IMAGES.head === 'function') {
-      const existing = await env.SITE_IMAGES.head(objectKey);
+    if (typeof bucket.head === 'function') {
+      const existing = await bucket.head(objectKey);
       if (existing) {
         objectKey = buildUniqueObjectKey({
           normalizedFolder,
@@ -1844,12 +1783,10 @@ export async function handleUploadWorkerRequest(
       }
     }
 
-    const publicBaseUrl =
-      env.PUBLIC_IMAGE_BASE_URL || DEFAULT_PUBLIC_IMAGE_BASE_URL;
+    const publicBaseUrl = resolvePublicImageBaseUrl(env);
     const publicUrl = buildPublicCdnUrl(publicBaseUrl, objectKey);
 
-    // 7. Store object in R2 with Content-Type and immutable Cache-Control metadata
-    await env.SITE_IMAGES.put(objectKey, fileBytes, {
+    await bucket.put(objectKey, fileBytes, {
       httpMetadata: {
         contentType: detectedFormat.mimeType,
         cacheControl: 'public, max-age=31536000, immutable',
@@ -1867,37 +1804,262 @@ export async function handleUploadWorkerRequest(
       corsHeaders
     );
   } catch (err) {
-    if (err instanceof WorkerHttpError) {
-      return jsonResponse(
-        err.status,
-        {
-          error: err.message,
-          code: err.code,
-          ...(err.details ? err.details : {}),
-        },
-        corsHeaders
-      );
-    }
-
-    const message =
-      err instanceof Error
-        ? err.message
-        : 'Unexpected R2 Worker error.';
-    return jsonResponse(
-      500,
-      {
-        error: message,
-        code: 'WORKER_INTERNAL_ERROR',
-      },
-      corsHeaders
-    );
+    return formatCaughtError(err, corsHeaders);
   }
 }
 
-const workerExport = {
-  async fetch(request: Request, env: WorkerEnv): Promise<Response> {
-    return handleUploadWorkerRequest(request, env);
-  },
-};
+/**
+ * Handles `POST /api/media/delete` and `DELETE /api/media` — authenticated permanent deletion
+ * from `env.BIMONDO_IMAGES` with backend Firestore reference verification and lifecycle lock.
+ */
+export async function handleR2MediaDelete(
+  request: Request,
+  env: R2MediaWorkerEnv,
+  options: R2HandlerOptions = {}
+): Promise<Response> {
+  const { blockedResponse, corsHeaders } = resolveCorsForRequest(request, env);
+  if (blockedResponse) return blockedResponse;
 
-export default workerExport;
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  try {
+    if (request.method !== 'POST' && request.method !== 'DELETE') {
+      return jsonResponse(
+        405,
+        {
+          error: `Method ${request.method} not allowed. Use POST or DELETE.`,
+          code: 'METHOD_NOT_ALLOWED',
+        },
+        corsHeaders,
+        { Allow: 'POST, DELETE, OPTIONS' }
+      );
+    }
+
+    const firebaseProjectId = resolveFirebaseProjectId(env);
+    const authHeader = request.headers.get('Authorization');
+    const verifiedAdmin = await verifyFirebaseAdminIdToken(
+      authHeader,
+      firebaseProjectId,
+      options.jwkResolver
+    );
+    const rawIdToken = extractRawBearerToken(authHeader);
+
+    const bucket = resolveR2BucketBinding(env);
+    if (!bucket || typeof bucket.delete !== 'function') {
+      throw new WorkerHttpError(
+        503,
+        'R2_BINDING_MISSING',
+        'Cloudflare R2 bucket binding env.BIMONDO_IMAGES is not available in this runtime. Deploy to Cloudflare Workers ("bimondo") with the BIMONDO_IMAGES binding attached.'
+      );
+    }
+
+    const url = new URL(request.url);
+    let requestedKey: unknown = url.searchParams.get('key');
+
+    if (!requestedKey && request.body) {
+      let bodyJson: Record<string, unknown>;
+      try {
+        bodyJson = (await request.json()) as Record<string, unknown>;
+      } catch {
+        throw new WorkerHttpError(
+          400,
+          'INVALID_JSON_BODY',
+          'Request body must be valid JSON containing { "key": "<r2-object-key>" }.'
+        );
+      }
+      requestedKey = bodyJson?.key;
+    }
+
+    const allowedPrefixes = parseAllowedPrefixes(
+      typeof env.ALLOWED_UPLOAD_PREFIXES === 'string'
+        ? env.ALLOWED_UPLOAD_PREFIXES
+        : undefined
+    );
+    const objectKey = validateMediaObjectKey(requestedKey, allowedPrefixes);
+    const mediaId = encodeWorkerMediaDocId(objectKey);
+
+    const coordinator =
+      options.firestoreCoordinator ||
+      createRestFirestoreDeletionCoordinator({
+        projectId: firebaseProjectId,
+        databaseId: resolveFirestoreDatabaseId(env),
+        idToken: rawIdToken,
+      });
+
+    let existingLifecycle: MediaLifecycleDocState | null = null;
+    try {
+      existingLifecycle = await coordinator.getMediaLifecycleDoc(mediaId);
+    } catch (err) {
+      throw new WorkerHttpError(
+        409,
+        'USAGE_CHECK_INCOMPLETE',
+        `Unable to read media lifecycle state before deletion: ${
+          err instanceof Error ? err.message : 'Firestore error'
+        }`
+      );
+    }
+
+    const wasAlreadyDeleting = existingLifecycle?.status === 'deleting';
+
+    try {
+      await coordinator.setMediaLifecycleStatus({
+        mediaId,
+        objectKey,
+        status: 'deleting',
+        adminUid: verifiedAdmin.uid,
+      });
+    } catch (err) {
+      throw new WorkerHttpError(
+        409,
+        'USAGE_CHECK_INCOMPLETE',
+        `Unable to acquire deletion lock in Firestore (/media_objects/${mediaId}): ${
+          err instanceof Error ? err.message : 'Firestore write failed'
+        }`
+      );
+    }
+
+    const sectionCheck = await coordinator.fetchAllCmsSectionDocs();
+    if (!sectionCheck.complete) {
+      if (!wasAlreadyDeleting) {
+        await coordinator
+          .setMediaLifecycleStatus({
+            mediaId,
+            objectKey,
+            status: 'active',
+            adminUid: verifiedAdmin.uid,
+          })
+          .catch(() => undefined);
+      }
+      throw new WorkerHttpError(
+        409,
+        'USAGE_CHECK_INCOMPLETE',
+        sectionCheck.reason ||
+          'Usage check is incomplete. Refusing to permanently delete R2 object until all CMS sections can be inspected.'
+      );
+    }
+
+    const publicBaseUrl = resolvePublicImageBaseUrl(env);
+    const foundReferences: string[] = [];
+
+    for (const secDoc of sectionCheck.docs) {
+      const refs = findKeyReferencesInSectionPayload({
+        docId: secDoc.docId,
+        title: secDoc.title,
+        payload: secDoc.payload,
+        targetKey: objectKey,
+        publicBaseUrl,
+      });
+      for (const r of refs) {
+        foundReferences.push(r);
+      }
+    }
+
+    if (foundReferences.length > 0) {
+      await coordinator
+        .setMediaLifecycleStatus({
+          mediaId,
+          objectKey,
+          status: 'active',
+          adminUid: verifiedAdmin.uid,
+        })
+        .catch(() => undefined);
+
+      throw new WorkerHttpError(
+        409,
+        'IMAGE_IN_USE',
+        `Refusing to delete "${objectKey}" because it is currently referenced in ${foundReferences.length} saved content placement(s): ${foundReferences.slice(0, 5).join('; ')}. Remove or replace all placements and save before deleting.`,
+        {
+          key: objectKey,
+          references: foundReferences,
+        }
+      );
+    }
+
+    try {
+      await bucket.delete(objectKey);
+    } catch (err) {
+      throw new WorkerHttpError(
+        502,
+        'R2_DELETE_RETRYABLE',
+        `R2 bucket deletion failed while "${objectKey}" is locked in "deleting" state: ${
+          err instanceof Error ? err.message : 'R2 delete error'
+        }. Retry deletion to complete cleanup.`,
+        {
+          key: objectKey,
+          mediaId,
+          lifecycleStatus: 'deleting',
+          retryable: true,
+        }
+      );
+    }
+
+    await coordinator
+      .setMediaLifecycleStatus({
+        mediaId,
+        objectKey,
+        status: 'deleted',
+        adminUid: verifiedAdmin.uid,
+      })
+      .catch(() => undefined);
+
+    return jsonResponse(
+      200,
+      {
+        deleted: true,
+        key: objectKey,
+        mediaId,
+        lifecycleStatus: 'deleted',
+        cacheNotice: `Object permanently deleted from R2 bucket BIMONDO_IMAGES. Copies already cached by Cloudflare CDN (${publicBaseUrl}) with long-lived Cache-Control headers may remain accessible at edge PoPs until cache expiration or a separate cache purge.`,
+      },
+      corsHeaders
+    );
+  } catch (err) {
+    return formatCaughtError(err, corsHeaders);
+  }
+}
+
+/**
+ * Dispatcher for `/api/media/*` routes in Cloudflare Workers & Pages Functions.
+ */
+export async function handleR2MediaApiRequest(
+  request: Request,
+  env: R2MediaWorkerEnv,
+  options: R2HandlerOptions = {}
+): Promise<Response> {
+  const url = new URL(request.url);
+  const pathname = url.pathname.replace(/\/+$/, '') || '/';
+
+  if (pathname === '/api/media/health') {
+    return handleR2MediaHealth(request, env);
+  }
+
+  if (pathname === '/api/media/upload') {
+    return handleR2MediaUpload(request, env, options);
+  }
+
+  if (pathname === '/api/media/delete') {
+    return handleR2MediaDelete(request, env, options);
+  }
+
+  if (pathname === '/api/media') {
+    if (request.method === 'DELETE') {
+      return handleR2MediaDelete(request, env, options);
+    }
+    return handleR2MediaList(request, env, options);
+  }
+
+  const { blockedResponse, corsHeaders } = resolveCorsForRequest(request, env);
+  if (blockedResponse) return blockedResponse;
+
+  return jsonResponse(
+    404,
+    {
+      error:
+        'Endpoint not found. Available routes: GET /api/media/health, POST /api/media/upload, GET /api/media, POST /api/media/delete.',
+      code: 'NOT_FOUND',
+    },
+    corsHeaders
+  );
+}

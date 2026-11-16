@@ -1,4 +1,4 @@
-name = "bimondo-tours"
+name = "bimondo"
 main = "workers/site-worker/src/index.ts"
 compatibility_date = "2025-05-05"
 compatibility_flags = ["nodejs_compat"]
@@ -9,5 +9,15 @@ binding = "ASSETS"
 html_handling = "auto-trailing-slash"
 not_found_handling = "404-page"
 
+# Ensure `bucket_name` matches the Cloudflare R2 bucket attached to `BIMONDO_IMAGES`.
+[[r2_buckets]]
+binding = "BIMONDO_IMAGES"
+bucket_name = "bimondo-images"
+
 [vars]
 APP_URL = "https://www.bimondotours.com"
+FIREBASE_PROJECT_ID = "advance-sandbox-gmzf6"
+FIRESTORE_DATABASE_ID = "ai-studio-bimondotravels-99e233ba-6878-4a9b-b4e4-291cc3474a9a"
+PUBLIC_IMAGE_BASE_URL = "https://cdn.bimondotours.com"
+ALLOWED_UPLOAD_PREFIXES = "pages,shared,tours,gallery"
+MAX_UPLOAD_BYTES = "10485760"

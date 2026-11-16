@@ -1,4 +1,19 @@
-export const PUBLIC_CDN_BASE_URL = 'https://cdn.bimondotours.com';
+function resolveClientPublicCdnBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_IMAGE_BASE_URL || '').trim();
+  if (!raw) return 'https://cdn.bimondotours.com';
+  const repaired = raw.replace(/^ttps:\/\//i, 'https://').replace(/\/+$/, '');
+  try {
+    const parsed = new URL(repaired);
+    if (parsed.protocol === 'https:') {
+      return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
+    }
+  } catch {
+    // Invalid URL falls back to default CDN base URL
+  }
+  return 'https://cdn.bimondotours.com';
+}
+
+export const PUBLIC_CDN_BASE_URL = resolveClientPublicCdnBaseUrl();
 export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
 export const ALLOWED_ROOT_UPLOAD_PREFIXES = [
   'pages',
@@ -132,45 +147,12 @@ export interface R2MediaDeleteResponse {
   cacheNotice: string;
 }
 
-export interface UploadWorkerEndpointResolution {
-  isConfigured: boolean;
-  baseUrl: string | null;
-  uploadEndpointUrl: string | null;
-  mediaListEndpointUrl: string | null;
-  mediaDeleteEndpointUrl: string | null;
-}
-
-/**
- * Resolves the configured Cloudflare R2 Upload Worker base URL from
- * `NEXT_PUBLIC_R2_UPLOAD_WORKER_URL`.
- * Never uses the public CDN domain (`https://cdn.bimondotours.com`) as an upload endpoint.
- */
-export function getUploadWorkerEndpointResolution(): UploadWorkerEndpointResolution {
-  const raw = (process.env.NEXT_PUBLIC_R2_UPLOAD_WORKER_URL || '').trim();
-  if (
-    !raw ||
-    raw.includes('YOUR_') ||
-    raw.includes('<') ||
-    raw.replace(/\/+$/, '').toLowerCase() === PUBLIC_CDN_BASE_URL
-  ) {
-    return {
-      isConfigured: false,
-      baseUrl: null,
-      uploadEndpointUrl: null,
-      mediaListEndpointUrl: null,
-      mediaDeleteEndpointUrl: null,
-    };
-  }
-
-  const normalized = raw.replace(/\/+$/, '').replace(/\/upload$/i, '');
-  return {
-    isConfigured: true,
-    baseUrl: normalized,
-    uploadEndpointUrl: `${normalized}/upload`,
-    mediaListEndpointUrl: `${normalized}/media`,
-    mediaDeleteEndpointUrl: `${normalized}/media/delete`,
-  };
-}
+export const MEDIA_API_ENDPOINTS = {
+  upload: '/api/media/upload',
+  list: '/api/media',
+  delete: '/api/media/delete',
+  health: '/api/media/health',
+} as const;
 
 /**
  * Suggests a sensible default approved upload folder for a given admin section ID.
@@ -403,8 +385,9 @@ export async function validateClientImageFileBeforeUpload(file: File): Promise<v
 }
 
 /**
- * Uploads an image file to the Cloudflare R2 Upload Worker (`POST /upload`)
- * authenticated with the administrator's Firebase ID token.
+ * Uploads an image file via the server-side API route (`POST /api/media/upload`),
+ * which writes directly to the Cloudflare R2 binding (`env.BIMONDO_IMAGES`) after
+ * verifying the administrator's Firebase ID token.
  */
 export async function uploadImageToR2Worker(params: {
   file: File;
@@ -412,15 +395,6 @@ export async function uploadImageToR2Worker(params: {
   idToken: string;
 }): Promise<R2UploadSuccessResponse> {
   const { file, folder, idToken } = params;
-
-  const endpoint = getUploadWorkerEndpointResolution();
-  if (!endpoint.isConfigured || !endpoint.uploadEndpointUrl) {
-    throw new R2ClientUploadError({
-      category: 'unconfigured',
-      message:
-        'Upload Worker URL is not configured. Set NEXT_PUBLIC_R2_UPLOAD_WORKER_URL in your environment to your deployed Cloudflare Worker URL (e.g., https://bimondo-r2-upload-worker.<subdomain>.workers.dev).',
-    });
-  }
 
   if (!idToken || idToken.trim().length === 0) {
     throw new R2ClientUploadError({
@@ -446,7 +420,7 @@ export async function uploadImageToR2Worker(params: {
 
   let response: Response;
   try {
-    response = await fetch(endpoint.uploadEndpointUrl, {
+    response = await fetch(MEDIA_API_ENDPOINTS.upload, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${idToken}`,
@@ -456,11 +430,9 @@ export async function uploadImageToR2Worker(params: {
   } catch (err) {
     throw new R2ClientUploadError({
       category: 'network',
-      message: `Network or CORS error reaching Upload Worker at ${endpoint.uploadEndpointUrl}: ${
+      message: `Network error reaching ${MEDIA_API_ENDPOINTS.upload}: ${
         err instanceof Error ? err.message : 'Failed to fetch'
-      }. Verify the Worker is deployed and ALLOWED_ORIGINS includes ${
-        typeof window !== 'undefined' ? window.location.origin : 'this origin'
-      }.`,
+      }`,
     });
   }
 
@@ -528,11 +500,20 @@ export async function uploadImageToR2Worker(params: {
       });
     }
 
+    if (response.status === 503 && serverCode === 'R2_BINDING_MISSING') {
+      throw new R2ClientUploadError({
+        category: 'unconfigured',
+        status: 503,
+        code: serverCode,
+        message: serverMessage,
+      });
+    }
+
     throw new R2ClientUploadError({
       category: 'upload_failed',
       status: response.status,
       code: serverCode,
-      message: `R2 Upload Worker error (${response.status}): ${serverMessage}`,
+      message: `R2 upload error (${response.status}): ${serverMessage}`,
     });
   }
 
@@ -544,7 +525,7 @@ export async function uploadImageToR2Worker(params: {
   ) {
     throw new R2ClientUploadError({
       category: 'upload_failed',
-      message: 'Worker returned an incomplete upload response (missing key or url).',
+      message: 'Media API returned an incomplete upload response (missing key or url).',
     });
   }
 
@@ -560,8 +541,8 @@ export async function uploadImageToR2Worker(params: {
 }
 
 /**
- * Lists uploaded media objects from the Cloudflare R2 Worker (`GET /media`)
- * beneath an approved folder prefix with cursor pagination.
+ * Lists uploaded media objects from `env.BIMONDO_IMAGES` via the server-side
+ * API route (`GET /api/media`) beneath an approved folder prefix with cursor pagination.
  */
 export async function listMediaFromR2Worker(params: {
   prefix: string;
@@ -570,15 +551,6 @@ export async function listMediaFromR2Worker(params: {
   idToken: string;
 }): Promise<R2MediaListResponse> {
   const { prefix, cursor, limit = 24, idToken } = params;
-
-  const endpoint = getUploadWorkerEndpointResolution();
-  if (!endpoint.isConfigured || !endpoint.mediaListEndpointUrl) {
-    throw new R2ClientUploadError({
-      category: 'unconfigured',
-      message:
-        'Upload Worker URL is not configured. Set NEXT_PUBLIC_R2_UPLOAD_WORKER_URL in your environment to browse and manage R2 media.',
-    });
-  }
 
   if (!idToken || !idToken.trim()) {
     throw new R2ClientUploadError({
@@ -603,7 +575,7 @@ export async function listMediaFromR2Worker(params: {
     query.set('cursor', cursor.trim());
   }
 
-  const requestUrl = `${endpoint.mediaListEndpointUrl}?${query.toString()}`;
+  const requestUrl = `${MEDIA_API_ENDPOINTS.list}?${query.toString()}`;
   let response: Response;
   try {
     response = await fetch(requestUrl, {
@@ -616,7 +588,7 @@ export async function listMediaFromR2Worker(params: {
   } catch (err) {
     throw new R2ClientUploadError({
       category: 'network',
-      message: `Network or CORS error reaching Media Worker at ${endpoint.mediaListEndpointUrl}: ${
+      message: `Network error reaching ${MEDIA_API_ENDPOINTS.list}: ${
         err instanceof Error ? err.message : 'Failed to fetch'
       }`,
     });
@@ -643,7 +615,9 @@ export async function listMediaFromR2Worker(params: {
           ? 'auth'
           : response.status === 403
             ? 'forbidden'
-            : 'upload_failed',
+            : response.status === 503 && serverCode === 'R2_BINDING_MISSING'
+              ? 'unconfigured'
+              : 'upload_failed',
       status: response.status,
       code: serverCode,
       message: serverMessage,
@@ -691,24 +665,16 @@ export async function listMediaFromR2Worker(params: {
 }
 
 /**
- * Permanently deletes an unreferenced R2 object via `POST /media/delete`.
- * The Worker verifies admin authorization, acquires a `/media_objects/{mediaId}` lock,
- * checks all 22 `/cms_sections` documents in Firestore, deletes from R2, and finalizes status.
+ * Permanently deletes an unreferenced R2 object via `POST /api/media/delete`.
+ * The server route verifies admin authorization, acquires a `/media_objects/{mediaId}` lock,
+ * checks all 22 `/cms_sections` documents in Firestore, deletes from `env.BIMONDO_IMAGES`,
+ * and finalizes status.
  */
 export async function deleteMediaFromR2Worker(params: {
   key: string;
   idToken: string;
 }): Promise<R2MediaDeleteResponse> {
   const { key, idToken } = params;
-
-  const endpoint = getUploadWorkerEndpointResolution();
-  if (!endpoint.isConfigured || !endpoint.mediaDeleteEndpointUrl) {
-    throw new R2ClientUploadError({
-      category: 'unconfigured',
-      message:
-        'Upload Worker URL is not configured. Set NEXT_PUBLIC_R2_UPLOAD_WORKER_URL in your environment to manage R2 media.',
-    });
-  }
 
   if (!idToken || !idToken.trim()) {
     throw new R2ClientUploadError({
@@ -720,7 +686,7 @@ export async function deleteMediaFromR2Worker(params: {
 
   let response: Response;
   try {
-    response = await fetch(endpoint.mediaDeleteEndpointUrl, {
+    response = await fetch(MEDIA_API_ENDPOINTS.delete, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${idToken}`,
@@ -732,7 +698,7 @@ export async function deleteMediaFromR2Worker(params: {
   } catch (err) {
     throw new R2ClientUploadError({
       category: 'network',
-      message: `Network or CORS error reaching Media Worker at ${endpoint.mediaDeleteEndpointUrl}: ${
+      message: `Network error reaching ${MEDIA_API_ENDPOINTS.delete}: ${
         err instanceof Error ? err.message : 'Failed to fetch'
       }`,
     });
@@ -759,7 +725,9 @@ export async function deleteMediaFromR2Worker(params: {
           ? 'auth'
           : response.status === 403
             ? 'forbidden'
-            : 'upload_failed',
+            : response.status === 503 && serverCode === 'R2_BINDING_MISSING'
+              ? 'unconfigured'
+              : 'upload_failed',
       status: response.status,
       code: serverCode,
       message: serverMessage,

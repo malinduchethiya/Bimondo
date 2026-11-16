@@ -25,7 +25,6 @@ import {
   ALLOWED_ROOT_UPLOAD_PREFIXES,
   APPROVED_UPLOAD_FOLDER_PRESETS,
   deleteMediaFromR2Worker,
-  getUploadWorkerEndpointResolution,
   listMediaFromR2Worker,
   PUBLIC_CDN_BASE_URL,
   R2ClientUploadError,
@@ -93,11 +92,6 @@ export default function AdminMediaLibrary({
   onSelectMedia,
   onClose,
 }: AdminMediaLibraryProps) {
-  const workerResolution = useMemo(
-    () => getUploadWorkerEndpointResolution(),
-    []
-  );
-
   const [selectedFolder, setSelectedFolder] = useState<string>(() => {
     const check = validateClientUploadFolder(initialFolder);
     return check.valid ? check.normalizedFolder : 'pages/home/hero';
@@ -153,14 +147,6 @@ export default function AdminMediaLibrary({
         return;
       }
 
-      if (!workerResolution.isConfigured) {
-        setItems([]);
-        setDiscoveredSubfolders([]);
-        setHasMore(false);
-        setNextCursor(null);
-        return;
-      }
-
       const isPagination = Boolean(cursorToLoad);
       if (isPagination) {
         setIsLoadingMore(true);
@@ -210,7 +196,7 @@ export default function AdminMediaLibrary({
         setIsLoadingMore(false);
       }
     },
-    [getAdminIdToken, workerResolution.isConfigured]
+    [getAdminIdToken]
   );
 
   const handleSelectFolder = (folder: string) => {
@@ -435,8 +421,8 @@ export default function AdminMediaLibrary({
       {/* Header Bar */}
       <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/70">
         <div>
-          <div className="text-[11px] font-mono text-slate-500">
-            CLOUDFLARE R2 MEDIA LIBRARY · {PUBLIC_CDN_BASE_URL}
+          <div className="text-[11px] font-mono text-slate-500 flex flex-wrap items-center gap-2">
+            <span>CLOUDFLARE R2 MEDIA LIBRARY · {PUBLIC_CDN_BASE_URL}</span>
           </div>
           <h2 className="text-lg font-semibold text-slate-900 mt-0.5">
             {mode === 'picker'
@@ -802,27 +788,7 @@ export default function AdminMediaLibrary({
             </div>
           </div>
 
-          {/* Unconfigured Worker State */}
-          {!workerResolution.isConfigured ? (
-            <div className="p-6 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-950 space-y-2">
-              <div className="font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-700" />
-                Cloudflare R2 Worker URL Not Configured
-              </div>
-              <p className="leading-relaxed">
-                Set{' '}
-                <code className="font-mono">
-                  NEXT_PUBLIC_R2_UPLOAD_WORKER_URL
-                </code>{' '}
-                in your environment to your deployed Worker URL (for example,{' '}
-                <code className="font-mono">
-                  https://bimondo-r2-upload-worker.&lt;subdomain&gt;.workers.dev
-                </code>
-                ) to list, upload, and manage objects in the{' '}
-                <code className="font-mono">SITE_IMAGES</code> R2 bucket.
-              </p>
-            </div>
-          ) : listError ? (
+          {listError ? (
             <div
               role="alert"
               className="p-5 bg-red-50 border border-red-200 rounded-md text-xs text-red-900 flex items-center justify-between gap-4"
@@ -1325,7 +1291,7 @@ export default function AdminMediaLibrary({
                 <p>
                   This action permanently deletes{' '}
                   <code className="font-mono">{deleteTargetItem.key}</code> from
-                  the Cloudflare R2 bucket (<code className="font-mono">SITE_IMAGES</code>) after
+                  the Cloudflare R2 bucket (<code className="font-mono">BIMONDO_IMAGES</code>) after
                   locking <code className="font-mono">/media_objects</code> and
                   verifying across all 22 Firestore{' '}
                   <code className="font-mono">/cms_sections</code> documents that
