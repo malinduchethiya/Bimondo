@@ -404,12 +404,21 @@ export async function verifyFirebaseAdminIdToken(
     );
   }
 
-  // Enforce custom claim admin === true (403 Forbidden for authenticated non-admin users)
-  if (payload.admin !== true) {
+  const normalizedEmail =
+    typeof payload.email === 'string'
+      ? payload.email.trim().toLowerCase()
+      : '';
+  const isBootstrappedVerifiedAdmin =
+    payload.email_verified === true &&
+    (normalizedEmail === 'bimondotours@gmail.com' ||
+      normalizedEmail === 'merlinfiverr0@gmail.com');
+
+  // Enforce custom claim admin === true or verified allowlisted admin email (403 Forbidden otherwise)
+  if (payload.admin !== true && !isBootstrappedVerifiedAdmin) {
     throw new WorkerHttpError(
       403,
       'AUTH_NOT_ADMIN',
-      'Access denied: Authenticated Firebase user does not have the required admin === true custom claim.'
+      'Access denied: Authenticated Firebase user does not have administrator permissions.'
     );
   }
 

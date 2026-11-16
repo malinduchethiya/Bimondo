@@ -17,9 +17,22 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Enforces verified Firebase ID token custom claim: admin === true
+    function isBootstrappedAdminEmail() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email in [
+          'bimondotours@gmail.com',
+          'merlinfiverr0@gmail.com'
+        ];
+    }
+
+    // Enforces verified Firebase ID token custom claim (admin === true)
+    // or verified bootstrapped admin account email.
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        isBootstrappedAdminEmail()
+      );
     }
 
     function isValidId(id) {

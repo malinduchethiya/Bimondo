@@ -13,6 +13,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onIdTokenChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -47,6 +48,32 @@ export type AdminAuthStatus =
   | 'authorized';
 
 type AuthFormMode = 'signin' | 'signup' | 'reset';
+
+const BOOTSTRAPPED_ADMIN_EMAILS = new Set([
+  'bimondotours@gmail.com',
+  'merlinfiverr0@gmail.com',
+]);
+
+function isBootstrappedAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return BOOTSTRAPPED_ADMIN_EMAILS.has(email.trim().toLowerCase());
+}
+
+function isAuthorizedAdminUser(
+  firebaseUser: User,
+  tokenClaims: Record<string, unknown>
+): boolean {
+  if (tokenClaims.admin === true) return true;
+  const claimEmailVerified = tokenClaims.email_verified === true;
+  const email =
+    (typeof tokenClaims.email === 'string' && tokenClaims.email) ||
+    firebaseUser.email ||
+    '';
+  return (
+    (claimEmailVerified || firebaseUser.emailVerified) &&
+    isBootstrappedAdminEmail(email)
+  );
+}
 
 export interface AdminAuthContextValue {
   status: AdminAuthStatus;
@@ -163,6 +190,8 @@ export default function AdminAuthGuard({
   const [copiedUid, setCopiedUid] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
 
+  const [sendingVerification, setSendingVerification] = useState(false);
+
   const evaluateUserTokenClaims = useCallback(
     async (firebaseUser: User, forceRefresh = false) => {
       try {
@@ -171,11 +200,11 @@ export default function AdminAuthGuard({
           string,
           unknown
         >;
-        const hasAdminClaim = tokenClaims.admin === true;
+        const authorized = isAuthorizedAdminUser(firebaseUser, tokenClaims);
 
         setUser(firebaseUser);
         setClaims(tokenClaims);
-        setStatus(hasAdminClaim ? 'authorized' : 'access_denied');
+        setStatus(authorized ? 'authorized' : 'access_denied');
       } catch (err) {
         setUser(firebaseUser);
         setClaims(null);
@@ -323,12 +352,35 @@ export default function AdminAuthGuard({
     if (!user) return;
     setRefreshingToken(true);
     setAuthError(null);
+    setAuthNotice(null);
     try {
+      await user.reload();
       await evaluateUserTokenClaims(user, true);
     } finally {
       setRefreshingToken(false);
     }
   }, [user, evaluateUserTokenClaims]);
+
+  const handleSendVerificationEmail = useCallback(async () => {
+    if (!user) return;
+    setSendingVerification(true);
+    setAuthError(null);
+    setAuthNotice(null);
+    try {
+      await sendEmailVerification(user);
+      setAuthNotice(
+        `Verification email sent to ${user.email}. Open the link in your inbox, then click Refresh Status.`
+      );
+    } catch (err) {
+      setAuthError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to send verification email.'
+      );
+    } finally {
+      setSendingVerification(false);
+    }
+  }, [user]);
 
   const handleCopyUid = async () => {
     if (!user?.uid || typeof navigator === 'undefined') return;
@@ -360,7 +412,9 @@ export default function AdminAuthGuard({
     () => ({
       status,
       user,
-      isAdmin: status === 'authorized' && claims?.admin === true,
+      isAdmin:
+        status === 'authorized' &&
+        Boolean(user && claims && isAuthorizedAdminUser(user, claims)),
       claims,
       configResolution: resolution,
       signOut: handleSignOut,
@@ -534,7 +588,7 @@ export default function AdminAuthGuard({
                 disabled={busy}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder="bimondotours@gmail.com"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 disabled:bg-slate-100"
               />
             </div>
@@ -691,9 +745,14 @@ export default function AdminAuthGuard({
   }
 
   // ---------------------------------------------------------------------------
-  // 4. ACCESS DENIED STATE: Signed in, but token claim admin !== true
+  // 4. ACCESS DENIED STATE: Signed in, but lacks verified admin access
   // ---------------------------------------------------------------------------
   if (status === 'access_denied') {
+    const needsEmailVerification =
+      Boolean(user?.email) &&
+      isBootstrappedAdminEmail(user?.email) &&
+      !user?.emailVerified;
+
     return (
       <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] flex flex-col justify-center items-center p-6 font-sans">
         <div className="w-full max-w-xl bg-white border border-slate-200 rounded-md p-6 sm:p-8 space-y-5">
@@ -701,15 +760,28 @@ export default function AdminAuthGuard({
             <ShieldAlert className="w-5 h-5 text-red-700 shrink-0 mt-0.5" />
             <div>
               <h1 className="text-lg font-semibold text-slate-900">
-                Administrator Permission Required
+                {needsEmailVerification
+                  ? 'Verify Admin Email Address'
+                  : 'Administrator Permission Required'}
               </h1>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                Your account is signed in, but it does not have the{' '}
-                <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-900">
-                  admin: true
-                </code>{' '}
-                custom claim required by Firestore security rules and the upload
-                service.
+                {needsEmailVerification ? (
+                  <>
+                    You are signed in as{' '}
+                    <span className="font-mono text-slate-900">
+                      {user?.email}
+                    </span>
+                    . Verify your email address (or sign in via{' '}
+                    <strong>Continue with Google</strong>) to unlock admin
+                    access.
+                  </>
+                ) : (
+                  <>
+                    Your account is signed in, but it does not have
+                    administrator permissions required by Firestore security rules
+                    and the upload service.
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -749,39 +821,71 @@ export default function AdminAuthGuard({
             </div>
           </div>
 
-          <div className="bg-slate-900 text-slate-100 rounded-md p-4 space-y-2 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-slate-300 font-medium">
-                <Terminal className="w-3.5 h-3.5" />
-                Grant Admin Claim (run from a trusted terminal)
-              </div>
+          {needsEmailVerification ? (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleCopyCommand}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded cursor-pointer"
+                onClick={handleSendVerificationEmail}
+                disabled={sendingVerification}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 rounded-md cursor-pointer"
               >
-                {copiedCommand ? (
-                  <>
-                    <Check className="w-3 h-3 text-emerald-400" />
-                    Copied
-                  </>
+                {sendingVerification ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <>
-                    <Copy className="w-3 h-3" />
-                    Copy
-                  </>
+                  <Mail className="w-3.5 h-3.5" />
                 )}
+                Send Verification Email
               </button>
             </div>
-            <pre className="font-mono text-[11px] text-emerald-300 overflow-x-auto py-1">
-              {grantCommand}
-            </pre>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              After granting the claim, click{' '}
-              <strong className="text-white">Refresh Token Claims</strong> or
-              sign out and back in.
-            </p>
-          </div>
+          ) : (
+            <div className="bg-slate-900 text-slate-100 rounded-md p-4 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-slate-300 font-medium">
+                  <Terminal className="w-3.5 h-3.5" />
+                  Grant Admin Claim (run from a trusted terminal)
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCommand}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded cursor-pointer"
+                >
+                  {copiedCommand ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="font-mono text-[11px] text-emerald-300 overflow-x-auto py-1">
+                {grantCommand}
+              </pre>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                After granting the claim, click{' '}
+                <strong className="text-white">Refresh Status</strong> or sign
+                out and sign in with an admin account (
+                <code className="text-emerald-300">
+                  bimondotours@gmail.com
+                </code>{' '}
+                or{' '}
+                <code className="text-emerald-300">
+                  merlinfiverr0@gmail.com
+                </code>
+                ).
+              </p>
+            </div>
+          )}
+
+          {authNotice && (
+            <div className="p-3 text-xs bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-md">
+              {authNotice}
+            </div>
+          )}
 
           {authError && (
             <div className="p-3 text-xs bg-red-50 text-red-900 border border-red-200 rounded-md">
@@ -810,7 +914,7 @@ export default function AdminAuthGuard({
                     refreshingToken ? 'animate-spin' : ''
                   }`}
                 />
-                Refresh Token Claims
+                Refresh Status
               </button>
 
               <button
