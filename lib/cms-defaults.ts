@@ -1156,6 +1156,18 @@ export function buildDefaultPagesMap(): CmsPagesMap {
             visible: true,
             order: 1,
           },
+          {
+            id: 'hero-slide-2',
+            image: createImageRef('', 'Sri Lanka Hero Slide 2'),
+            visible: true,
+            order: 2,
+          },
+          {
+            id: 'hero-slide-3',
+            image: createImageRef('', 'Sri Lanka Hero Slide 3'),
+            visible: true,
+            order: 3,
+          },
         ],
       },
       heroTransition: {

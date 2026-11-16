@@ -646,6 +646,8 @@ export default function AdminMediaLibrary({
                         <img
                           src={item.url}
                           alt={filename}
+                          loading="lazy"
+                          decoding="async"
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover"
                         />

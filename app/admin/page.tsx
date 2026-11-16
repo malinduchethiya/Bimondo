@@ -958,9 +958,13 @@ export default function AdminPanelPage() {
                     activeSection.onAddRepeatable && (
                       <button
                         type="button"
-                        onClick={() =>
-                          applyDraftMutation(activeSection.onAddRepeatable!)
-                        }
+                        onClick={() => {
+                          applyDraftMutation(activeSection.onAddRepeatable!);
+                          setFeedback({
+                            type: 'info',
+                            message: `Added new item via "${activeSection.addRepeatableLabel}". Upload or configure below, then click "Save Changes".`,
+                          });
+                        }}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors cursor-pointer whitespace-nowrap"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -969,6 +973,43 @@ export default function AdminPanelPage() {
                     )}
                 </div>
               </div>
+
+              {/* Dedicated Hero Slideshow Quick Bar when editing Home Hero */}
+              {activeSection.id === 'home-hero' &&
+                activeSection.onAddRepeatable && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-white border border-slate-200 rounded-md">
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-semibold text-slate-900">
+                        Hero Background Slideshow · 4-Second Auto Transition
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {(draft.pages.home.hero.slides || []).filter(
+                          (s) => !s.deletedAt && s.visible !== false && Boolean(s.image?.url?.trim())
+                        ).length}{' '}
+                        uploaded active slide(s) of{' '}
+                        {(draft.pages.home.hero.slides || []).filter(
+                          (s) => !s.deletedAt
+                        ).length}{' '}
+                        slide slot(s). Add multiple images below to cycle automatically every 4 seconds.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyDraftMutation(activeSection.onAddRepeatable!);
+                        setFeedback({
+                          type: 'info',
+                          message:
+                            'Added a new Hero Slide Image slot. Upload or select an image from the Media Library, then click "Save Changes".',
+                        });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Hero Slide Image
+                    </button>
+                  </div>
+                )}
 
               {/* Subsections List */}
               {filteredSubsections.length === 0 ? (

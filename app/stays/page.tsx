@@ -173,7 +173,7 @@ export default function StaysPage() {
         {/* Split Layout: Accommodation Cards + Sticky Desktop Booking Panel */}
         <div className="tour-detail-booking-layout">
           <div className="destinations-detail-grid">
-            {filtered.map((stay, idx) => {
+            {filtered.map((stay) => {
               const isSelected = resolvedActiveStay?.id === stay.id;
               const cmsStay = stay as CmsStayItem;
               return (
@@ -189,7 +189,6 @@ export default function StaysPage() {
                       src={cmsStay.imageRef?.url || stay.image}
                       alt={cmsStay.imageRef?.alt || stay.name}
                       fill
-                      priority={idx < 2}
                       sizes="(max-width: 768px) 100vw, 50vw"
                       className="object-cover"
                     />

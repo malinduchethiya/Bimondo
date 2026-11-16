@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "node -e \"const { execSync } = require('child_process'); if (process.env.WORKERS_CI || process.env.CF_PAGES) { execSync('node scripts/build-cloudflare.mjs', { stdio: 'inherit' }); } else { execSync('npx next build', { stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production', NODE_OPTIONS: [process.env.NODE_OPTIONS, '--max-old-space-size=1024'].filter(Boolean).join(' ') } }); }\"",
     "build:cf": "node scripts/build-cloudflare.mjs",
     "deploy:cf": "node scripts/build-cloudflare.mjs && npx wrangler deploy",

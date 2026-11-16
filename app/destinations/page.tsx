@@ -90,7 +90,7 @@ export default function DestinationsPage() {
 
         {/* Destinations Grid */}
         <div className="destinations-detail-grid">
-          {filtered.map((dest, i) => (
+          {filtered.map((dest) => (
             <article key={dest.id} className="destination-detail-card">
               <div className="dest-img-wrap">
                 <CmsImage
@@ -98,7 +98,6 @@ export default function DestinationsPage() {
                   src={dest.imageRef?.url || dest.image}
                   alt={dest.imageRef?.alt || dest.name}
                   fill
-                  priority={i < 2}
                   sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover"
                 />

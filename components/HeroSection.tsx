@@ -11,16 +11,28 @@ export default function HeroSection() {
   const { cms } = useSiteCms();
   const hero = cms.pages.home.hero;
 
-  const visibleSlides = [...(hero.slides || [])]
-    .filter((s) => s.visible !== false)
+  const allActiveSlides = [...(hero.slides || [])]
+    .filter((s) => s.visible !== false && !s.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const slidesWithImages = allActiveSlides.filter((s) =>
+    Boolean(s.image?.url?.trim())
+  );
+
+  const visibleSlides =
+    slidesWithImages.length > 0
+      ? slidesWithImages
+      : allActiveSlides.slice(0, 1);
 
   const [activeSlide, setActiveSlide] = useState<number>(0);
   const heroRef = useRef<HTMLElement | null>(null);
   const isVisibleRef = useRef<boolean>(true);
 
+  const safeActiveIndex =
+    visibleSlides.length > 0 ? activeSlide % visibleSlides.length : 0;
+
   useEffect(() => {
-    if (visibleSlides.length <= 1) return;
+    if (!heroRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -29,9 +41,14 @@ export default function HeroSection() {
       { threshold: 0.05 }
     );
 
-    if (heroRef.current) {
-      observer.observe(heroRef.current);
-    }
+    observer.observe(heroRef.current);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (visibleSlides.length <= 1) return;
 
     const timer = window.setInterval(() => {
       if (isVisibleRef.current && !document.hidden) {
@@ -40,10 +57,9 @@ export default function HeroSection() {
     }, HERO_SLIDESHOW_INTERVAL_MS);
 
     return () => {
-      observer.disconnect();
       window.clearInterval(timer);
     };
-  }, [visibleSlides.length]);
+  }, [visibleSlides.length, safeActiveIndex]);
 
   if (hero.visible === false) {
     return null;
@@ -54,8 +70,10 @@ export default function HeroSection() {
   const taRating = hero.tripadvisorRating ?? '5.0';
   const taReviewsText = hero.tripadvisorReviewsText ?? 'Based on 165 reviews';
 
-  const safeActiveIndex =
-    visibleSlides.length > 0 ? activeSlide % visibleSlides.length : 0;
+  const nextSlideIndex =
+    visibleSlides.length > 1
+      ? (safeActiveIndex + 1) % visibleSlides.length
+      : 0;
 
   return (
     <section ref={heroRef} className="hero" id="home">
@@ -63,6 +81,9 @@ export default function HeroSection() {
         {visibleSlides.length > 0 ? (
           visibleSlides.map((slide, idx) => {
             const isActive = idx === safeActiveIndex;
+            const shouldEagerLoad =
+              idx === 0 || isActive || idx === nextSlideIndex;
+
             return (
               <div
                 key={slide.id || `${slide.image?.url}-${idx}`}
@@ -75,6 +96,7 @@ export default function HeroSection() {
                   fill
                   sizes="100vw"
                   priority={idx === 0}
+                  loading={shouldEagerLoad ? 'eager' : 'lazy'}
                   className="object-cover"
                 />
               </div>
@@ -133,7 +155,7 @@ export default function HeroSection() {
             <div
               className="hero-slideshow-dots"
               role="tablist"
-              aria-label="Hero background slideshow"
+              aria-label="Hero background slideshow (4s interval)"
             >
               {visibleSlides.map((slide, idx) => (
                 <button
@@ -145,7 +167,7 @@ export default function HeroSection() {
                     idx === safeActiveIndex ? 'active' : ''
                   }`}
                   onClick={() => setActiveSlide(idx)}
-                  aria-label={`Show hero image ${idx + 1}`}
+                  aria-label={`Show hero image ${idx + 1} of ${visibleSlides.length}`}
                 />
               ))}
             </div>

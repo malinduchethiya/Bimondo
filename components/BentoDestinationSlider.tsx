@@ -307,7 +307,6 @@ export default function BentoDestinationSlider() {
                 fill
                 sizes="(max-width: 900px) 100vw, 50vw"
                 className="object-cover bento-sr-img"
-                priority
               />
             </div>
             <div className="bento-sr-hero-overlay">

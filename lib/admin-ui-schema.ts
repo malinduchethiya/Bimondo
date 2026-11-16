@@ -485,9 +485,9 @@ export function buildAdminPagesFromCms(
         {
           id: 'home-hero',
           code: 'SEC 01',
-          title: 'Hero Section',
+          title: 'Hero Section & Slideshow',
           description:
-            'Landing hero eyebrow, split serif headline, description, CTA buttons, Tripadvisor rating card, and background slideshow images.',
+            'Manage multiple hero background slideshow images (auto-advances every 4 seconds), headline copy, CTA buttons, and Tripadvisor badge.',
           visible: cms.pages.home.hero.visible !== false,
           canToggleSectionVisible: true,
           onToggleSectionVisible: (prev) => {
@@ -499,12 +499,15 @@ export function buildAdminPagesFromCms(
           addRepeatableLabel: 'Add Hero Slide Image',
           onAddRepeatable: (prev) => {
             const next = cloneCms(prev);
-            const nextNum = (next.pages.home.hero.slides?.length || 0) + 1;
+            const activeCount = (next.pages.home.hero.slides || []).filter(
+              (s) => !s.deletedAt
+            ).length;
+            const nextNum = activeCount + 1;
             const newSlide: CmsHeroSlideItem = {
               id: `hero-slide-${Date.now()}`,
               image: createImageRef('', `Sri Lanka Hero Slide ${nextNum}`),
               visible: true,
-              order: nextNum,
+              order: (next.pages.home.hero.slides?.length || 0) + 1,
             };
             next.pages.home.hero.slides = [
               ...(next.pages.home.hero.slides || []),
@@ -513,9 +516,92 @@ export function buildAdminPagesFromCms(
             return next;
           },
           subsections: [
+            ...sortedHeroSlides.map((slide, idx) => ({
+              id: `home-hero-slide-${slide.id}`,
+              code: `1.${idx + 1}`,
+              title: `Hero Slideshow Image ${idx + 1}`,
+              description:
+                'Displayed in the Hero background automatic slideshow (transitions every 4 seconds). Use the arrows to reorder or click "+ Add Hero Slide Image" to add more slides.',
+              repeatableItemId: slide.id,
+              visible: slide.visible !== false,
+              canToggleVisible: true,
+              onToggleVisible: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.hero.slides = next.pages.home.hero.slides.map(
+                  (s) =>
+                    s.id === slide.id
+                      ? { ...s, visible: s.visible === false }
+                      : s
+                );
+                return next;
+              },
+              canMoveUp: idx > 0,
+              canMoveDown: idx < sortedHeroSlides.length - 1,
+              canRemove: sortedHeroSlides.length > 1,
+              onMoveUp: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.hero.slides = moveArrayItem(
+                  sortedHeroSlides,
+                  idx,
+                  'up',
+                  next.pages.home.hero.slides
+                );
+                return next;
+              },
+              onMoveDown: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.hero.slides = moveArrayItem(
+                  sortedHeroSlides,
+                  idx,
+                  'down',
+                  next.pages.home.hero.slides
+                );
+                return next;
+              },
+              onRemove: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.hero.slides = softDeleteItemById(
+                  next.pages.home.hero.slides,
+                  slide.id,
+                  currentAdminUid
+                );
+                return next;
+              },
+              fields: [
+                {
+                  id: `hero-slide-img-${slide.id}`,
+                  label: `Slide ${idx + 1} Background Image`,
+                  type: 'image' as const,
+                  value: slide.image?.url || '',
+                  altText:
+                    slide.image?.alt || `Sri Lanka Hero Slide ${idx + 1}`,
+                  objectKey: slide.image?.key ?? null,
+                  applyImage: (
+                    prev: SiteCmsData,
+                    updates: AdminImageFieldUpdates
+                  ) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.hero.slides =
+                      next.pages.home.hero.slides.map((s) =>
+                        s.id === slide.id
+                          ? {
+                              ...s,
+                              image: updateImageRef(
+                                s.image,
+                                updates,
+                                `Sri Lanka Hero Slide ${idx + 1}`
+                              ),
+                            }
+                          : s
+                      );
+                    return next;
+                  },
+                },
+              ],
+            })),
             {
               id: 'home-hero-copy',
-              code: '1.1',
+              code: `1.${sortedHeroSlides.length + 1}`,
               title: 'Hero Headlines, Lead Copy & Buttons',
               fields: [
                 {
@@ -632,7 +718,7 @@ export function buildAdminPagesFromCms(
             },
             {
               id: 'home-hero-tripadvisor',
-              code: '1.2',
+              code: `1.${sortedHeroSlides.length + 2}`,
               title: 'Tripadvisor Rating Badge',
               visible: cms.pages.home.hero.tripadvisorEnabled !== false,
               canToggleVisible: true,
@@ -678,87 +764,6 @@ export function buildAdminPagesFromCms(
                 },
               ],
             },
-            ...sortedHeroSlides.map((slide, idx) => ({
-              id: `home-hero-slide-${slide.id}`,
-              code: `1.${idx + 3}`,
-              title: `Hero Background Slide ${idx + 1}`,
-              repeatableItemId: slide.id,
-              visible: slide.visible !== false,
-              canToggleVisible: true,
-              onToggleVisible: (prev: SiteCmsData) => {
-                const next = cloneCms(prev);
-                next.pages.home.hero.slides = next.pages.home.hero.slides.map(
-                  (s) =>
-                    s.id === slide.id
-                      ? { ...s, visible: s.visible === false }
-                      : s
-                );
-                return next;
-              },
-              canMoveUp: idx > 0,
-              canMoveDown: idx < sortedHeroSlides.length - 1,
-              canRemove: sortedHeroSlides.length > 1,
-              onMoveUp: (prev: SiteCmsData) => {
-                const next = cloneCms(prev);
-                next.pages.home.hero.slides = moveArrayItem(
-                  sortedHeroSlides,
-                  idx,
-                  'up',
-                  next.pages.home.hero.slides
-                );
-                return next;
-              },
-              onMoveDown: (prev: SiteCmsData) => {
-                const next = cloneCms(prev);
-                next.pages.home.hero.slides = moveArrayItem(
-                  sortedHeroSlides,
-                  idx,
-                  'down',
-                  next.pages.home.hero.slides
-                );
-                return next;
-              },
-              onRemove: (prev: SiteCmsData) => {
-                const next = cloneCms(prev);
-                next.pages.home.hero.slides = softDeleteItemById(
-                  next.pages.home.hero.slides,
-                  slide.id,
-                  currentAdminUid
-                );
-                return next;
-              },
-              fields: [
-                {
-                  id: `hero-slide-img-${slide.id}`,
-                  label: `Slide ${idx + 1} Background Image`,
-                  type: 'image' as const,
-                  value: slide.image?.url || '',
-                  altText:
-                    slide.image?.alt || `Sri Lanka Hero Slide ${idx + 1}`,
-                  objectKey: slide.image?.key ?? null,
-                  applyImage: (
-                    prev: SiteCmsData,
-                    updates: AdminImageFieldUpdates
-                  ) => {
-                    const next = cloneCms(prev);
-                    next.pages.home.hero.slides =
-                      next.pages.home.hero.slides.map((s) =>
-                        s.id === slide.id
-                          ? {
-                              ...s,
-                              image: updateImageRef(
-                                s.image,
-                                updates,
-                                `Sri Lanka Hero Slide ${idx + 1}`
-                              ),
-                            }
-                          : s
-                      );
-                    return next;
-                  },
-                },
-              ],
-            })),
           ],
         },
 

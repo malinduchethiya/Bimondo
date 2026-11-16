@@ -24,7 +24,6 @@ export default function StorySection() {
             fill
             sizes="(max-width: 720px) 100vw, 50vw"
             className="object-cover"
-            priority
           />
         </div>
         <div className="small">

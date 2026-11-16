@@ -122,7 +122,7 @@ export default function PackagesPage() {
         {/* Split Layout: Packages Grid + Sticky Desktop Booking Panel */}
         <div className="tour-detail-booking-layout">
           <div className="packages-grid">
-            {filtered.map((tour, i) => {
+            {filtered.map((tour) => {
               const isSelected = resolvedBookingTour?.id === tour.id;
               const cmsTour = tour as CmsTourItem;
               return (
@@ -138,7 +138,6 @@ export default function PackagesPage() {
                       src={cmsTour.imageRef?.url || tour.image}
                       alt={cmsTour.imageRef?.alt || tour.name}
                       fill
-                      priority={i < 2}
                       sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-cover"
                     />
