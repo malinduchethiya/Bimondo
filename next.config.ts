@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  experimental: {
+    cpus: 1,
+    webpackMemoryOptimizations: true,
+    preloadEntriesOnStart: false,
+  },
   images: {
     remotePatterns: [
       {

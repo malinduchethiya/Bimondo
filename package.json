@@ -4,16 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node -e \"process.exit(process.env.WORKERS_CI || process.env.CF_PAGES ? 0 : 1)\" && opennextjs-cloudflare build || next build",
-    "build:cf": "opennextjs-cloudflare build",
-    "deploy:cf": "opennextjs-cloudflare build && wrangler deploy",
+    "build": "node -e \"const { execSync } = require('child_process'); if (process.env.WORKERS_CI || process.env.CF_PAGES) { execSync('npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build', { stdio: 'inherit' }); } else { execSync('npx next build', { stdio: 'inherit', env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--max-old-space-size=1024'].filter(Boolean).join(' ') } }); }\"",
+    "build:cf": "npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build",
+    "deploy:cf": "npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build && npx wrangler deploy",
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@opennextjs/cloudflare": "^1.20.17",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -28,8 +27,7 @@
     "postcss": "^8.5.6",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "tailwind-merge": "^3.3.1",
-    "wrangler": "^4.162.0"
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.11",
