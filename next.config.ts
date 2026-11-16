@@ -1,19 +1,27 @@
 import type { NextConfig } from 'next';
 
+const isStaticExport = process.env.NEXT_OUTPUT_EXPORT === '1';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  ...(isStaticExport ? { output: 'export' as const } : {}),
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: false,
   },
-  experimental: {
-    cpus: 1,
-    webpackMemoryOptimizations: true,
-    preloadEntriesOnStart: false,
-  },
+  ...(!isStaticExport
+    ? {
+        experimental: {
+          cpus: 1,
+          webpackMemoryOptimizations: true,
+          preloadEntriesOnStart: false,
+        },
+      }
+    : {}),
   images: {
+    ...(isStaticExport ? { unoptimized: true } : {}),
     remotePatterns: [
       {
         protocol: 'https',

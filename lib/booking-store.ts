@@ -14,12 +14,20 @@ export interface ServerBookingCredentials {
   viatorApiKey: string;
 }
 
-function buildDefaultAssignments(): Record<string, ItemBookingAssignment> {
+type EnvRecord = Record<string, string | undefined>;
+
+function readEnv(env?: EnvRecord): EnvRecord {
+  if (env) return env;
+  return typeof process !== 'undefined' && process.env ? process.env : {};
+}
+
+function buildDefaultAssignments(env?: EnvRecord): Record<string, ItemBookingAssignment> {
+  const e = readEnv(env);
   const map: Record<string, ItemBookingAssignment> = {};
 
-  const envBbid = process.env.NIGHTSBRIDGE_BBID?.trim() || '';
+  const envBbid = e.NIGHTSBRIDGE_BBID?.trim() || '';
   const envBokunExp = '';
-  const envViatorPartner = process.env.VIATOR_PARTNER_ID?.trim() || '';
+  const envViatorPartner = e.VIATOR_PARTNER_ID?.trim() || '';
 
   // Default assignments for Accommodations -> NightsBridge
   ACCOMMODATIONS.forEach((stay) => {
@@ -103,10 +111,11 @@ function buildDefaultAssignments(): Record<string, ItemBookingAssignment> {
   return map;
 }
 
-export function getDefaultBookingSettings(): PublicBookingSettings {
-  const envBbid = process.env.NIGHTSBRIDGE_BBID?.trim() || '';
-  const envBokunChannel = process.env.BOKUN_BookingChannelUUID?.trim() || '';
-  const envViatorPartner = process.env.VIATOR_PARTNER_ID?.trim() || '';
+export function getDefaultBookingSettings(env?: EnvRecord): PublicBookingSettings {
+  const e = readEnv(env);
+  const envBbid = e.NIGHTSBRIDGE_BBID?.trim() || '';
+  const envBokunChannel = e.BOKUN_BookingChannelUUID?.trim() || '';
+  const envViatorPartner = e.VIATOR_PARTNER_ID?.trim() || '';
 
   return {
     defaultCurrency: 'USD',
@@ -117,7 +126,7 @@ export function getDefaultBookingSettings(): PublicBookingSettings {
       widgetBaseUrl: 'https://book.nightsbridge.com',
       openMode: 'modal',
       buttonLabel: 'BOOK ACCOMMODATION',
-      hasServerCredentials: Boolean(process.env.NIGHTSBRIDGE_CLIENT_KEY?.trim()),
+      hasServerCredentials: Boolean(e.NIGHTSBRIDGE_CLIENT_KEY?.trim()),
     },
     bokun: {
       enabled: true,
@@ -128,8 +137,7 @@ export function getDefaultBookingSettings(): PublicBookingSettings {
       openMode: 'modal',
       buttonLabel: 'BOOK TOUR VIA BÓKUN',
       hasServerCredentials: Boolean(
-        process.env.BOKUN_ACCESS_KEY?.trim() &&
-          process.env.BOKUN_SECRET_KEY?.trim()
+        e.BOKUN_ACCESS_KEY?.trim() && e.BOKUN_SECRET_KEY?.trim()
       ),
     },
     viator: {
@@ -139,53 +147,70 @@ export function getDefaultBookingSettings(): PublicBookingSettings {
       defaultBookingUrl: '',
       openMode: 'redirect',
       buttonLabel: 'BOOK EXPERIENCE ON VIATOR',
-      hasServerCredentials: Boolean(process.env.VIATOR_API_KEY?.trim()),
+      hasServerCredentials: Boolean(e.VIATOR_API_KEY?.trim()),
     },
-    assignments: buildDefaultAssignments(),
+    assignments: buildDefaultAssignments(e),
     updatedAt: new Date().toISOString(),
   };
 }
 
 let memorySettings: PublicBookingSettings | null = null;
 const memoryCredentials: ServerBookingCredentials = {
-  nightsbridgeClientKey: process.env.NIGHTSBRIDGE_CLIENT_KEY?.trim() || '',
-  bokunAccessKey: process.env.BOKUN_ACCESS_KEY?.trim() || '',
-  bokunSecretKey: process.env.BOKUN_SECRET_KEY?.trim() || '',
-  viatorApiKey: process.env.VIATOR_API_KEY?.trim() || '',
+  nightsbridgeClientKey: '',
+  bokunAccessKey: '',
+  bokunSecretKey: '',
+  viatorApiKey: '',
 };
 
-export function getServerBookingSettings(): PublicBookingSettings {
-  const base = memorySettings || getDefaultBookingSettings();
+function resolvedCredentials(env?: EnvRecord): ServerBookingCredentials {
+  const e = readEnv(env);
+  return {
+    nightsbridgeClientKey:
+      memoryCredentials.nightsbridgeClientKey ||
+      e.NIGHTSBRIDGE_CLIENT_KEY?.trim() ||
+      '',
+    bokunAccessKey:
+      memoryCredentials.bokunAccessKey || e.BOKUN_ACCESS_KEY?.trim() || '',
+    bokunSecretKey:
+      memoryCredentials.bokunSecretKey || e.BOKUN_SECRET_KEY?.trim() || '',
+    viatorApiKey:
+      memoryCredentials.viatorApiKey || e.VIATOR_API_KEY?.trim() || '',
+  };
+}
+
+export function getServerBookingSettings(env?: EnvRecord): PublicBookingSettings {
+  const base = memorySettings || getDefaultBookingSettings(env);
+  const creds = resolvedCredentials(env);
 
   return {
     ...base,
     nightsbridge: {
       ...base.nightsbridge,
-      hasServerCredentials: Boolean(memoryCredentials.nightsbridgeClientKey),
+      hasServerCredentials: Boolean(creds.nightsbridgeClientKey),
     },
     bokun: {
       ...base.bokun,
       hasServerCredentials: Boolean(
-        memoryCredentials.bokunAccessKey && memoryCredentials.bokunSecretKey
+        creds.bokunAccessKey && creds.bokunSecretKey
       ),
     },
     viator: {
       ...base.viator,
-      hasServerCredentials: Boolean(memoryCredentials.viatorApiKey),
+      hasServerCredentials: Boolean(creds.viatorApiKey),
     },
   };
 }
 
-export function getServerCredentials(): ServerBookingCredentials {
-  getServerBookingSettings();
-  return memoryCredentials;
+export function getServerCredentials(env?: EnvRecord): ServerBookingCredentials {
+  return resolvedCredentials(env);
 }
 
 export function updateServerBookingSettings(
   nextPublic: Partial<PublicBookingSettings>,
-  nextSecrets?: Partial<ServerBookingCredentials>
+  nextSecrets?: Partial<ServerBookingCredentials>,
+  env?: EnvRecord
 ): PublicBookingSettings {
-  const current = getServerBookingSettings();
+  const current = getServerBookingSettings(env);
 
   if (nextSecrets) {
     if (typeof nextSecrets.nightsbridgeClientKey === 'string') {
@@ -203,25 +228,27 @@ export function updateServerBookingSettings(
     }
   }
 
+  const creds = resolvedCredentials(env);
+
   const merged: PublicBookingSettings = {
     ...current,
     ...nextPublic,
     nightsbridge: {
       ...current.nightsbridge,
       ...(nextPublic.nightsbridge || {}),
-      hasServerCredentials: Boolean(memoryCredentials.nightsbridgeClientKey),
+      hasServerCredentials: Boolean(creds.nightsbridgeClientKey),
     },
     bokun: {
       ...current.bokun,
       ...(nextPublic.bokun || {}),
       hasServerCredentials: Boolean(
-        memoryCredentials.bokunAccessKey && memoryCredentials.bokunSecretKey
+        creds.bokunAccessKey && creds.bokunSecretKey
       ),
     },
     viator: {
       ...current.viator,
       ...(nextPublic.viator || {}),
-      hasServerCredentials: Boolean(memoryCredentials.viatorApiKey),
+      hasServerCredentials: Boolean(creds.viatorApiKey),
     },
     assignments: {
       ...current.assignments,

@@ -1,5 +1,7 @@
 node_modules/
 .next/
+out/
+.cf-api-backup/
 .open-next/
 .wrangler/
 coverage/

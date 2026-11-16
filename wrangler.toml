@@ -1,12 +1,13 @@
-#:schema node_modules/wrangler/config-schema.json
 name = "bimondo-tours"
-main = ".open-next/worker.js"
+main = "workers/site-worker/src/index.ts"
 compatibility_date = "2025-05-05"
-compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+compatibility_flags = ["nodejs_compat"]
 
 [assets]
-directory = ".open-next/assets"
+directory = "out"
 binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
 
 [vars]
 APP_URL = "https://www.bimondotours.com"

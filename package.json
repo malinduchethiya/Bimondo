@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node -e \"const { execSync } = require('child_process'); if (process.env.WORKERS_CI || process.env.CF_PAGES) { execSync('npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build', { stdio: 'inherit' }); } else { execSync('npx next build', { stdio: 'inherit', env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--max-old-space-size=1024'].filter(Boolean).join(' ') } }); }\"",
-    "build:cf": "npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build",
-    "deploy:cf": "npm install --no-save @opennextjs/cloudflare@^1.20.17 wrangler@^4.162.0 && npx opennextjs-cloudflare build && npx wrangler deploy",
+    "build": "node -e \"const { execSync } = require('child_process'); if (process.env.WORKERS_CI || process.env.CF_PAGES) { execSync('node scripts/build-cloudflare.mjs', { stdio: 'inherit' }); } else { execSync('npx next build', { stdio: 'inherit', env: { ...process.env, NODE_ENV: 'production', NODE_OPTIONS: [process.env.NODE_OPTIONS, '--max-old-space-size=1024'].filter(Boolean).join(' ') } }); }\"",
+    "build:cf": "node scripts/build-cloudflare.mjs",
+    "deploy:cf": "node scripts/build-cloudflare.mjs && npx wrangler deploy",
+    "deploy:pages": "node scripts/build-cloudflare.mjs && npx wrangler pages deploy out",
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean"
