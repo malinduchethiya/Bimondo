@@ -2,9 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { MapPin } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import CmsImage from '@/components/CmsImage';
+import SriLanka3DTerrainMap from '@/components/SriLanka3DTerrainMap';
 
 const DEFAULT_COMPETITIVE_ADVANTAGES = [
   {
@@ -211,42 +211,12 @@ export default function ExperienceSection() {
           </div>
 
           <div className="experience-photo" style={{ position: 'relative' }}>
-            <CmsImage
-              imageRef={expSection.featureImage}
-              src={expSection.featureImage?.url}
-              alt={
-                expSection.featureImage?.alt ||
-                'Sri Lanka interactive destination map'
-              }
-              fill
-              sizes="(max-width: 720px) 100vw, 50vw"
-              className="object-cover"
+            <SriLanka3DTerrainMap
+              pins={visibleMapPins}
+              activePinId={activePin?.id ?? null}
+              onSelectPin={(pinId) => setActivePinId(pinId)}
+              enableHoverSelect
             />
-
-            {visibleMapPins.map((pin) => {
-              const isCurrent = activePin?.id === pin.id;
-              return (
-                <button
-                  key={pin.id}
-                  type="button"
-                  style={{
-                    left: `${pin.x}%`,
-                    top: `${pin.y}%`,
-                  }}
-                  aria-label={pin.label || 'Map location pin'}
-                  aria-pressed={isCurrent}
-                  onMouseEnter={() => setActivePinId(pin.id)}
-                  onFocus={() => setActivePinId(pin.id)}
-                  onClick={() => setActivePinId(pin.id)}
-                  className={`discover-map-pin ${isCurrent ? 'is-active' : ''}`}
-                >
-                  <MapPin
-                    className="discover-map-pin-icon"
-                    aria-hidden="true"
-                  />
-                </button>
-              );
-            })}
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   MapPin,
   Plus,
@@ -11,6 +11,7 @@ import {
   Check,
 } from 'lucide-react';
 import { CmsExperienceMapPin, SiteCmsData } from '@/lib/cms-defaults';
+import SriLanka3DTerrainMap from '@/components/SriLanka3DTerrainMap';
 
 interface AdminDiscoverMapPinEditorProps {
   draft: SiteCmsData;
@@ -31,28 +32,10 @@ export default function AdminDiscoverMapPinEditor({
   const [selectedPinId, setSelectedPinId] = useState<string | null>(
     activePins[0]?.id ?? null
   );
-  const [draggingPinId, setDraggingPinId] = useState<string | null>(null);
   const [clickMode, setClickMode] = useState<'move' | 'add'>('move');
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
 
   const selectedPin =
     activePins.find((p) => p.id === selectedPinId) || activePins[0] || null;
-
-  const computeCoordinatesFromClientXY = (
-    clientX: number,
-    clientY: number
-  ): { x: number; y: number } | null => {
-    const el = mapContainerRef.current;
-    if (!el) return null;
-    const rect = el.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return null;
-    const rawX = ((clientX - rect.left) / rect.width) * 100;
-    const rawY = ((clientY - rect.top) / rect.height) * 100;
-    return {
-      x: Math.round(Math.max(2, Math.min(98, rawX)) * 10) / 10,
-      y: Math.round(Math.max(2, Math.min(98, rawY)) * 10) / 10,
-    };
-  };
 
   const updatePinById = (
     pinId: string,
@@ -84,7 +67,7 @@ export default function AdminDiscoverMapPinEditor({
       heading: `Location ${nextNum}`,
       headingItalic: 'Highlights.',
       description:
-        'Add details for this pinned location. When a visitor hovers or clicks this pin on the map, these details appear in the left text area.',
+        'Add details for this pinned location. When a visitor hovers or clicks this pin on the 3D map, these details appear in the left text area.',
       highlights: 'Private Guided Tour · Tailored Pacing · Boutique Stays',
       ctaLabel: 'EXPLORE JOURNEYS ↗',
       ctaHref: '/packages',
@@ -127,16 +110,7 @@ export default function AdminDiscoverMapPinEditor({
     }
   };
 
-  const handleMapCanvasPointerDown = (
-    e: React.PointerEvent<HTMLDivElement>
-  ) => {
-    // Ignore if user clicked directly on a pin button (handled by pin pointer events)
-    if ((e.target as HTMLElement).closest('[data-map-pin-button="true"]')) {
-      return;
-    }
-    const coords = computeCoordinatesFromClientXY(e.clientX, e.clientY);
-    if (!coords) return;
-
+  const handleStageClick = (coords: { x: number; y: number }) => {
     if (clickMode === 'add' || !selectedPin) {
       handleAddPinAt(coords.x, coords.y);
     } else {
@@ -144,58 +118,19 @@ export default function AdminDiscoverMapPinEditor({
     }
   };
 
-  const handlePinPointerDown = (
-    e: React.PointerEvent<HTMLButtonElement>,
-    pinId: string
-  ) => {
-    e.stopPropagation();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setSelectedPinId(pinId);
-    setDraggingPinId(pinId);
-  };
-
-  const handlePinPointerMove = (
-    e: React.PointerEvent<HTMLButtonElement>,
-    pinId: string
-  ) => {
-    if (draggingPinId !== pinId) return;
-    e.stopPropagation();
-    const coords = computeCoordinatesFromClientXY(e.clientX, e.clientY);
-    if (!coords) return;
-    updatePinById(pinId, { x: coords.x, y: coords.y });
-  };
-
-  const handlePinPointerUp = (
-    e: React.PointerEvent<HTMLButtonElement>,
-    pinId: string
-  ) => {
-    if (draggingPinId === pinId) {
-      e.stopPropagation();
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignore pointer capture release errors
-      }
-      setDraggingPinId(null);
-    }
-  };
-
-  const mapImageUrl = expSection.featureImage?.url?.trim() || '';
-
   return (
     <div className="bg-white border border-slate-200 rounded-md p-5 space-y-5">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
           <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-sky-700" />
-            Interactive Map &amp; Location Pins Studio (#discover)
+            <MapPin className="w-4 h-4 text-red-600" />
+            Interactive 3D Terrain Map &amp; Location Pins Studio (#discover)
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Drag any pin directly on your map to position it, or click anywhere
-            on the map to move the selected pin. Edit each pin&apos;s location
-            details on the right—when visitors hover or click a pin on the map,
-            those details appear in the left text area.
+            Drag any red pin directly across the 3D Sri Lanka terrain, click any
+            spot on the 3D terrain to move the selected pin, or drag the
+            background to rotate the 3D view.
           </p>
         </div>
 
@@ -213,8 +148,8 @@ export default function AdminDiscoverMapPinEditor({
           >
             <MapPin className="w-3.5 h-3.5" />
             {clickMode === 'add'
-              ? 'Click Map to Drop New Pin (Active)'
-              : 'Click Map to Move Selected Pin'}
+              ? 'Click 3D Terrain to Drop New Pin (Active)'
+              : 'Click 3D Terrain to Move Selected Pin'}
           </button>
 
           <button
@@ -258,15 +193,16 @@ export default function AdminDiscoverMapPinEditor({
         })}
       </div>
 
-      {/* Main Split Grid: Interactive Map Canvas (Left) + Selected Pin Detail Editor (Right) */}
+      {/* Main Split Grid: Interactive 3D Terrain Map Canvas (Left) + Selected Pin Detail Editor (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left: Interactive Map Box Container */}
+        {/* Left: Interactive 3D Map Box Container */}
         <div className="lg:col-span-7 space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-600">
             <span className="font-medium flex items-center gap-1.5">
               <Move className="w-3.5 h-3.5 text-slate-400" />
-              Drag pins to reposition · Click map to{' '}
-              {clickMode === 'add' ? 'add a new pin' : 'move selected pin'}
+              Drag red pins on 3D terrain · Click terrain to{' '}
+              {clickMode === 'add' ? 'drop a new pin' : 'move selected pin'} ·
+              Drag background to rotate 3D
             </span>
             {selectedPin && (
               <span className="font-mono text-[11px] text-slate-500">
@@ -275,68 +211,18 @@ export default function AdminDiscoverMapPinEditor({
             )}
           </div>
 
-          <div
-            ref={mapContainerRef}
-            onPointerDown={handleMapCanvasPointerDown}
-            className="relative w-full h-[380px] sm:h-[440px] rounded-2xl overflow-hidden border border-slate-300 bg-[#d7ebf1] select-none cursor-crosshair shadow-inner"
-          >
-            {mapImageUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={mapImageUrl}
-                alt={
-                  expSection.featureImage?.alt ||
-                  'Sri Lanka interactive destination map'
-                }
-                className="w-full h-full object-cover pointer-events-none select-none"
-                draggable={false}
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-[#d7ebf1] to-[#b8dce8] pointer-events-none">
-                <MapPin className="w-8 h-8 text-sky-900/50 mb-2" />
-                <div className="text-sm font-semibold text-slate-800">
-                  No Custom Map Image Uploaded Yet
-                </div>
-                <p className="text-xs text-slate-600 max-w-sm mt-1">
-                  Upload your map image in Subsection 5.1 below (&ldquo;Uploaded
-                  Map Image&rdquo;). You can already place, drag, and edit your
-                  location pins right here.
-                </p>
-              </div>
-            )}
-
-            {/* Render Interactive Pins */}
-            {activePins.map((pin) => {
-              const isSelected = selectedPin?.id === pin.id;
-              const isDragging = draggingPinId === pin.id;
-
-              return (
-                <button
-                  key={pin.id}
-                  type="button"
-                  data-map-pin-button="true"
-                  onPointerDown={(e) => handlePinPointerDown(e, pin.id)}
-                  onPointerMove={(e) => handlePinPointerMove(e, pin.id)}
-                  onPointerUp={(e) => handlePinPointerUp(e, pin.id)}
-                  style={{
-                    left: `${pin.x}%`,
-                    top: `${pin.y}%`,
-                  }}
-                  title={`Drag to move "${pin.label}" (${pin.x}%, ${pin.y}%)`}
-                  aria-label={pin.label}
-                  className={`discover-map-pin touch-none ${
-                    isDragging ? 'cursor-grabbing z-20' : 'cursor-grab'
-                  } ${isSelected ? 'is-active z-20' : ''} ${
-                    pin.visible === false ? 'opacity-50' : ''
-                  }`}
-                >
-                  <MapPin
-                    className="discover-map-pin-icon"
-                    aria-hidden="true"
-                  />
-                </button>
-              );
-            })}
+          <div className="relative w-full h-[400px] sm:h-[460px] rounded-2xl overflow-hidden border border-slate-300 bg-[#cde4ec] shadow-inner">
+            <SriLanka3DTerrainMap
+              pins={activePins}
+              activePinId={selectedPin?.id ?? null}
+              onSelectPin={(pinId) => setSelectedPinId(pinId)}
+              enableHoverSelect={false}
+              editable
+              onMovePin={(pinId, coords) =>
+                updatePinById(pinId, { x: coords.x, y: coords.y })
+              }
+              onStageClick={handleStageClick}
+            />
           </div>
         </div>
 
