@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   description:
     'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
   icons: {
-    icon: [{ url: '/favicon.jpg', type: 'image/jpeg' }],
-    shortcut: ['/favicon.jpg'],
-    apple: [{ url: '/favicon.jpg', type: 'image/jpeg' }],
+    icon: [{ url: '/favicon.jpg?v=2', type: 'image/jpeg' }],
+    shortcut: ['/favicon.jpg?v=2'],
+    apple: [{ url: '/favicon.jpg?v=2', type: 'image/jpeg' }],
   },
   openGraph: {
     title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
@@ -26,14 +26,14 @@ export const metadata: Metadata = {
       'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
     type: 'website',
     siteName: 'Bimondo Travels',
-    images: [{ url: '/favicon.jpg' }],
+    images: [{ url: '/favicon.jpg?v=2' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
     description:
       'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
-    images: ['/favicon.jpg'],
+    images: ['/favicon.jpg?v=2'],
   },
 };
 
@@ -43,7 +43,7 @@ const travelAgencyJsonLd = {
   name: 'Bimondo Travels',
   alternateName: 'Bimondo Tours',
   url: 'https://www.bimondotours.com',
-  logo: 'https://www.bimondotours.com/logo.png',
+  logo: 'https://www.bimondotours.com/bimondo-logo.png',
   image: 'https://www.bimondotours.com/favicon.jpg',
   description:
     'Destination Management Company & Tailor-Made Tour Operator in Battaramulla, Sri Lanka creating private, tailor-made Sri Lankan journeys.',
@@ -65,9 +65,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.jpg" type="image/jpeg" />
-        <link rel="shortcut icon" href="/favicon.jpg" type="image/jpeg" />
-        <link rel="apple-touch-icon" href="/favicon.jpg" />
+        <link rel="icon" href="/favicon.jpg?v=2" type="image/jpeg" />
+        <link rel="shortcut icon" href="/favicon.jpg?v=2" type="image/jpeg" />
+        <link rel="apple-touch-icon" href="/favicon.jpg?v=2" />
         <link
           rel="preconnect"
           href="https://cdn.bimondotours.com"

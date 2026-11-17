@@ -161,11 +161,11 @@ export default function Header() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.png"
+            src="/bimondo-logo.png"
             alt={headerContent.brandName || 'Bimondo Tours'}
             className="brand-logo-img"
-            width={160}
-            height={64}
+            width={406}
+            height={344}
             decoding="sync"
             fetchPriority="high"
           />
