@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { MapPin } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import CmsImage from '@/components/CmsImage';
 
@@ -170,44 +171,6 @@ export default function ExperienceSection() {
               </h2>
             )}
 
-            {visibleMapPins.length > 0 && (
-              <div
-                className="discover-pin-tabs"
-                role="tablist"
-                aria-label="Map Locations"
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={activePin === null}
-                  onClick={() => setActivePinId(null)}
-                  className={`discover-pin-tab ${
-                    activePin === null ? 'is-active' : ''
-                  }`}
-                >
-                  Overview
-                </button>
-                {visibleMapPins.map((pin) => {
-                  const isCurrent = activePin?.id === pin.id;
-                  return (
-                    <button
-                      key={pin.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={isCurrent}
-                      onMouseEnter={() => setActivePinId(pin.id)}
-                      onClick={() => setActivePinId(pin.id)}
-                      className={`discover-pin-tab ${
-                        isCurrent ? 'is-active' : ''
-                      }`}
-                    >
-                      {pin.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             <p>
               {activePin
                 ? activePin.description || expSection.description
@@ -270,15 +233,17 @@ export default function ExperienceSection() {
                     left: `${pin.x}%`,
                     top: `${pin.y}%`,
                   }}
-                  aria-label={`Show details for ${pin.label}`}
+                  aria-label={pin.label || 'Map location pin'}
                   aria-pressed={isCurrent}
                   onMouseEnter={() => setActivePinId(pin.id)}
                   onFocus={() => setActivePinId(pin.id)}
                   onClick={() => setActivePinId(pin.id)}
                   className={`discover-map-pin ${isCurrent ? 'is-active' : ''}`}
                 >
-                  <span className="discover-map-pin-dot" />
-                  <span>{pin.label}</span>
+                  <MapPin
+                    className="discover-map-pin-icon"
+                    aria-hidden="true"
+                  />
                 </button>
               );
             })}

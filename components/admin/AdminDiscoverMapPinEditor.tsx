@@ -306,7 +306,7 @@ export default function AdminDiscoverMapPinEditor({
             )}
 
             {/* Render Interactive Pins */}
-            {activePins.map((pin, idx) => {
+            {activePins.map((pin) => {
               const isSelected = selectedPin?.id === pin.id;
               const isDragging = draggingPinId === pin.id;
 
@@ -321,25 +321,19 @@ export default function AdminDiscoverMapPinEditor({
                   style={{
                     left: `${pin.x}%`,
                     top: `${pin.y}%`,
-                    transform: 'translate(-50%, -50%)',
                   }}
                   title={`Drag to move "${pin.label}" (${pin.x}%, ${pin.y}%)`}
-                  className={`absolute z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-md transition-transform touch-none ${
-                    isDragging ? 'scale-110 cursor-grabbing z-20' : 'cursor-grab'
-                  } ${
-                    isSelected
-                      ? 'bg-slate-900 text-white ring-2 ring-white shadow-lg z-20'
-                      : 'bg-white/95 text-slate-900 border border-slate-300 hover:bg-slate-900 hover:text-white'
-                  } ${pin.visible === false ? 'opacity-50' : ''}`}
+                  aria-label={pin.label}
+                  className={`discover-map-pin touch-none ${
+                    isDragging ? 'cursor-grabbing z-20' : 'cursor-grab'
+                  } ${isSelected ? 'is-active z-20' : ''} ${
+                    pin.visible === false ? 'opacity-50' : ''
+                  }`}
                 >
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      isSelected ? 'bg-sky-400' : 'bg-sky-600'
-                    }`}
+                  <MapPin
+                    className="discover-map-pin-icon"
+                    aria-hidden="true"
                   />
-                  <span className="whitespace-nowrap max-w-[140px] truncate">
-                    {idx + 1}. {pin.label}
-                  </span>
                 </button>
               );
             })}

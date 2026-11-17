@@ -1010,47 +1010,54 @@ header.site-header .desktop-nav-cta:focus {
 
 .discover-map-pin {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -100%);
   z-index: 5;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #0e3242;
-  border: 1px solid rgba(14, 50, 66, 0.22);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.1;
-  white-space: nowrap;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  border: 0;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(8, 34, 49, 0.18);
-  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  transition: transform 0.18s ease, filter 0.18s ease;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.32));
 }
 
 .discover-map-pin:hover,
 .discover-map-pin:focus-visible,
 .discover-map-pin.is-active {
-  background: #0e3242;
-  color: #ffffff;
-  border-color: #ffffff;
   z-index: 10;
-  transform: translate(-50%, -50%) scale(1.05);
+  transform: translate(-50%, -100%) scale(1.22);
+  filter: drop-shadow(0 5px 10px rgba(185, 28, 28, 0.45));
+  outline: none;
 }
 
-.discover-map-pin-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #1f7a9c;
-  flex-shrink: 0;
+.discover-map-pin-icon {
+  width: 30px;
+  height: 30px;
+  fill: #dc2626;
+  color: #7f1d1d;
+  stroke-width: 1.75px;
+  display: block;
 }
 
-.discover-map-pin:hover .discover-map-pin-dot,
-.discover-map-pin:focus-visible .discover-map-pin-dot,
-.discover-map-pin.is-active .discover-map-pin-dot {
-  background: #7ee3f2;
+.discover-map-pin-icon circle {
+  fill: #ffffff;
+  stroke: #7f1d1d;
+}
+
+.discover-map-pin:hover .discover-map-pin-icon,
+.discover-map-pin:focus-visible .discover-map-pin-icon,
+.discover-map-pin.is-active .discover-map-pin-icon {
+  fill: #ef4444;
+  color: #ffffff;
+}
+
+.discover-map-pin:hover .discover-map-pin-icon circle,
+.discover-map-pin:focus-visible .discover-map-pin-icon circle,
+.discover-map-pin.is-active .discover-map-pin-icon circle {
+  fill: #ffffff;
+  stroke: #991b1b;
 }
 
 .discover-pin-tabs {
