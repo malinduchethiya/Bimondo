@@ -424,7 +424,7 @@ export default function ContactSection() {
             <div className="field wide booking-confirmation-box" role="status">
               <div className="booking-confirmation-head">
                 <strong>
-                  ✓ Booking Reference Prepared (
+                  ✓ Booking Request Logged (
                   {lastBooking.record?.id
                     ? lastBooking.record.id.toUpperCase()
                     : 'SAVED'}
@@ -434,9 +434,50 @@ export default function ContactSection() {
               </div>
               <p>
                 Your request for{' '}
-                <strong>{formData.selectedPackage}</strong> is ready for our
-                Battaramulla travel desk.
+                <strong>
+                  {lastBooking.record?.selectedPackage ||
+                    formData.selectedPackage}
+                </strong>{' '}
+                has been recorded in our Admin Panel for our Battaramulla travel
+                desk.
               </p>
+              {lastBooking.record && (
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    lineHeight: 1.6,
+                    opacity: 0.92,
+                    marginBottom: '10px',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: '4px 12px',
+                  }}
+                >
+                  <div>
+                    <strong>Name:</strong> {lastBooking.record.name}
+                  </div>
+                  <div>
+                    <strong>Email:</strong> {lastBooking.record.email}
+                  </div>
+                  {lastBooking.record.phone && (
+                    <div>
+                      <strong>Phone:</strong> {lastBooking.record.phone}
+                    </div>
+                  )}
+                  <div>
+                    <strong>Arrival:</strong> {lastBooking.record.arrival}
+                  </div>
+                  <div>
+                    <strong>Travellers:</strong> {lastBooking.record.guests}
+                  </div>
+                  <div>
+                    <strong>Duration:</strong> {lastBooking.record.duration}
+                  </div>
+                  <div>
+                    <strong>Interest:</strong> {lastBooking.record.style}
+                  </div>
+                </div>
+              )}
               <div className="booking-confirmation-actions">
                 {formData.bookingMethod === 'whatsapp' && (
                   <a

@@ -1,22 +1,20 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import HomePage from '@/app/page';
-import DestinationsPage from '@/app/destinations/page';
-import PackagesPage from '@/app/packages/page';
-import StaysPage from '@/app/stays/page';
-import GalleryPage from '@/app/gallery/page';
-import OurStoryPage from '@/app/our-story/page';
-import ContactPage from '@/app/contact/page';
-import BookingPage from '@/app/booking/page';
-import BookingConfirmationPage from '@/app/booking/confirmation/page';
 
-if (typeof window !== 'undefined') {
-  gsap.registerPlugin(ScrollTrigger);
-}
+const DestinationsPage = dynamic(() => import('@/app/destinations/page'));
+const PackagesPage = dynamic(() => import('@/app/packages/page'));
+const StaysPage = dynamic(() => import('@/app/stays/page'));
+const GalleryPage = dynamic(() => import('@/app/gallery/page'));
+const OurStoryPage = dynamic(() => import('@/app/our-story/page'));
+const ContactPage = dynamic(() => import('@/app/contact/page'));
+const BookingPage = dynamic(() => import('@/app/booking/page'));
+const BookingConfirmationPage = dynamic(
+  () => import('@/app/booking/confirmation/page')
+);
 
 const VALID_PATHS = new Set([
   '/',
@@ -69,13 +67,6 @@ export function navigateToRoute(targetHref: string) {
     return;
   }
 
-  // Unwrap any GSAP ScrollTrigger pin-spacers before React unmounts the current route's DOM
-  try {
-    ScrollTrigger.getAll().forEach((st) => st.kill(true));
-  } catch {
-    // ignore cleanup errors
-  }
-
   const fullTarget = `${nextPathname}${targetUrl.search}${targetUrl.hash}`;
   window.history.pushState(null, '', fullTarget);
   window.dispatchEvent(
@@ -101,16 +92,10 @@ export default function InstantRouteManager({
     };
 
     const onPopState = () => {
-      try {
-        ScrollTrigger.getAll().forEach((st) => st.kill(true));
-      } catch {
-        // ignore
-      }
       setClientPath(normalizeRoutePath(window.location.pathname));
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     };
 
-    // Global capture-phase click listener to intercept internal route links before Next.js RSC fetch
     const onDocumentClick = (e: MouseEvent) => {
       if (
         e.defaultPrevented ||
@@ -160,7 +145,6 @@ export default function InstantRouteManager({
       const targetRoute = normalizeRoutePath(url.pathname);
       const currentRoute = normalizeRoutePath(window.location.pathname);
 
-      // Allow same-page hash anchors (e.g. /#discover when already on /) to be handled by MomentumScroll
       if (targetRoute === currentRoute && url.hash) {
         return;
       }

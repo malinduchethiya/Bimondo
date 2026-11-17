@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   getDocsFromServer,
@@ -7,8 +8,10 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import {
+  BookingSubmissionMethod,
   CmsCustomerEnquiry,
   CmsImageRef,
   createImageRef,
@@ -28,6 +31,8 @@ import {
 export const LEGACY_LOCAL_CONTENT_STORAGE_KEY = 'bimondo_cms_local_v1';
 export const CMS_SECTIONS_COLLECTION = 'cms_sections';
 export const CUSTOMER_ENQUIRIES_COLLECTION = 'customer_enquiries';
+export const CUSTOMER_ENQUIRIES_LOCAL_CACHE_KEY =
+  'bimondo_customer_enquiries_cache_v1';
 export const MEDIA_OBJECTS_COLLECTION = 'media_objects';
 export const CMS_UPDATED_EVENT = 'bimondo:cms-updated';
 
@@ -620,7 +625,169 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
     deletedBy: f.deletedBy || null,
   }));
 
+  // Sync Customer Booking Enquiries
+  const rawEnquiries = Array.isArray(merged.enquiries)
+    ? merged.enquiries
+    : defaults.enquiries;
+  merged.enquiries = rawEnquiries
+    .map((item, idx) => normalizeCustomerEnquiry(item, idx))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
   return merged;
+}
+
+const VALID_BOOKING_METHODS: BookingSubmissionMethod[] = [
+  'direct_admin',
+  'whatsapp',
+  'email',
+  'callback',
+  'manual',
+];
+
+const VALID_ENQUIRY_STATUSES: CmsCustomerEnquiry['status'][] = [
+  'new',
+  'in_progress',
+  'replied',
+  'archived',
+];
+
+export function normalizeCustomerEnquiry(
+  raw: Partial<CmsCustomerEnquiry> | Record<string, unknown>,
+  fallbackIdx = 0
+): CmsCustomerEnquiry {
+  const id =
+    typeof raw.id === 'string' && raw.id.trim()
+      ? raw.id.trim().slice(0, 128)
+      : `bk_${Date.now()}_${fallbackIdx}`;
+
+  const createdAt =
+    formatFirestoreTimestamp(raw.createdAt) ||
+    (typeof raw.createdAt === 'string' && raw.createdAt.trim()
+      ? raw.createdAt.trim()
+      : new Date().toISOString());
+
+  const bookingMethod: BookingSubmissionMethod =
+    typeof raw.bookingMethod === 'string' &&
+    VALID_BOOKING_METHODS.includes(raw.bookingMethod as BookingSubmissionMethod)
+      ? (raw.bookingMethod as BookingSubmissionMethod)
+      : 'direct_admin';
+
+  const status: CmsCustomerEnquiry['status'] =
+    typeof raw.status === 'string' &&
+    VALID_ENQUIRY_STATUSES.includes(raw.status as CmsCustomerEnquiry['status'])
+      ? (raw.status as CmsCustomerEnquiry['status'])
+      : 'new';
+
+  const selectedPackage =
+    typeof raw.selectedPackage === 'string' && raw.selectedPackage.trim()
+      ? raw.selectedPackage.trim().slice(0, 160)
+      : 'Custom Tailor-Made Journey';
+
+  const phone =
+    typeof raw.phone === 'string' ? raw.phone.trim().slice(0, 64) : '';
+
+  // Clean up any legacy mangled style string like "[DIRECT_ADMIN] Custom Tailor-Made Journey · Balanced island discovery"
+  let style =
+    typeof raw.style === 'string' && raw.style.trim()
+      ? raw.style.trim()
+      : 'Balanced island discovery';
+  const legacyStyleMatch = style.match(/^\[[A-Z_]+\]\s+.*?\s+·\s+(.+)$/);
+  if (legacyStyleMatch && legacyStyleMatch[1]) {
+    style = legacyStyleMatch[1].trim();
+  }
+  style = style.slice(0, 120);
+
+  // Clean up any legacy mangled message string where " | Tel: ... (Package: ...)" was appended
+  let message = typeof raw.message === 'string' ? raw.message.trim() : '';
+  message = message
+    .replace(/\s*\(Package:\s*[^)]*\)\s*$/i, '')
+    .replace(/\s*\|\s*Tel:\s*[^(|]*$/i, '')
+    .trim()
+    .slice(0, 2000);
+
+  return {
+    id,
+    createdAt,
+    name:
+      typeof raw.name === 'string' && raw.name.trim()
+        ? raw.name.trim().slice(0, 120)
+        : 'Traveller',
+    email:
+      typeof raw.email === 'string' && raw.email.trim()
+        ? raw.email.trim().slice(0, 254)
+        : 'unknown@example.com',
+    phone,
+    bookingMethod,
+    selectedPackage,
+    arrival:
+      typeof raw.arrival === 'string' && raw.arrival.trim()
+        ? raw.arrival.trim().slice(0, 64)
+        : 'Flexible dates',
+    guests:
+      typeof raw.guests === 'string' && raw.guests.trim()
+        ? raw.guests.trim().slice(0, 64)
+        : '2 travellers',
+    duration:
+      typeof raw.duration === 'string' && raw.duration.trim()
+        ? raw.duration.trim().slice(0, 64)
+        : '7–8 days',
+    style,
+    message,
+    status,
+    adminNotes:
+      typeof raw.adminNotes === 'string' ? raw.adminNotes.slice(0, 2000) : '',
+  };
+}
+
+export function mergeCustomerEnquiryLists(
+  primary: CmsCustomerEnquiry[],
+  secondary: CmsCustomerEnquiry[]
+): CmsCustomerEnquiry[] {
+  const byId = new Map<string, CmsCustomerEnquiry>();
+  for (const item of secondary) {
+    if (!item || !item.id) continue;
+    byId.set(item.id, normalizeCustomerEnquiry(item));
+  }
+  for (const item of primary) {
+    if (!item || !item.id) continue;
+    byId.set(item.id, normalizeCustomerEnquiry(item));
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  );
+}
+
+export function readCachedCustomerEnquiries(): CmsCustomerEnquiry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(CUSTOMER_ENQUIRIES_LOCAL_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => isPlainObject(item))
+      .map((item, idx) => normalizeCustomerEnquiry(item, idx))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+export function writeCachedCustomerEnquiries(
+  enquiries: CmsCustomerEnquiry[]
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const normalized = enquiries
+      .map((item, idx) => normalizeCustomerEnquiry(item, idx))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    window.localStorage.setItem(
+      CUSTOMER_ENQUIRIES_LOCAL_CACHE_KEY,
+      JSON.stringify(normalized)
+    );
+  } catch {
+    // Ignore storage quota or access errors
+  }
 }
 
 /**
@@ -654,6 +821,8 @@ export function filterCmsForPublic(cms: SiteCmsData): SiteCmsData {
   cloned.gallery = (cloned.gallery || []).filter((item) => !item.deletedAt);
   cloned.reviews = (cloned.reviews || []).filter((item) => !item.deletedAt);
   cloned.faqs = (cloned.faqs || []).filter((item) => !item.deletedAt);
+  // Never expose private customer booking enquiries in publicCms
+  cloned.enquiries = [];
 
   // If a home section is soft-deleted, hide it on the public site
   if (cloned.pages.home.hero.deletedAt) {
@@ -1406,6 +1575,7 @@ export interface ContentRepository {
   fetchFromFirestore(options?: {
     forceServer?: boolean;
   }): Promise<LoadedFirestoreContentSnapshot>;
+  fetchCustomerEnquiriesFromFirestore(): Promise<CmsCustomerEnquiry[]>;
   saveChangedSectionsToFirestore(params: {
     nextCms: SiteCmsData;
     baselineCms: SiteCmsData;
@@ -1418,6 +1588,14 @@ export interface ContentRepository {
   createCustomerEnquiryInFirestore(
     enquiry: CmsCustomerEnquiry
   ): Promise<void>;
+  updateCustomerEnquiryInFirestore(
+    enquiryId: string,
+    patch: {
+      status?: CmsCustomerEnquiry['status'];
+      adminNotes?: string;
+    }
+  ): Promise<void>;
+  deleteCustomerEnquiryInFirestore(enquiryId: string): Promise<void>;
 }
 
 class FirestoreContentRepository implements ContentRepository {
@@ -1436,6 +1614,41 @@ class FirestoreContentRepository implements ContentRepository {
     }
   }
 
+  async fetchCustomerEnquiriesFromFirestore(): Promise<CmsCustomerEnquiry[]> {
+    const localCached = readCachedCustomerEnquiries();
+    const { db, auth, resolution } = getFirebaseClientServices();
+    if (!resolution.isConfigured || !db || !auth?.currentUser) {
+      return localCached;
+    }
+
+    try {
+      const enqCol = collection(db, CUSTOMER_ENQUIRIES_COLLECTION);
+      let snap;
+      try {
+        snap = await getDocsFromServer(enqCol);
+      } catch {
+        snap = await getDocs(enqCol);
+      }
+
+      const firestoreEnquiries: CmsCustomerEnquiry[] = [];
+      snap.forEach((docSnap) => {
+        const data = docSnap.data() as Record<string, unknown>;
+        firestoreEnquiries.push(
+          normalizeCustomerEnquiry({
+            ...data,
+            id: typeof data.id === 'string' && data.id ? data.id : docSnap.id,
+          })
+        );
+      });
+
+      const merged = mergeCustomerEnquiryLists(firestoreEnquiries, localCached);
+      writeCachedCustomerEnquiries(merged);
+      return merged;
+    } catch {
+      return localCached;
+    }
+  }
+
   async fetchFromFirestore(options?: {
     forceServer?: boolean;
   }): Promise<LoadedFirestoreContentSnapshot> {
@@ -1443,12 +1656,30 @@ class FirestoreContentRepository implements ContentRepository {
 
     const defaults = getDefaultCmsData();
     const sectionMeta = createInitialSectionMetaMap();
-    const { db, resolution } = getFirebaseClientServices();
+    const localEnquiries = readCachedCustomerEnquiries();
+    const { db, auth, resolution } = getFirebaseClientServices();
 
     if (!resolution.isConfigured || !db) {
       const cached = readCachedFirestoreSnapshot();
-      if (cached) return cached;
-      const normalizedDefaults = normalizeCmsData(defaults);
+      if (cached) {
+        const mergedEnq = mergeCustomerEnquiryLists(
+          localEnquiries,
+          cached.adminCms.enquiries || []
+        );
+        const nextAdmin = normalizeCmsData({
+          ...cached.adminCms,
+          enquiries: mergedEnq,
+        });
+        return {
+          ...cached,
+          adminCms: nextAdmin,
+          publicCms: filterCmsForPublic(nextAdmin),
+        };
+      }
+      const normalizedDefaults = normalizeCmsData({
+        ...defaults,
+        enquiries: localEnquiries,
+      });
       return {
         adminCms: normalizedDefaults,
         publicCms: filterCmsForPublic(normalizedDefaults),
@@ -1521,6 +1752,12 @@ class FirestoreContentRepository implements ContentRepository {
         }
       }
 
+      if (auth?.currentUser) {
+        workingCms.enquiries = await this.fetchCustomerEnquiriesFromFirestore();
+      } else {
+        workingCms.enquiries = localEnquiries;
+      }
+
       workingCms.updatedAt = latestUpdatedAt;
       const normalizedAdmin = normalizeCmsData(workingCms);
       const normalizedPublic = filterCmsForPublic(normalizedAdmin);
@@ -1551,13 +1788,26 @@ class FirestoreContentRepository implements ContentRepository {
 
       const cached = readCachedFirestoreSnapshot();
       if (cached) {
+        const mergedEnq = mergeCustomerEnquiryLists(
+          localEnquiries,
+          cached.adminCms.enquiries || []
+        );
+        const nextAdmin = normalizeCmsData({
+          ...cached.adminCms,
+          enquiries: mergedEnq,
+        });
         return {
           ...cached,
+          adminCms: nextAdmin,
+          publicCms: filterCmsForPublic(nextAdmin),
           error: msg,
         };
       }
 
-      const normalizedDefaults = normalizeCmsData(defaults);
+      const normalizedDefaults = normalizeCmsData({
+        ...defaults,
+        enquiries: localEnquiries,
+      });
       return {
         adminCms: normalizedDefaults,
         publicCms: filterCmsForPublic(normalizedDefaults),
@@ -1881,23 +2131,32 @@ class FirestoreContentRepository implements ContentRepository {
   async createCustomerEnquiryInFirestore(
     enquiry: CmsCustomerEnquiry
   ): Promise<void> {
+    const normalized = normalizeCustomerEnquiry(enquiry);
+    const currentCached = readCachedCustomerEnquiries();
+    const nextCached = mergeCustomerEnquiryLists([normalized], currentCached);
+    writeCachedCustomerEnquiries(nextCached);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
+    }
+
     const { db, resolution } = getFirebaseClientServices();
     if (!resolution.isConfigured || !db) return;
 
-    const docRef = doc(db, CUSTOMER_ENQUIRIES_COLLECTION, enquiry.id);
+    const docRef = doc(db, CUSTOMER_ENQUIRIES_COLLECTION, normalized.id);
     try {
       await setDoc(docRef, {
-        id: enquiry.id,
-        name: enquiry.name.slice(0, 120),
-        email: enquiry.email.slice(0, 254),
-        phone: (enquiry.phone || '').slice(0, 64),
-        bookingMethod: enquiry.bookingMethod || 'direct_admin',
-        selectedPackage: (enquiry.selectedPackage || '').slice(0, 160),
-        arrival: enquiry.arrival.slice(0, 64),
-        guests: enquiry.guests.slice(0, 64),
-        duration: enquiry.duration.slice(0, 64),
-        style: enquiry.style.slice(0, 120),
-        message: enquiry.message.slice(0, 2000),
+        id: normalized.id,
+        name: normalized.name.slice(0, 120),
+        email: normalized.email.slice(0, 254),
+        phone: (normalized.phone || '').slice(0, 64),
+        bookingMethod: normalized.bookingMethod || 'direct_admin',
+        selectedPackage: (normalized.selectedPackage || '').slice(0, 160),
+        arrival: normalized.arrival.slice(0, 64),
+        guests: normalized.guests.slice(0, 64),
+        duration: normalized.duration.slice(0, 64),
+        style: normalized.style.slice(0, 120),
+        message: normalized.message.slice(0, 2000),
         status: 'new',
         adminNotes: '',
         createdAt: serverTimestamp(),
@@ -1905,13 +2164,101 @@ class FirestoreContentRepository implements ContentRepository {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('Missing or insufficient permissions')) {
-        handleFirestoreError(
-          err,
-          OperationType.CREATE,
-          `${CUSTOMER_ENQUIRIES_COLLECTION}/${enquiry.id}`
-        );
+        try {
+          handleFirestoreError(
+            err,
+            OperationType.CREATE,
+            `${CUSTOMER_ENQUIRIES_COLLECTION}/${normalized.id}`
+          );
+        } catch {
+          // Structured error logged; local cache already persisted
+        }
       }
-      throw err;
+    }
+  }
+
+  async updateCustomerEnquiryInFirestore(
+    enquiryId: string,
+    patch: {
+      status?: CmsCustomerEnquiry['status'];
+      adminNotes?: string;
+    }
+  ): Promise<void> {
+    const currentCached = readCachedCustomerEnquiries();
+    const updatedCached = currentCached.map((item) => {
+      if (item.id !== enquiryId) return item;
+      return normalizeCustomerEnquiry({
+        ...item,
+        status: patch.status ?? item.status,
+        adminNotes:
+          patch.adminNotes !== undefined ? patch.adminNotes : item.adminNotes,
+      });
+    });
+    writeCachedCustomerEnquiries(updatedCached);
+
+    const { db, resolution } = getFirebaseClientServices();
+    if (resolution.isConfigured && db) {
+      const docRef = doc(db, CUSTOMER_ENQUIRIES_COLLECTION, enquiryId);
+      const updatePayload: Record<string, string> = {};
+      if (patch.status !== undefined) {
+        updatePayload.status = patch.status;
+      }
+      if (patch.adminNotes !== undefined) {
+        updatePayload.adminNotes = patch.adminNotes.slice(0, 2000);
+      }
+      if (Object.keys(updatePayload).length > 0) {
+        try {
+          await updateDoc(docRef, updatePayload);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes('Missing or insufficient permissions')) {
+            try {
+              handleFirestoreError(
+                err,
+                OperationType.UPDATE,
+                `${CUSTOMER_ENQUIRIES_COLLECTION}/${enquiryId}`
+              );
+            } catch {
+              // Structured error logged
+            }
+          }
+        }
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
+    }
+  }
+
+  async deleteCustomerEnquiryInFirestore(enquiryId: string): Promise<void> {
+    const currentCached = readCachedCustomerEnquiries();
+    const filteredCached = currentCached.filter((item) => item.id !== enquiryId);
+    writeCachedCustomerEnquiries(filteredCached);
+
+    const { db, resolution } = getFirebaseClientServices();
+    if (resolution.isConfigured && db) {
+      const docRef = doc(db, CUSTOMER_ENQUIRIES_COLLECTION, enquiryId);
+      try {
+        await deleteDoc(docRef);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Missing or insufficient permissions')) {
+          try {
+            handleFirestoreError(
+              err,
+              OperationType.DELETE,
+              `${CUSTOMER_ENQUIRIES_COLLECTION}/${enquiryId}`
+            );
+          } catch {
+            // Structured error logged
+          }
+        }
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
     }
   }
 }

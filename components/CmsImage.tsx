@@ -21,6 +21,8 @@ interface CmsImageProps {
 /**
  * Renders an image when a valid URL is configured in the content model,
  * or a clean minimal placeholder surface when empty or failed to load.
+ * Uses asynchronous off-thread decoding and pre-decodes on load so scrolling
+ * into image sections never triggers synchronous rasterization freezes.
  */
 export default function CmsImage({
   src,
@@ -54,9 +56,10 @@ export default function CmsImage({
     );
   }
 
-  const resolvedLoading = loading ?? (priority ? 'eager' : 'lazy');
-  const resolvedDecoding = decoding ?? (priority ? 'sync' : 'async');
-  const resolvedFetchPriority = fetchPriority ?? (priority ? 'high' : 'auto');
+  const resolvedLoading = loading ?? 'eager';
+  const resolvedDecoding = decoding ?? 'async';
+  const resolvedFetchPriority =
+    fetchPriority ?? (priority ? 'high' : 'low');
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -68,6 +71,12 @@ export default function CmsImage({
       decoding={resolvedDecoding}
       fetchPriority={resolvedFetchPriority}
       referrerPolicy="no-referrer"
+      onLoad={(e) => {
+        const target = e.currentTarget;
+        if (typeof target.decode === 'function') {
+          target.decode().catch(() => {});
+        }
+      }}
       onError={() => setFailedUrl(rawUrl)}
       className={`${
         fill ? 'absolute inset-0 w-full h-full' : 'w-full h-full'

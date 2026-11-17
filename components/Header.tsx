@@ -42,41 +42,78 @@ export default function Header() {
     };
   }, []);
 
+  const isScrolledRef = useRef(false);
+  const isHiddenRef = useRef(false);
+  const heroThresholdRef = useRef(500);
+
   useEffect(() => {
-    const getHeroThreshold = () => {
+    const measureThreshold = () => {
       const heroEl = document.querySelector(
         '.hero, .page-banner'
       ) as HTMLElement | null;
       if (heroEl) {
-        return Math.max(120, heroEl.offsetTop + heroEl.offsetHeight - 84);
+        heroThresholdRef.current = Math.max(
+          120,
+          heroEl.offsetTop + heroEl.offsetHeight - 84
+        );
+      } else {
+        heroThresholdRef.current = Math.max(120, window.innerHeight * 0.85);
       }
-      return Math.max(120, window.innerHeight * 0.85);
     };
 
-    const handleScroll = () => {
+    measureThreshold();
+    window.addEventListener('resize', measureThreshold, { passive: true });
+
+    let ticking = false;
+
+    const updateScrollState = () => {
+      ticking = false;
       const currentY = Math.max(0, window.scrollY);
       const prevY = lastScrollYRef.current;
       const delta = currentY - prevY;
-      const heroThreshold = getHeroThreshold();
+      const heroThreshold = heroThresholdRef.current;
 
-      setIsScrolled(currentY > 30);
+      const nextScrolled = currentY > 30;
+      if (nextScrolled !== isScrolledRef.current) {
+        isScrolledRef.current = nextScrolled;
+        setIsScrolled(nextScrolled);
+      }
 
       if (currentY <= heroThreshold) {
-        setIsHidden(false);
-      } else if (delta > 5) {
-        setIsHidden(true);
-        setIsOpen(false);
-      } else if (delta < -5) {
-        setIsHidden(false);
+        if (isHiddenRef.current) {
+          isHiddenRef.current = false;
+          setIsHidden(false);
+        }
+      } else if (delta > 6) {
+        if (!isHiddenRef.current) {
+          isHiddenRef.current = true;
+          setIsHidden(true);
+          setIsOpen(false);
+        }
+      } else if (delta < -6) {
+        if (isHiddenRef.current) {
+          isHiddenRef.current = false;
+          setIsHidden(false);
+        }
       }
 
       lastScrollYRef.current = currentY;
     };
 
+    const handleScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        window.requestAnimationFrame(updateScrollState);
+      }
+    };
+
     lastScrollYRef.current = Math.max(0, window.scrollY);
-    handleScroll();
+    updateScrollState();
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('resize', measureThreshold);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [activePathname]);
 
   const toggleMenu = () => {

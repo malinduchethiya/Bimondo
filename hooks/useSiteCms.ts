@@ -76,71 +76,37 @@ const preloadedImageUrls = new Set<string>();
 function warmCriticalCmsImages(cms: SiteCmsData) {
   if (typeof window === 'undefined') return;
 
-  const highPriorityUrls: string[] = [];
-  const warmUrls: string[] = [];
-
-  for (const slide of cms.pages?.home?.hero?.slides || []) {
-    if (slide.visible !== false && !slide.deletedAt && slide.image?.url) {
-      highPriorityUrls.push(slide.image.url.trim());
-    }
-  }
-
-  if (cms.pages?.home?.story?.mainImage?.url) {
-    highPriorityUrls.push(cms.pages.home.story.mainImage.url.trim());
-  }
-  if (cms.pages?.home?.story?.secondaryImage?.url) {
-    warmUrls.push(cms.pages.home.story.secondaryImage.url.trim());
-  }
-  if (cms.pages?.home?.experience?.featureImage?.url) {
-    warmUrls.push(cms.pages.home.experience.featureImage.url.trim());
-  }
-
-  const firstBento = (cms.bentoDestinations || []).find(
-    (b) => b.visible !== false && !b.deletedAt
-  );
-  if (firstBento) {
-    for (const ref of [
-      firstBento.heroImageRef,
-      firstBento.pathwayImageRef,
-      firstBento.tallSceneImageRef,
-      firstBento.natureImageRef,
-      firstBento.cuisineImageRef,
-    ]) {
-      if (ref?.url) warmUrls.push(ref.url.trim());
-    }
-  }
-
-  for (const dest of (cms.destinations || []).slice(0, 4)) {
-    const u = (dest.imageRef?.url || dest.image || '').trim();
-    if (u) warmUrls.push(u);
-  }
-
-  const preloadSingle = (rawUrl: string, highPriority: boolean) => {
-    if (
-      !rawUrl ||
-      isForbiddenImageUrl(rawUrl) ||
-      preloadedImageUrls.has(rawUrl)
-    ) {
-      return;
-    }
-    preloadedImageUrls.add(rawUrl);
-
-    try {
-      const img = new window.Image();
-      img.decoding = 'async';
-      if (highPriority && 'fetchPriority' in img) {
-        (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority =
-          'high';
-      }
-      img.referrerPolicy = 'no-referrer';
-      img.src = rawUrl;
-    } catch {
-      // Ignore image warm errors
-    }
+  const nav = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
   };
+  if (nav.connection?.saveData) return;
 
-  highPriorityUrls.forEach((u) => preloadSingle(u, true));
-  warmUrls.forEach((u) => preloadSingle(u, false));
+  const firstHeroSlide = (cms.pages?.home?.hero?.slides || []).find(
+    (slide) => slide.visible !== false && !slide.deletedAt && slide.image?.url
+  );
+  const firstHeroUrl = firstHeroSlide?.image?.url?.trim() || '';
+
+  if (
+    !firstHeroUrl ||
+    isForbiddenImageUrl(firstHeroUrl) ||
+    preloadedImageUrls.has(firstHeroUrl)
+  ) {
+    return;
+  }
+  preloadedImageUrls.add(firstHeroUrl);
+
+  try {
+    const img = new window.Image();
+    img.decoding = 'async';
+    if ('fetchPriority' in img) {
+      (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority =
+        'high';
+    }
+    img.referrerPolicy = 'no-referrer';
+    img.src = firstHeroUrl;
+  } catch {
+    // Ignore image warm errors
+  }
 }
 
 if (initialCached) {
@@ -284,6 +250,22 @@ export function useSiteCms() {
     []
   );
 
+  const refreshCustomerEnquiries = useCallback(async (): Promise<
+    CmsCustomerEnquiry[]
+  > => {
+    const enquiries =
+      await contentRepository.fetchCustomerEnquiriesFromFirestore();
+    clientSnapshot = {
+      ...clientSnapshot,
+      adminCms: {
+        ...clientSnapshot.adminCms,
+        enquiries,
+      },
+    };
+    notifyListeners();
+    return enquiries;
+  }, []);
+
   const submitCustomerEnquiry = useCallback(
     async (
       enquiryInput: Omit<
@@ -293,42 +275,98 @@ export function useSiteCms() {
     ): Promise<CmsCustomerEnquiry> => {
       const enquiryId = sanitizeDocId(`bk_${Date.now()}`, 'bk');
 
-      const methodTag = (
-        enquiryInput.bookingMethod || 'direct_admin'
-      ).toUpperCase();
-      const pkgLabel =
-        enquiryInput.selectedPackage || 'Custom Tailor-Made Journey';
-      const phoneLabel = enquiryInput.phone
-        ? ` | Tel: ${enquiryInput.phone}`
-        : '';
-      const combinedStyle = `[${methodTag}] ${pkgLabel} · ${
-        enquiryInput.style || 'Balanced island discovery'
-      }`.slice(0, 100);
-      const combinedMsg = `${
-        enquiryInput.message || ''
-      }${phoneLabel} (Package: ${pkgLabel})`
-        .trim()
-        .slice(0, 2000);
-
       const newEnquiry: CmsCustomerEnquiry = {
         id: enquiryId,
-        name: (enquiryInput.name || 'Traveller').slice(0, 120),
-        email: (enquiryInput.email || 'unknown@example.com').slice(0, 254),
-        phone: (enquiryInput.phone || '').slice(0, 64),
+        name: (enquiryInput.name || 'Traveller').trim().slice(0, 120),
+        email: (enquiryInput.email || 'unknown@example.com')
+          .trim()
+          .slice(0, 254),
+        phone: (enquiryInput.phone || '').trim().slice(0, 64),
         bookingMethod: enquiryInput.bookingMethod || 'direct_admin',
-        selectedPackage: pkgLabel,
-        arrival: (enquiryInput.arrival || 'Flexible').slice(0, 64),
-        guests: (enquiryInput.guests || '2 travellers').slice(0, 64),
-        duration: (enquiryInput.duration || '7–10 days').slice(0, 64),
-        style: combinedStyle,
-        message: combinedMsg,
+        selectedPackage: (
+          enquiryInput.selectedPackage || 'Custom Tailor-Made Journey'
+        )
+          .trim()
+          .slice(0, 160),
+        arrival: (enquiryInput.arrival || 'Flexible dates').trim().slice(0, 64),
+        guests: (enquiryInput.guests || '2 travellers').trim().slice(0, 64),
+        duration: (enquiryInput.duration || '7–8 days').trim().slice(0, 64),
+        style: (enquiryInput.style || 'Balanced island discovery')
+          .trim()
+          .slice(0, 120),
+        message: (enquiryInput.message || '').trim().slice(0, 2000),
         status: 'new',
         adminNotes: '',
         createdAt: new Date().toISOString(),
       };
 
+      const existing = clientSnapshot.adminCms.enquiries || [];
+      clientSnapshot = {
+        ...clientSnapshot,
+        adminCms: {
+          ...clientSnapshot.adminCms,
+          enquiries: [
+            newEnquiry,
+            ...existing.filter((item) => item.id !== newEnquiry.id),
+          ],
+        },
+      };
+      notifyListeners();
+
       await contentRepository.createCustomerEnquiryInFirestore(newEnquiry);
       return newEnquiry;
+    },
+    []
+  );
+
+  const updateCustomerEnquiry = useCallback(
+    async (
+      enquiryId: string,
+      patch: {
+        status?: CmsCustomerEnquiry['status'];
+        adminNotes?: string;
+      }
+    ): Promise<void> => {
+      const existing = clientSnapshot.adminCms.enquiries || [];
+      const nextEnquiries = existing.map((item) =>
+        item.id === enquiryId
+          ? {
+              ...item,
+              status: patch.status ?? item.status,
+              adminNotes:
+                patch.adminNotes !== undefined
+                  ? patch.adminNotes
+                  : item.adminNotes,
+            }
+          : item
+      );
+      clientSnapshot = {
+        ...clientSnapshot,
+        adminCms: {
+          ...clientSnapshot.adminCms,
+          enquiries: nextEnquiries,
+        },
+      };
+      notifyListeners();
+
+      await contentRepository.updateCustomerEnquiryInFirestore(enquiryId, patch);
+    },
+    []
+  );
+
+  const deleteCustomerEnquiry = useCallback(
+    async (enquiryId: string): Promise<void> => {
+      const existing = clientSnapshot.adminCms.enquiries || [];
+      clientSnapshot = {
+        ...clientSnapshot,
+        adminCms: {
+          ...clientSnapshot.adminCms,
+          enquiries: existing.filter((item) => item.id !== enquiryId),
+        },
+      };
+      notifyListeners();
+
+      await contentRepository.deleteCustomerEnquiryInFirestore(enquiryId);
     },
     []
   );
@@ -348,5 +386,8 @@ export function useSiteCms() {
     saveCmsToFirestore,
     initializeFirestoreContent,
     submitCustomerEnquiry,
+    refreshCustomerEnquiries,
+    updateCustomerEnquiry,
+    deleteCustomerEnquiry,
   };
 }

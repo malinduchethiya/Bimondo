@@ -50,13 +50,27 @@ export default function HeroSection() {
   useEffect(() => {
     if (visibleSlides.length <= 1) return;
 
+    let isScrolling = false;
+    let scrollTimer: number | null = null;
+    const onScroll = () => {
+      isScrolling = true;
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        isScrolling = false;
+      }, 200);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+
     const timer = window.setInterval(() => {
-      if (isVisibleRef.current && !document.hidden) {
+      if (isVisibleRef.current && !document.hidden && !isScrolling) {
         setActiveSlide((prev) => (prev + 1) % visibleSlides.length);
       }
     }, HERO_SLIDESHOW_INTERVAL_MS);
 
     return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
       window.clearInterval(timer);
     };
   }, [visibleSlides.length, safeActiveIndex]);
@@ -81,8 +95,7 @@ export default function HeroSection() {
         {visibleSlides.length > 0 ? (
           visibleSlides.map((slide, idx) => {
             const isActive = idx === safeActiveIndex;
-            const isHighPriority =
-              idx === 0 || isActive || idx === nextSlideIndex;
+            const isNear = idx === 0 || isActive || idx === nextSlideIndex;
 
             return (
               <div
@@ -95,8 +108,8 @@ export default function HeroSection() {
                   alt={slide.image?.alt || `Sri Lanka Hero Slide ${idx + 1}`}
                   fill
                   sizes="100vw"
-                  priority={isHighPriority}
-                  loading="eager"
+                  priority={idx === 0}
+                  loading={isNear ? 'eager' : 'lazy'}
                   className="object-cover"
                 />
               </div>

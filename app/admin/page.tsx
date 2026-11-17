@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -12,7 +12,10 @@ import {
   Database,
   Eye,
   EyeOff,
+  Inbox,
   Loader2,
+  Mail,
+  Phone,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -25,7 +28,11 @@ import {
   AdminPageSchema,
   buildAdminPagesFromCms,
 } from '@/lib/admin-ui-schema';
-import { SiteCmsData } from '@/lib/cms-defaults';
+import {
+  BookingSubmissionMethod,
+  CmsCustomerEnquiry,
+  SiteCmsData,
+} from '@/lib/cms-defaults';
 import {
   CmsSectionDocId,
   listSoftDeletedItems,
@@ -43,7 +50,22 @@ import AdminMediaLibrary, {
   SelectedMediaLibraryAsset,
 } from '@/components/admin/AdminMediaLibrary';
 
-type WorkspaceMode = 'editor' | 'media' | 'trash';
+type WorkspaceMode = 'editor' | 'enquiries' | 'media' | 'trash';
+
+const BOOKING_METHOD_LABELS: Record<BookingSubmissionMethod, string> = {
+  direct_admin: 'Direct Booking Request',
+  whatsapp: 'WhatsApp Concierge',
+  email: 'Email Itinerary Request',
+  callback: 'Request Phone Callback',
+  manual: 'Direct Enquiry',
+};
+
+const ENQUIRY_STATUS_LABELS: Record<CmsCustomerEnquiry['status'], string> = {
+  new: 'New',
+  in_progress: 'In Progress',
+  replied: 'Replied',
+  archived: 'Archived',
+};
 
 interface FeedbackBanner {
   type: 'success' | 'error' | 'info' | 'conflict';
@@ -59,7 +81,11 @@ interface FeedbackBanner {
 
 function serializeComparableCms(data: SiteCmsData): string {
   const normalized = normalizeCmsData(data);
-  const { updatedAt: _ignored, ...rest } = normalized;
+  const {
+    updatedAt: _ignored,
+    enquiries: _ignoredEnquiries,
+    ...rest
+  } = normalized;
   return JSON.stringify(rest);
 }
 
@@ -76,6 +102,9 @@ export default function AdminPanelPage() {
     reloadFromRepository,
     saveCmsToFirestore,
     initializeFirestoreContent,
+    refreshCustomerEnquiries,
+    updateCustomerEnquiry,
+    deleteCustomerEnquiry,
   } = useSiteCms();
 
   const [draftOverride, setDraftOverride] = useState<SiteCmsData | null>(null);
@@ -83,6 +112,16 @@ export default function AdminPanelPage() {
   const [activePageId, setActivePageId] = useState<string>('home-page');
   const [activeSectionId, setActiveSectionId] = useState<string>('home-hero');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [enquiryStatusFilter, setEnquiryStatusFilter] = useState<
+    'all' | CmsCustomerEnquiry['status']
+  >('all');
+  const [enquirySearchQuery, setEnquirySearchQuery] = useState<string>('');
+  const [adminNotesDrafts, setAdminNotesDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [savingEnquiryId, setSavingEnquiryId] = useState<string | null>(null);
+  const [isRefreshingEnquiries, setIsRefreshingEnquiries] =
+    useState<boolean>(false);
   const [collapsedSubsections, setCollapsedSubsections] = useState<
     Record<string, boolean>
   >({});
@@ -121,6 +160,107 @@ export default function AdminPanelPage() {
   const hasUnsavedChanges = savedSerialized !== draftSerialized;
 
   const trashItems = useMemo(() => listSoftDeletedItems(draft), [draft]);
+
+  const enquiries = useMemo(
+    () => savedCms.enquiries || [],
+    [savedCms.enquiries]
+  );
+
+  const newEnquiriesCount = useMemo(
+    () => enquiries.filter((item) => item.status === 'new').length,
+    [enquiries]
+  );
+
+  const filteredEnquiries = useMemo(() => {
+    const q = enquirySearchQuery.trim().toLowerCase();
+    return enquiries.filter((item) => {
+      if (
+        enquiryStatusFilter !== 'all' &&
+        item.status !== enquiryStatusFilter
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        item.id.toLowerCase().includes(q) ||
+        item.name.toLowerCase().includes(q) ||
+        item.email.toLowerCase().includes(q) ||
+        (item.phone || '').toLowerCase().includes(q) ||
+        (item.selectedPackage || '').toLowerCase().includes(q) ||
+        item.arrival.toLowerCase().includes(q) ||
+        item.guests.toLowerCase().includes(q) ||
+        item.duration.toLowerCase().includes(q) ||
+        item.style.toLowerCase().includes(q) ||
+        item.message.toLowerCase().includes(q) ||
+        (item.adminNotes || '').toLowerCase().includes(q)
+      );
+    });
+  }, [enquiries, enquiryStatusFilter, enquirySearchQuery]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      void refreshCustomerEnquiries();
+    }
+  }, [user?.uid, refreshCustomerEnquiries]);
+
+  const handleRefreshEnquiries = async () => {
+    setIsRefreshingEnquiries(true);
+    try {
+      await refreshCustomerEnquiries();
+      setFeedback({
+        type: 'info',
+        message: 'Refreshed latest customer booking requests.',
+      });
+    } finally {
+      setIsRefreshingEnquiries(false);
+    }
+  };
+
+  const handleEnquiryStatusChange = async (
+    enquiryId: string,
+    nextStatus: CmsCustomerEnquiry['status']
+  ) => {
+    setSavingEnquiryId(enquiryId);
+    try {
+      await updateCustomerEnquiry(enquiryId, { status: nextStatus });
+      setFeedback({
+        type: 'success',
+        message: `Updated booking request ${enquiryId.toUpperCase()} status to "${ENQUIRY_STATUS_LABELS[nextStatus]}".`,
+      });
+    } finally {
+      setSavingEnquiryId(null);
+    }
+  };
+
+  const handleSaveEnquiryNotes = async (enquiry: CmsCustomerEnquiry) => {
+    const nextNotes =
+      adminNotesDrafts[enquiry.id] !== undefined
+        ? adminNotesDrafts[enquiry.id]
+        : enquiry.adminNotes || '';
+    setSavingEnquiryId(enquiry.id);
+    try {
+      await updateCustomerEnquiry(enquiry.id, { adminNotes: nextNotes });
+      setFeedback({
+        type: 'success',
+        message: `Saved admin notes for booking request ${enquiry.id.toUpperCase()}.`,
+      });
+    } finally {
+      setSavingEnquiryId(null);
+    }
+  };
+
+  const handleDeleteEnquiry = async (enquiryId: string) => {
+    setSavingEnquiryId(enquiryId);
+    try {
+      await deleteCustomerEnquiry(enquiryId);
+      setFeedback({
+        type: 'info',
+        message: `Deleted booking request ${enquiryId.toUpperCase()}.`,
+      });
+    } finally {
+      setSavingEnquiryId(null);
+    }
+  };
 
   const pages: AdminPageSchema[] = useMemo(
     () => buildAdminPagesFromCms(draft, currentAdminUid),
@@ -447,6 +587,22 @@ export default function AdminPanelPage() {
           </button>
           <button
             type="button"
+            onClick={() => setWorkspaceMode('enquiries')}
+            className={`inline-flex items-center gap-1.5 py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              workspaceMode === 'enquiries'
+                ? 'text-slate-900 underline underline-offset-4 font-semibold'
+                : 'hover:text-slate-900'
+            }`}
+          >
+            <span>Booking Requests ({enquiries.length})</span>
+            {newEnquiriesCount > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-900 text-white rounded">
+                {newEnquiriesCount} new
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setWorkspaceMode('media')}
             className={`py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               workspaceMode === 'media'
@@ -521,11 +677,11 @@ export default function AdminPanelPage() {
         <aside className="bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-4 flex flex-col justify-between gap-6">
           <div className="space-y-4">
             {/* Mobile workspace switcher */}
-            <div className="flex md:hidden items-center gap-1 p-1 bg-slate-100 rounded-md">
+            <div className="flex flex-wrap md:hidden items-center gap-1 p-1 bg-slate-100 rounded-md">
               <button
                 type="button"
                 onClick={() => setWorkspaceMode('editor')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
+                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors cursor-pointer ${
                   workspaceMode === 'editor'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600'
@@ -535,8 +691,19 @@ export default function AdminPanelPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setWorkspaceMode('enquiries')}
+                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors cursor-pointer tabular-nums ${
+                  workspaceMode === 'enquiries'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600'
+                }`}
+              >
+                Bookings ({enquiries.length})
+              </button>
+              <button
+                type="button"
                 onClick={() => setWorkspaceMode('media')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer ${
+                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors cursor-pointer ${
                   workspaceMode === 'media'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600'
@@ -547,13 +714,44 @@ export default function AdminPanelPage() {
               <button
                 type="button"
                 onClick={() => setWorkspaceMode('trash')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors cursor-pointer tabular-nums ${
+                className={`flex-1 py-1.5 px-2 text-xs font-medium rounded transition-colors cursor-pointer tabular-nums ${
                   workspaceMode === 'trash'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600'
                 }`}
               >
                 Trash ({trashItems.length})
+              </button>
+            </div>
+
+            {/* Sidebar Direct Access: Customer Booking Requests */}
+            <div className="pb-3 border-b border-slate-200">
+              <button
+                type="button"
+                onClick={() => setWorkspaceMode('enquiries')}
+                className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  workspaceMode === 'enquiries'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2 truncate">
+                  <Inbox className="w-3.5 h-3.5 shrink-0" />
+                  <span>Booking Requests</span>
+                </span>
+                <span
+                  className={`px-1.5 py-0.5 text-[11px] rounded tabular-nums shrink-0 ${
+                    workspaceMode === 'enquiries'
+                      ? 'bg-white/20 text-white'
+                      : newEnquiriesCount > 0
+                        ? 'bg-slate-900 text-white font-semibold'
+                        : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {newEnquiriesCount > 0
+                    ? `${newEnquiriesCount} new`
+                    : enquiries.length}
+                </span>
               </button>
             </div>
 
@@ -865,6 +1063,401 @@ export default function AdminPanelPage() {
           )}
 
           {/* =================================================================
+              MODE 2.5: CUSTOMER BOOKING REQUESTS (#enquiry Submissions)
+             ================================================================= */}
+          {workspaceMode === 'enquiries' && (
+            <div className="space-y-5">
+              <div className="bg-white border border-slate-200 rounded-md p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                  <div>
+                    <h1 className="text-lg font-semibold text-slate-900">
+                      Customer Booking Requests ({enquiries.length})
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Booking requests submitted through the website Contact
+                      &amp; Booking form (#enquiry), showing every detail filled
+                      in by the traveller.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleRefreshEnquiries}
+                      disabled={isRefreshingEnquiries}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-md cursor-pointer"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 ${
+                          isRefreshingEnquiries ? 'animate-spin' : ''
+                        }`}
+                      />
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceMode('editor')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md cursor-pointer"
+                    >
+                      Back to Editor
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(
+                      [
+                        { id: 'all', label: `All (${enquiries.length})` },
+                        {
+                          id: 'new',
+                          label: `New (${
+                            enquiries.filter((e) => e.status === 'new').length
+                          })`,
+                        },
+                        {
+                          id: 'in_progress',
+                          label: `In Progress (${
+                            enquiries.filter((e) => e.status === 'in_progress')
+                              .length
+                          })`,
+                        },
+                        {
+                          id: 'replied',
+                          label: `Replied (${
+                            enquiries.filter((e) => e.status === 'replied')
+                              .length
+                          })`,
+                        },
+                        {
+                          id: 'archived',
+                          label: `Archived (${
+                            enquiries.filter((e) => e.status === 'archived')
+                              .length
+                          })`,
+                        },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setEnquiryStatusFilter(tab.id)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded border transition-colors cursor-pointer ${
+                          enquiryStatusFilter === tab.id
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="search"
+                      value={enquirySearchQuery}
+                      onChange={(e) => setEnquirySearchQuery(e.target.value)}
+                      placeholder="Search name, email, tour..."
+                      className="pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 w-full sm:w-56"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {filteredEnquiries.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-md py-12 px-6 text-center text-xs text-slate-500">
+                  {enquiries.length === 0
+                    ? 'No booking requests have been submitted yet. When a visitor submits the booking form (#enquiry) on the Home or Contact page, all of their submitted details will appear here.'
+                    : 'No booking requests match the current filter.'}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredEnquiries.map((enquiry) => {
+                    const methodKey = (enquiry.bookingMethod ||
+                      'direct_admin') as BookingSubmissionMethod;
+                    const methodLabel =
+                      BOOKING_METHOD_LABELS[methodKey] ||
+                      enquiry.bookingMethod ||
+                      'Direct Booking Request';
+                    const cleanPhoneDigits = (enquiry.phone || '').replace(
+                      /\D/g,
+                      ''
+                    );
+                    const notesDraftValue =
+                      adminNotesDrafts[enquiry.id] !== undefined
+                        ? adminNotesDrafts[enquiry.id]
+                        : enquiry.adminNotes || '';
+                    const isBusy = savingEnquiryId === enquiry.id;
+
+                    return (
+                      <article
+                        key={enquiry.id}
+                        className="bg-white border border-slate-200 rounded-md overflow-hidden"
+                      >
+                        {/* Top Header Bar: Ref, Timestamp, Status & Actions */}
+                        <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <span className="text-xs font-mono font-semibold text-slate-900 bg-white px-2 py-0.5 border border-slate-200 rounded">
+                              {enquiry.id.toUpperCase()}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 text-[11px] font-medium rounded border ${
+                                enquiry.status === 'new'
+                                  ? 'bg-amber-50 text-amber-900 border-amber-200'
+                                  : enquiry.status === 'in_progress'
+                                    ? 'bg-sky-50 text-sky-900 border-sky-200'
+                                    : enquiry.status === 'replied'
+                                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              {ENQUIRY_STATUS_LABELS[enquiry.status] || 'New'}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              Submitted{' '}
+                              {new Date(enquiry.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label
+                              htmlFor={`status-${enquiry.id}`}
+                              className="text-xs text-slate-500"
+                            >
+                              Status:
+                            </label>
+                            <select
+                              id={`status-${enquiry.id}`}
+                              value={enquiry.status}
+                              disabled={isBusy}
+                              onChange={(e) =>
+                                handleEnquiryStatusChange(
+                                  enquiry.id,
+                                  e.target.value as CmsCustomerEnquiry['status']
+                                )
+                              }
+                              className="px-2.5 py-1 text-xs bg-white border border-slate-200 rounded text-slate-900 focus:outline-none focus:border-slate-400 cursor-pointer"
+                            >
+                              <option value="new">New</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="replied">Replied</option>
+                              <option value="archived">Archived</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() => handleDeleteEnquiry(enquiry.id)}
+                              title="Delete booking request"
+                              className="p-1.5 text-xs text-slate-500 hover:text-red-600 bg-white border border-slate-200 hover:border-red-200 rounded transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Complete Traveller Details Grid (All 10 Fields from form#enquiry) */}
+                        <div className="p-5 space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                1. Booking Method
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {methodLabel}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                2. Traveller Name
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.name}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                3. Email Address
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5 break-all">
+                                <a
+                                  href={`mailto:${enquiry.email}`}
+                                  className="underline hover:text-slate-700"
+                                >
+                                  {enquiry.email}
+                                </a>
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                4. Phone / WhatsApp
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.phone ? (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <a
+                                      href={`tel:${enquiry.phone}`}
+                                      className="underline hover:text-slate-700"
+                                    >
+                                      {enquiry.phone}
+                                    </a>
+                                    {cleanPhoneDigits && (
+                                      <a
+                                        href={`https://wa.me/${cleanPhoneDigits}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-medium text-emerald-700 hover:underline"
+                                      >
+                                        WhatsApp ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-400">
+                                    Not provided
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                5. Arrival Date
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.arrival || 'Flexible dates'}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                6. Selected Tour or Boutique Stay
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.selectedPackage ||
+                                  'Custom Tailor-Made Journey'}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                7. Travellers
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.guests}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                8. Trip Length
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.duration}
+                              </div>
+                            </div>
+
+                            <div className="p-3 bg-slate-50/70 border border-slate-100 rounded">
+                              <div className="text-[11px] font-medium text-slate-500">
+                                9. Primary Interest
+                              </div>
+                              <div className="text-sm font-medium text-slate-900 mt-0.5">
+                                {enquiry.style}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 10. Customer Notes / Plans */}
+                          <div className="p-3.5 bg-slate-50/70 border border-slate-100 rounded">
+                            <div className="text-[11px] font-medium text-slate-500">
+                              10. Tell Us About Your Plans (Traveller Message)
+                            </div>
+                            <p className="text-sm text-slate-900 mt-1 whitespace-pre-wrap leading-relaxed">
+                              {enquiry.message ? (
+                                enquiry.message
+                              ) : (
+                                <span className="text-slate-400">
+                                  No additional notes provided.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Admin Internal Notes & Quick Reply Actions */}
+                          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                            <div className="flex-1 space-y-1">
+                              <label
+                                htmlFor={`notes-${enquiry.id}`}
+                                className="block text-[11px] font-medium text-slate-600"
+                              >
+                                Internal Admin Notes
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  id={`notes-${enquiry.id}`}
+                                  type="text"
+                                  value={notesDraftValue}
+                                  onChange={(e) =>
+                                    setAdminNotesDrafts((prev) => ({
+                                      ...prev,
+                                      [enquiry.id]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Add internal follow-up notes, quote reference, or assigned consultant..."
+                                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={isBusy}
+                                  onClick={() =>
+                                    handleSaveEnquiryNotes(enquiry)
+                                  }
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded shrink-0 cursor-pointer"
+                                >
+                                  Save Note
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                              <a
+                                href={`mailto:${enquiry.email}?subject=${encodeURIComponent(
+                                  `Your Bimondo Travels Booking Request (${enquiry.id.toUpperCase()})`
+                                )}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                                Email Traveller
+                              </a>
+                              {cleanPhoneDigits && (
+                                <a
+                                  href={`https://wa.me/${cleanPhoneDigits}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded"
+                                >
+                                  <Phone className="w-3.5 h-3.5" />
+                                  WhatsApp Traveller
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================
               MODE 3: CLEAN SECTION EDITOR
              ================================================================= */}
           {workspaceMode === 'editor' && activePage && activeSection && (
@@ -1010,6 +1603,32 @@ export default function AdminPanelPage() {
                     </button>
                   </div>
                 )}
+
+              {/* Direct Booking Requests Banner when editing Contact & Multi-Channel Booking (#contact) */}
+              {(activeSection.id === 'home-contact' ||
+                activePage.id === 'contact-page') && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-white border border-slate-200 rounded-md">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-slate-900">
+                      Customer Booking Requests Submitted in #enquiry Form (
+                      {enquiries.length})
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {enquiries.length === 0
+                        ? 'No booking requests submitted yet.'
+                        : `${enquiries.length} total request(s) received (${newEnquiriesCount} new). View all traveller details including package, arrival date, guests, duration, interest, phone, email, and notes.`}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWorkspaceMode('enquiries')}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Inbox className="w-3.5 h-3.5" />
+                    View Booking Requests ({enquiries.length})
+                  </button>
+                </div>
+              )}
 
               {/* Subsections List */}
               {filteredSubsections.length === 0 ? (

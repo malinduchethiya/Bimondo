@@ -105,20 +105,15 @@ header.site-header {
   transform: translateY(0);
   opacity: 1;
   transition:
-    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.26s ease,
-    background-color 0.3s ease,
-    backdrop-filter 0.3s ease,
-    box-shadow 0.3s ease;
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.24s ease,
+    background-color 0.25s ease;
   pointer-events: auto;
-  will-change: transform, opacity;
 }
 
 header.site-header.is-scrolled {
-  background: rgba(6, 30, 44, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 8px 28px rgba(0, 14, 26, 0.28);
+  background: rgba(6, 30, 44, 0.97);
+  box-shadow: 0 4px 16px rgba(0, 14, 26, 0.22);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -184,13 +179,11 @@ header.site-header.is-hidden {
   left: 0;
   right: 0;
   z-index: 120;
-  background: rgba(8, 34, 49, 0.98);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  background: rgba(8, 34, 49, 0.99);
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 18px;
   padding: 16px 18px 20px;
-  box-shadow: 0 22px 50px rgba(0, 14, 26, 0.55);
+  box-shadow: 0 14px 32px rgba(0, 14, 26, 0.42);
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
@@ -314,10 +307,8 @@ header.site-header .desktop-nav-cta:focus {
   width: 44px;
   height: 44px;
   border-radius: 10px;
-  background: rgba(8, 36, 53, 0.58);
+  background: rgba(8, 36, 53, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   font-size: 24px;
   color: #ffffff;
   cursor: pointer;
@@ -371,13 +362,15 @@ header.site-header .desktop-nav-cta:focus {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 0.85s ease-in-out;
+  visibility: hidden;
+  transition: opacity 0.6s ease-in-out, visibility 0.6s ease-in-out;
   z-index: 0;
   pointer-events: none;
 }
 
 .hero-slide-layer.is-active {
   opacity: 1;
+  visibility: visible;
   z-index: 1;
 }
 
@@ -516,9 +509,7 @@ header.site-header .desktop-nav-cta:focus {
 .hero .pill {
   border-color: rgba(235, 252, 255, 0.65);
   color: #ffffff;
-  background: rgba(8, 34, 49, 0.34);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(8, 34, 49, 0.68);
 }
 
 .hero .pill.dark {
@@ -668,7 +659,8 @@ header.site-header .desktop-nav-cta:focus {
   height: 88%;
   border-radius: 140px 140px 12px 12px;
   overflow: hidden;
-  box-shadow: 0 18px 44px rgba(12, 45, 62, 0.15);
+  box-shadow: 0 10px 24px rgba(12, 45, 62, 0.12);
+  contain: layout paint;
 }
 
 .story-images .small {
@@ -680,19 +672,17 @@ header.site-header .desktop-nav-cta:focus {
   border: 6px solid var(--cream);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 18px 44px rgba(12, 45, 62, 0.15);
+  box-shadow: 0 10px 24px rgba(12, 45, 62, 0.12);
+  contain: layout paint;
 }
 
 .story-images .story-slide-img {
   opacity: 1;
   transform: scale(1);
-  transition: opacity 0.36s ease-in-out, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
 }
 
 .story-images .story-slide-img.is-fading {
   opacity: 0;
-  transform: scale(1.035);
 }
 
 .story .big-heading {
@@ -723,6 +713,7 @@ header.site-header .desktop-nav-cta:focus {
   background: #0a0605;
   position: relative;
   overflow: hidden;
+  contain: layout paint;
 }
 
 .bento-sr-board {
@@ -735,7 +726,6 @@ header.site-header .desktop-nav-cta:focus {
     var(--bento-glow, rgba(176, 74, 26, 0.42)) 0%,
     transparent 62%
   );
-  transition: background-color 0.55s ease;
   display: flex;
   align-items: stretch;
   justify-content: stretch;
@@ -754,7 +744,7 @@ header.site-header .desktop-nav-cta:focus {
   position: relative;
   border-radius: 10px;
   overflow: hidden;
-  will-change: transform, opacity, clip-path;
+  contain: layout paint;
 }
 
 .bento-sr-img-layer {
@@ -762,11 +752,10 @@ header.site-header .desktop-nav-cta:focus {
   inset: 0;
   width: 100%;
   height: 100%;
-  will-change: transform, filter;
 }
 
 .bento-sr-img {
-  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  display: block;
 }
 
 .bento-sr-hero {
@@ -989,6 +978,7 @@ header.site-header .desktop-nav-cta:focus {
   overflow: hidden;
   border-radius: 150px 150px 14px 14px;
   order: -1;
+  contain: layout paint;
 }
 
 .experience h2 {
@@ -1048,7 +1038,7 @@ header.site-header .desktop-nav-cta:focus {
 }
 
 .place img {
-  transition: transform 0.7s;
+  display: block;
 }
 
 .place:after {
@@ -1544,9 +1534,10 @@ footer {
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid rgba(21, 91, 114, 0.12);
-  box-shadow: 0 12px 32px rgba(12, 45, 62, 0.06);
+  box-shadow: 0 8px 20px rgba(12, 45, 62, 0.05);
   display: flex;
   flex-direction: column;
+  contain: layout paint;
 }
 
 .dest-img-wrap,
@@ -1556,6 +1547,7 @@ footer {
   height: 235px;
   width: 100%;
   overflow: hidden;
+  contain: layout paint;
 }
 
 .dest-season-badge,
@@ -1563,7 +1555,7 @@ footer {
   position: absolute;
   top: 14px;
   right: 14px;
-  background: rgba(8, 36, 53, 0.84);
+  background: rgba(8, 36, 53, 0.88);
   color: #ffffff;
   font-size: 10px;
   font-weight: 700;
@@ -1636,6 +1628,7 @@ footer {
   border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
+  contain: layout paint;
 }
 
 .gallery-overlay {
@@ -2058,7 +2051,6 @@ main:nth-of-type(1) > section#planning-faq:nth-of-type(8) {
   box-sizing: border-box;
   overflow: hidden !important;
   overscroll-behavior: none !important;
-  will-change: transform;
 }
 
 #discover.horizontal-panel-section {
@@ -2380,8 +2372,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   min-width: 0 !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
-  background: rgba(255, 255, 255, 0.88) !important;
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.96) !important;
 }
 
 #planning-faq.horizontal-panel-section .minimal-faq-pills {
@@ -3851,9 +3842,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   right: 0;
   bottom: 0;
   z-index: 80;
-  background: rgba(8, 34, 49, 0.96);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(8, 34, 49, 0.98);
   border-top: 1px solid rgba(255, 255, 255, 0.16);
   padding: 12px 16px;
   display: flex;
@@ -4636,20 +4625,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   overflow: hidden;
   padding: 12px 4px 20px;
   box-sizing: border-box;
-  mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    #000 3%,
-    #000 97%,
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent 0%,
-    #000 3%,
-    #000 97%,
-    transparent 100%
-  );
+  contain: layout paint;
 }
 
 .sliding-train-ribbon {
@@ -4657,9 +4633,6 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   flex-wrap: nowrap;
   gap: 26px;
   width: max-content;
-  will-change: transform;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
 }
 
 .sliding-profile-card.train-cart-card {
@@ -4670,15 +4643,14 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   background: #ffffff !important;
   border-radius: 25px;
   overflow: hidden;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  contain: layout paint;
 }
 
 .sliding-profile-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 36px rgba(59, 113, 254, 0.14);
+  box-shadow: 0 10px 22px rgba(59, 113, 254, 0.12);
 }
 
 .sliding-card-image-header {
@@ -4989,18 +4961,9 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   z-index: 5;
   padding: 16px 22px;
   border-radius: 16px;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  box-shadow:
-    0 16px 36px rgba(4, 18, 30, 0.22),
-    inset 0 1px 1px rgba(255, 255, 255, 0.48),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.14);
+  background: rgba(8, 34, 49, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: 0 10px 24px rgba(4, 18, 30, 0.22);
   color: #ffffff;
   display: flex;
   flex-direction: column;
@@ -5165,6 +5128,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   width: 100%;
   overflow: hidden;
   padding: 8px 0 12px;
+  contain: layout paint;
 }
 
 .places-staggered-track {
@@ -5173,9 +5137,6 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   align-items: flex-start;
   gap: 16px;
   width: max-content;
-  will-change: transform;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
 }
 
 #places .place.staggered-place-card {
@@ -5186,8 +5147,8 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   flex: 0 0 210px !important;
   border-radius: 22px !important;
   overflow: hidden !important;
-  box-shadow: 0 12px 28px rgba(11, 44, 61, 0.14);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 20px rgba(11, 44, 61, 0.12);
+  contain: layout paint;
 }
 
 #places .place.staggered-place-card.variant-tall-up {
@@ -5216,8 +5177,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
 }
 
 #places .place.staggered-place-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 18px 36px rgba(11, 44, 61, 0.22);
+  box-shadow: 0 12px 24px rgba(11, 44, 61, 0.18);
 }
 
 #places .place.staggered-place-card .staggered-place-label {
@@ -5243,21 +5203,18 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   height: 46px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.65);
-  background: rgba(11, 44, 61, 0.68);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(11, 44, 61, 0.88);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(6, 26, 38, 0.25);
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 6px 16px rgba(6, 26, 38, 0.22);
+  transition: background-color 0.2s ease;
 }
 
 .places-staggered-arrow:hover {
-  background: rgba(11, 44, 61, 0.9);
-  transform: translateY(-50%) scale(1.08);
+  background: rgba(11, 44, 61, 0.98);
 }
 
 .places-staggered-arrow.prev {

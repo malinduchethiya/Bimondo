@@ -23,8 +23,6 @@ export default function StorySection() {
             alt={story.mainImage?.alt || 'Our Story in Sri Lanka'}
             fill
             sizes="(max-width: 720px) 100vw, 50vw"
-            priority
-            loading="eager"
             className="object-cover"
           />
         </div>
@@ -38,7 +36,6 @@ export default function StorySection() {
             }
             fill
             sizes="(max-width: 720px) 50vw, 25vw"
-            loading="eager"
             className="object-cover"
           />
         </div>

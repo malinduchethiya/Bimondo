@@ -164,7 +164,6 @@ export default function ExperienceSection() {
               }
               fill
               sizes="(max-width: 720px) 100vw, 50vw"
-              loading="eager"
               className="object-cover"
             />
           </div>

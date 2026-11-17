@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
@@ -31,7 +31,7 @@ const DEFAULT_VARIANTS: StaggerSlideVariant[] = [
   'compact-mid',
 ];
 
-const AUTO_STEP_INTERVAL_MS = 2000;
+const AUTO_STEP_INTERVAL_MS = 3200;
 
 export default function PlacesSection() {
   const { cms } = useSiteCms();
@@ -54,76 +54,37 @@ export default function PlacesSection() {
   }));
 
   const totalSlides = slides.length;
-  const infiniteSlides = totalSlides > 0 ? [...slides, ...slides] : [];
 
   const sectionRef = useRef<HTMLElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const singleSetWidthRef = useRef<number>(0);
-  const stepWidthRef = useRef<number>(224);
-  const currentXRef = useRef<number>(0);
-  const targetXRef = useRef<number>(0);
+  const stepWidthRef = useRef<number>(226);
+  const maxOffsetRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
   const isVisibleRef = useRef<boolean>(false);
-  const rafIdRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
-
-  const startAnimationTick = useCallback(() => {
-    if (rafIdRef.current !== null) return;
-    lastTimeRef.current = performance.now();
-
-    const tick = (now: number) => {
-      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.06);
-      lastTimeRef.current = now;
-
-      const diff = targetXRef.current - currentXRef.current;
-      if (Math.abs(diff) > 0.25) {
-        currentXRef.current += diff * Math.min(1, dt * 8.5);
-      } else {
-        currentXRef.current = targetXRef.current;
-      }
-
-      const setWidth = singleSetWidthRef.current;
-      if (setWidth > 0) {
-        if (currentXRef.current >= setWidth) {
-          currentXRef.current -= setWidth;
-          targetXRef.current -= setWidth;
-        } else if (currentXRef.current < 0) {
-          currentXRef.current += setWidth;
-          targetXRef.current += setWidth;
-        }
-      }
-
-      if (trackRef.current) {
-        trackRef.current.style.transform = `translate3d(-${currentXRef.current.toFixed(
-          1
-        )}px, 0, 0)`;
-      }
-
-      if (Math.abs(targetXRef.current - currentXRef.current) > 0.25) {
-        rafIdRef.current = window.requestAnimationFrame(tick);
-      } else {
-        rafIdRef.current = null;
-      }
-    };
-
-    rafIdRef.current = window.requestAnimationFrame(tick);
-  }, []);
+  const isScrollingRef = useRef<boolean>(false);
+  const [stepIndex, setStepIndex] = useState<number>(0);
 
   useEffect(() => {
     if (totalSlides === 0) return;
+
     const measure = () => {
       const track = trackRef.current;
-      if (!track) return;
+      const viewport = viewportRef.current;
+      if (!track || !viewport) return;
       const items = track.children;
-      if (items.length > totalSlides) {
+      if (items.length >= 2) {
         const firstEl = items[0] as HTMLElement;
-        const secondSetEl = items[totalSlides] as HTMLElement;
-        const setWidth = secondSetEl.offsetLeft - firstEl.offsetLeft;
-        if (setWidth > 0) {
-          singleSetWidthRef.current = setWidth;
-          stepWidthRef.current = setWidth / totalSlides;
+        const secondEl = items[1] as HTMLElement;
+        const step = secondEl.offsetLeft - firstEl.offsetLeft;
+        if (step > 0) {
+          stepWidthRef.current = step;
         }
       }
+      maxOffsetRef.current = Math.max(
+        0,
+        track.scrollWidth - viewport.clientWidth
+      );
     };
 
     measure();
@@ -132,12 +93,24 @@ export default function PlacesSection() {
   }, [totalSlides]);
 
   useEffect(() => {
-    if (totalSlides === 0) return;
+    if (totalSlides <= 1) return;
+
+    let scrollTimer: number | null = null;
+    const onScroll = () => {
+      isScrollingRef.current = true;
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 220);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+
     const observer = new IntersectionObserver(
       (entries) => {
         isVisibleRef.current = Boolean(entries[0]?.isIntersecting);
       },
-      { threshold: 0.05 }
+      { threshold: 0.15 }
     );
 
     if (sectionRef.current) {
@@ -148,35 +121,62 @@ export default function PlacesSection() {
       if (
         isVisibleRef.current &&
         !isHoveredRef.current &&
+        !isScrollingRef.current &&
         !document.hidden
       ) {
-        targetXRef.current += stepWidthRef.current;
-        startAnimationTick();
+        setStepIndex((prev) => {
+          const next = prev + 1;
+          const nextPx = next * stepWidthRef.current;
+          if (
+            maxOffsetRef.current > 0 &&
+            nextPx > maxOffsetRef.current + stepWidthRef.current * 0.4
+          ) {
+            return 0;
+          }
+          return next >= totalSlides ? 0 : next;
+        });
       }
     }, AUTO_STEP_INTERVAL_MS);
 
     return () => {
       observer.disconnect();
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
       window.clearInterval(interval);
-      if (rafIdRef.current !== null) {
-        window.cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
     };
-  }, [startAnimationTick, totalSlides]);
+  }, [totalSlides]);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const rawOffset = stepIndex * stepWidthRef.current;
+    const clamped =
+      maxOffsetRef.current > 0
+        ? Math.min(rawOffset, maxOffsetRef.current)
+        : rawOffset;
+    track.style.transform = `translate3d(-${clamped.toFixed(0)}px, 0, 0)`;
+  }, [stepIndex, totalSlides]);
 
   if (placesSection.visible === false || totalSlides === 0) {
     return null;
   }
 
   const handlePrev = () => {
-    targetXRef.current -= stepWidthRef.current;
-    startAnimationTick();
+    setStepIndex((prev) => (prev <= 0 ? Math.max(0, totalSlides - 3) : prev - 1));
   };
 
   const handleNext = () => {
-    targetXRef.current += stepWidthRef.current;
-    startAnimationTick();
+    setStepIndex((prev) => {
+      const next = prev + 1;
+      const nextPx = next * stepWidthRef.current;
+      if (
+        maxOffsetRef.current > 0 &&
+        nextPx > maxOffsetRef.current + stepWidthRef.current * 0.4
+      ) {
+        return 0;
+      }
+      return next >= totalSlides ? 0 : next;
+    });
   };
 
   return (
@@ -230,11 +230,18 @@ export default function PlacesSection() {
           <ChevronLeft size={28} strokeWidth={2.4} />
         </button>
 
-        <div className="places-staggered-viewport">
-          <div ref={trackRef} className="places-staggered-track">
-            {infiniteSlides.map((slide, idx) => (
+        <div ref={viewportRef} className="places-staggered-viewport">
+          <div
+            ref={trackRef}
+            className="places-staggered-track"
+            style={{
+              transition:
+                'transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)',
+            }}
+          >
+            {slides.map((slide) => (
               <div
-                key={`${slide.id}-${idx}`}
+                key={slide.id}
                 className={`place staggered-place-card variant-${slide.variant}`}
               >
                 <CmsImage
@@ -243,7 +250,6 @@ export default function PlacesSection() {
                   alt={slide.imageRef?.alt || slide.name}
                   fill
                   sizes="(max-width: 720px) 180px, 230px"
-                  loading={idx < totalSlides ? 'eager' : 'lazy'}
                   className="object-cover"
                 />
                 <div className="place-name staggered-place-label">

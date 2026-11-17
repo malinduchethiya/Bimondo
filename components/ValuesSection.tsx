@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { CmsImageRef, createImageRef } from '@/lib/cms-defaults';
@@ -15,7 +15,7 @@ interface TouristThoughtCard {
   imageRef: CmsImageRef;
 }
 
-const TRAIN_SPEED_PX_PER_SEC = 85;
+const AUTO_STEP_INTERVAL_MS = 3600;
 
 const DOCUMENTED_PROFILE_MAP: Record<
   string,
@@ -106,35 +106,37 @@ export default function ValuesSection() {
   });
 
   const totalCards = cards.length;
-  const trainCards = totalCards > 0 ? [...cards, ...cards] : [];
   const mobileGridCards = cards.slice(0, 4);
 
   const sectionRef = useRef<HTMLElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const ribbonRef = useRef<HTMLDivElement | null>(null);
-  const dotsRef = useRef<HTMLDivElement | null>(null);
-  const firstSetWidthRef = useRef<number>(0);
   const singleCardStepRef = useRef<number>(330);
-  const currentOffsetRef = useRef<number>(0);
-  const targetNudgeRef = useRef<number>(0);
+  const maxOffsetRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
-  const currentVelocityFactorRef = useRef<number>(1);
   const isVisibleRef = useRef<boolean>(false);
+  const isScrollingRef = useRef<boolean>(false);
+  const [activeDot, setActiveDot] = useState<number>(0);
 
   useEffect(() => {
     if (totalCards === 0) return;
     const measureTrack = () => {
       const ribbon = ribbonRef.current;
-      if (!ribbon) return;
+      const viewport = viewportRef.current;
+      if (!ribbon || !viewport) return;
       const children = ribbon.children;
-      if (children.length > totalCards) {
+      if (children.length >= 2) {
         const firstCard = children[0] as HTMLElement;
-        const secondSetFirstCard = children[totalCards] as HTMLElement;
-        const setWidth = secondSetFirstCard.offsetLeft - firstCard.offsetLeft;
-        if (setWidth > 0) {
-          firstSetWidthRef.current = setWidth;
-          singleCardStepRef.current = setWidth / totalCards;
+        const secondCard = children[1] as HTMLElement;
+        const step = secondCard.offsetLeft - firstCard.offsetLeft;
+        if (step > 0) {
+          singleCardStepRef.current = step;
         }
       }
+      maxOffsetRef.current = Math.max(
+        0,
+        ribbon.scrollWidth - viewport.clientWidth
+      );
     };
 
     measureTrack();
@@ -143,147 +145,99 @@ export default function ValuesSection() {
   }, [totalCards]);
 
   useEffect(() => {
-    if (totalCards === 0) return;
-    let rafId: number | null = null;
-    let lastTime = performance.now();
-    let lastReportedDot = 0;
+    if (totalCards <= 1) return;
 
-    const updateDotDom = (activeIdx: number) => {
-      const container = dotsRef.current;
-      if (!container) return;
-      const buttons = container.children;
-      for (let i = 0; i < buttons.length; i++) {
-        const btn = buttons[i] as HTMLElement;
-        const isActive = i === activeIdx;
-        btn.classList.toggle('active', isActive);
-        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      }
+    let scrollTimer: number | null = null;
+    const onScroll = () => {
+      isScrollingRef.current = true;
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 220);
     };
 
-    const animateTrain = (now: number) => {
-      if (
-        !isVisibleRef.current ||
-        document.hidden ||
-        window.innerWidth <= 767
-      ) {
-        rafId = null;
-        return;
-      }
-
-      const dt = Math.min((now - lastTime) / 1000, 0.06);
-      lastTime = now;
-
-      const targetVel = isHoveredRef.current ? 0 : 1;
-      currentVelocityFactorRef.current +=
-        (targetVel - currentVelocityFactorRef.current) * Math.min(1, dt * 8);
-
-      currentOffsetRef.current +=
-        TRAIN_SPEED_PX_PER_SEC * currentVelocityFactorRef.current * dt;
-
-      if (Math.abs(targetNudgeRef.current) > 0.5) {
-        const step = targetNudgeRef.current * Math.min(1, dt * 10);
-        currentOffsetRef.current += step;
-        targetNudgeRef.current -= step;
-      } else if (targetNudgeRef.current !== 0) {
-        currentOffsetRef.current += targetNudgeRef.current;
-        targetNudgeRef.current = 0;
-      }
-
-      const setWidth = firstSetWidthRef.current;
-      if (setWidth > 0) {
-        if (currentOffsetRef.current >= setWidth) {
-          currentOffsetRef.current -= setWidth;
-        } else if (currentOffsetRef.current < 0) {
-          currentOffsetRef.current += setWidth;
-        }
-
-        const cardStep = singleCardStepRef.current || setWidth / totalCards;
-        const currentDot =
-          Math.floor((currentOffsetRef.current + cardStep * 0.35) / cardStep) %
-          totalCards;
-        if (currentDot !== lastReportedDot) {
-          lastReportedDot = currentDot;
-          updateDotDom(currentDot);
-        }
-      }
-
-      if (ribbonRef.current) {
-        ribbonRef.current.style.transform = `translate3d(-${currentOffsetRef.current.toFixed(
-          1
-        )}px, 0, 0)`;
-      }
-
-      rafId = window.requestAnimationFrame(animateTrain);
-    };
-
-    const startLoopIfNeeded = () => {
-      if (
-        rafId === null &&
-        isVisibleRef.current &&
-        !document.hidden &&
-        window.innerWidth > 767
-      ) {
-        lastTime = performance.now();
-        rafId = window.requestAnimationFrame(animateTrain);
-      }
-    };
+    window.addEventListener('scroll', onScroll, { passive: true });
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        isVisibleRef.current = Boolean(entry?.isIntersecting);
-        if (isVisibleRef.current) {
-          startLoopIfNeeded();
-        } else if (rafId !== null) {
-          window.cancelAnimationFrame(rafId);
-          rafId = null;
-        }
+        isVisibleRef.current = Boolean(entries[0]?.isIntersecting);
       },
-      { threshold: 0.05 }
+      { threshold: 0.15 }
     );
 
     if (sectionRef.current) {
       observer.observe(sectionRef.current);
     }
 
-    const onVisibilityChange = () => {
-      if (document.hidden && rafId !== null) {
-        window.cancelAnimationFrame(rafId);
-        rafId = null;
-      } else {
-        startLoopIfNeeded();
+    const interval = window.setInterval(() => {
+      if (
+        isVisibleRef.current &&
+        !isHoveredRef.current &&
+        !isScrollingRef.current &&
+        !document.hidden &&
+        window.innerWidth > 767
+      ) {
+        setActiveDot((prev) => {
+          const next = prev + 1;
+          const nextPx = next * singleCardStepRef.current;
+          if (
+            maxOffsetRef.current > 0 &&
+            nextPx > maxOffsetRef.current + singleCardStepRef.current * 0.4
+          ) {
+            return 0;
+          }
+          return next >= totalCards ? 0 : next;
+        });
       }
-    };
-
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('resize', startLoopIfNeeded, { passive: true });
+    }, AUTO_STEP_INTERVAL_MS);
 
     return () => {
       observer.disconnect();
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('resize', startLoopIfNeeded);
-      if (rafId !== null) {
-        window.cancelAnimationFrame(rafId);
-      }
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
+      window.clearInterval(interval);
     };
   }, [totalCards]);
+
+  const safeDot = totalCards > 0 ? activeDot % totalCards : 0;
+
+  useEffect(() => {
+    const ribbon = ribbonRef.current;
+    if (!ribbon) return;
+    const rawOffset = safeDot * singleCardStepRef.current;
+    const clamped =
+      maxOffsetRef.current > 0
+        ? Math.min(rawOffset, maxOffsetRef.current)
+        : rawOffset;
+    ribbon.style.transform = `translate3d(-${clamped.toFixed(0)}px, 0, 0)`;
+  }, [safeDot, totalCards]);
 
   if (reviewsHeading.visible === false || totalCards === 0) {
     return null;
   }
 
   const handlePrev = () => {
-    targetNudgeRef.current -= singleCardStepRef.current;
+    setActiveDot((prev) =>
+      prev <= 0 ? Math.max(0, totalCards - 1) : prev - 1
+    );
   };
 
   const handleNext = () => {
-    targetNudgeRef.current += singleCardStepRef.current;
+    setActiveDot((prev) => {
+      const next = prev + 1;
+      const nextPx = next * singleCardStepRef.current;
+      if (
+        maxOffsetRef.current > 0 &&
+        nextPx > maxOffsetRef.current + singleCardStepRef.current * 0.4
+      ) {
+        return 0;
+      }
+      return next >= totalCards ? 0 : next;
+    });
   };
 
   const handleDotClick = (dotIndex: number) => {
-    const desiredOffset = dotIndex * singleCardStepRef.current;
-    const diff = desiredOffset - currentOffsetRef.current;
-    targetNudgeRef.current = diff;
+    setActiveDot(dotIndex);
   };
 
   return (
@@ -322,11 +276,18 @@ export default function ValuesSection() {
               <ChevronLeft size={36} strokeWidth={2.4} />
             </button>
 
-            <div className="sliding-cards-viewport">
-              <div ref={ribbonRef} className="sliding-train-ribbon">
-                {trainCards.map((card, idx) => (
+            <div ref={viewportRef} className="sliding-cards-viewport">
+              <div
+                ref={ribbonRef}
+                className="sliding-train-ribbon"
+                style={{
+                  transition:
+                    'transform 0.48s cubic-bezier(0.22, 1, 0.36, 1)',
+                }}
+              >
+                {cards.map((card) => (
                   <article
-                    key={`${card.id}-cart-${idx}`}
+                    key={card.id}
                     className="sliding-profile-card train-cart-card"
                   >
                     <div className="sliding-card-image-header">
@@ -338,7 +299,6 @@ export default function ValuesSection() {
                           alt={card.imageRef?.alt || card.name}
                           fill
                           sizes="132px"
-                          loading={idx < totalCards ? 'eager' : 'lazy'}
                           className="sliding-card-avatar-img"
                         />
                       </div>
@@ -369,7 +329,6 @@ export default function ValuesSection() {
           </div>
 
           <div
-            ref={dotsRef}
             className="sliding-cards-dots"
             role="tablist"
             aria-label="Tourist thoughts pagination"
@@ -379,8 +338,8 @@ export default function ValuesSection() {
                 key={card.id}
                 type="button"
                 role="tab"
-                aria-selected={i === 0}
-                className={`sliding-cards-dot ${i === 0 ? 'active' : ''}`}
+                aria-selected={i === safeDot}
+                className={`sliding-cards-dot ${i === safeDot ? 'active' : ''}`}
                 onClick={() => handleDotClick(i)}
                 aria-label={`Jump to tourist thought ${i + 1}`}
               />
@@ -402,7 +361,6 @@ export default function ValuesSection() {
                     alt={card.imageRef?.alt || card.name}
                     fill
                     sizes="56px"
-                    loading="eager"
                     className="object-cover"
                   />
                 </div>
