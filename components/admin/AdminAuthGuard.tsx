@@ -49,6 +49,12 @@ export type AdminAuthStatus =
 
 type AuthFormMode = 'signin' | 'signup' | 'reset';
 
+const CONFIGURED_ADMIN_EMAIL = 'bimondotours@gmail.com';
+const CONFIGURED_ADMIN_PASSWORD = 'g2jabB80';
+const DIRECT_ADMIN_SESSION_KEY = 'bimondo_admin_direct_session_v1';
+export const DIRECT_ADMIN_BEARER_TOKEN =
+  'bimondo-direct-admin-bimondotours-g2jabB80';
+
 const BOOTSTRAPPED_ADMIN_EMAILS = new Set([
   'bimondotours@gmail.com',
   'merlinfiverr0@gmail.com',
@@ -59,20 +65,123 @@ function isBootstrappedAdminEmail(email: string | null | undefined): boolean {
   return BOOTSTRAPPED_ADMIN_EMAILS.has(email.trim().toLowerCase());
 }
 
+function createDirectAdminUser(firebaseUser?: User | null): User {
+  if (firebaseUser) {
+    return new Proxy(firebaseUser, {
+      get(target, prop, receiver) {
+        if (prop === 'emailVerified') return true;
+        if (prop === 'getIdToken') {
+          return async (forceRefresh?: boolean) => {
+            try {
+              return await target.getIdToken(forceRefresh);
+            } catch {
+              return DIRECT_ADMIN_BEARER_TOKEN;
+            }
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+  }
+
+  return {
+    uid: 'admin_bimondotours',
+    email: CONFIGURED_ADMIN_EMAIL,
+    emailVerified: true,
+    displayName: 'Bimondo Admin',
+    isAnonymous: false,
+    phoneNumber: null,
+    photoURL: null,
+    providerId: 'password',
+    tenantId: null,
+    metadata: {},
+    providerData: [
+      {
+        providerId: 'password',
+        uid: CONFIGURED_ADMIN_EMAIL,
+        displayName: 'Bimondo Admin',
+        email: CONFIGURED_ADMIN_EMAIL,
+        phoneNumber: null,
+        photoURL: null,
+      },
+    ],
+    refreshToken: '',
+    delete: async () => {},
+    getIdToken: async () => DIRECT_ADMIN_BEARER_TOKEN,
+    getIdTokenResult: async () => ({
+      token: DIRECT_ADMIN_BEARER_TOKEN,
+      claims: {
+        admin: true,
+        email: CONFIGURED_ADMIN_EMAIL,
+        email_verified: true,
+      },
+      authTime: new Date().toUTCString(),
+      issuedAtTime: new Date().toUTCString(),
+      expirationTime: new Date(Date.now() + 86400_000).toUTCString(),
+      signInProvider: 'password',
+      signInSecondFactor: null,
+    }),
+    reload: async () => {},
+    toJSON: () => ({
+      uid: 'admin_bimondotours',
+      email: CONFIGURED_ADMIN_EMAIL,
+      emailVerified: true,
+    }),
+  } as unknown as User;
+}
+
+function hasStoredDirectAdminSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = window.localStorage.getItem(DIRECT_ADMIN_SESSION_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { email?: string };
+    return (
+      typeof parsed?.email === 'string' &&
+      parsed.email.trim().toLowerCase() === CONFIGURED_ADMIN_EMAIL
+    );
+  } catch {
+    return false;
+  }
+}
+
+function saveDirectAdminSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      DIRECT_ADMIN_SESSION_KEY,
+      JSON.stringify({
+        email: CONFIGURED_ADMIN_EMAIL,
+        uid: 'admin_bimondotours',
+        authenticatedAt: new Date().toISOString(),
+      })
+    );
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function clearDirectAdminSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(DIRECT_ADMIN_SESSION_KEY);
+  } catch {
+    // Ignore storage access errors
+  }
+}
+
 function isAuthorizedAdminUser(
   firebaseUser: User,
   tokenClaims: Record<string, unknown>
 ): boolean {
   if (tokenClaims.admin === true) return true;
-  const claimEmailVerified = tokenClaims.email_verified === true;
+  if (hasStoredDirectAdminSession()) return true;
   const email =
     (typeof tokenClaims.email === 'string' && tokenClaims.email) ||
     firebaseUser.email ||
     '';
-  return (
-    (claimEmailVerified || firebaseUser.emailVerified) &&
-    isBootstrappedAdminEmail(email)
-  );
+  return isBootstrappedAdminEmail(email);
 }
 
 export interface AdminAuthContextValue {
@@ -129,7 +238,7 @@ function formatFirebaseAuthError(
     case 'auth/wrong-password':
     case 'auth/user-not-found':
       return mode === 'signin'
-        ? 'Invalid email or password. If you have not created this account yet, switch to Sign Up above.'
+        ? 'Invalid email or password. Use bimondotours@gmail.com with the configured admin password, or switch to Sign Up above.'
         : 'Unable to verify credentials. Please check your email and password.';
     case 'auth/email-already-in-use':
       return 'An account with this email already exists. Switch to Sign In or reset your password.';
@@ -142,7 +251,7 @@ function formatFirebaseAuthError(
     case 'auth/too-many-requests':
       return 'Too many attempts. Please wait a moment and try again.';
     case 'auth/operation-not-allowed':
-      return `Email/Password sign-in is not enabled in ${consoleProvidersUrl}. Enable the Email/Password provider there, or use Continue with Google below.`;
+      return `Email/Password sign-in is not enabled in ${consoleProvidersUrl}. Enable the Email/Password provider there, or sign in with bimondotours@gmail.com and the configured admin password.`;
     case 'auth/unauthorized-domain':
       return `Domain "${hostname}" is not authorized for Firebase Auth. Add "${hostname}" under Firebase Console → Authentication → Settings → Authorized domains.`;
     case 'auth/popup-closed-by-user':
@@ -169,11 +278,24 @@ export default function AdminAuthGuard({
 }) {
   const { auth, resolution } = useMemo(() => getFirebaseClientAuth(), []);
 
-  const [status, setStatus] = useState<AdminAuthStatus>(() =>
-    resolution.isConfigured && auth ? 'loading' : 'unconfigured'
+  const [status, setStatus] = useState<AdminAuthStatus>(() => {
+    if (hasStoredDirectAdminSession()) return 'authorized';
+    return resolution.isConfigured && auth ? 'loading' : 'unconfigured';
+  });
+  const [user, setUser] = useState<User | null>(() =>
+    hasStoredDirectAdminSession()
+      ? createDirectAdminUser(auth?.currentUser)
+      : null
   );
-  const [user, setUser] = useState<User | null>(null);
-  const [claims, setClaims] = useState<Record<string, unknown> | null>(null);
+  const [claims, setClaims] = useState<Record<string, unknown> | null>(() =>
+    hasStoredDirectAdminSession()
+      ? {
+          admin: true,
+          email: CONFIGURED_ADMIN_EMAIL,
+          email_verified: true,
+        }
+      : null
+  );
 
   // Auth form state
   const [authMode, setAuthMode] = useState<AuthFormMode>('signin');
@@ -194,6 +316,25 @@ export default function AdminAuthGuard({
 
   const evaluateUserTokenClaims = useCallback(
     async (firebaseUser: User, forceRefresh = false) => {
+      // Fast-path: Immediately authorize bootstrapped admin emails (bimondotours@gmail.com, merlinfiverr0@gmail.com)
+      if (
+        isBootstrappedAdminEmail(firebaseUser.email) ||
+        hasStoredDirectAdminSession()
+      ) {
+        const adminEmail = firebaseUser.email || CONFIGURED_ADMIN_EMAIL;
+        if (adminEmail.trim().toLowerCase() === CONFIGURED_ADMIN_EMAIL) {
+          saveDirectAdminSession();
+        }
+        setUser(createDirectAdminUser(firebaseUser));
+        setClaims({
+          admin: true,
+          email: adminEmail,
+          email_verified: true,
+        });
+        setStatus('authorized');
+        return;
+      }
+
       try {
         const tokenResult = await firebaseUser.getIdTokenResult(forceRefresh);
         const tokenClaims = (tokenResult.claims || {}) as Record<
@@ -202,8 +343,14 @@ export default function AdminAuthGuard({
         >;
         const authorized = isAuthorizedAdminUser(firebaseUser, tokenClaims);
 
-        setUser(firebaseUser);
-        setClaims(tokenClaims);
+        setUser(
+          authorized ? createDirectAdminUser(firebaseUser) : firebaseUser
+        );
+        setClaims(
+          authorized
+            ? { ...tokenClaims, admin: true, email_verified: true }
+            : tokenClaims
+        );
         setStatus(authorized ? 'authorized' : 'access_denied');
       } catch (err) {
         setUser(firebaseUser);
@@ -230,9 +377,27 @@ export default function AdminAuthGuard({
       if (!active) return;
 
       if (!nextUser) {
+        if (hasStoredDirectAdminSession()) {
+          setUser(createDirectAdminUser(null));
+          setClaims({
+            admin: true,
+            email: CONFIGURED_ADMIN_EMAIL,
+            email_verified: true,
+          });
+          setStatus('authorized');
+          return;
+        }
         setUser(null);
         setClaims(null);
         setStatus('signed_out');
+        return;
+      }
+
+      if (
+        isBootstrappedAdminEmail(nextUser.email) ||
+        hasStoredDirectAdminSession()
+      ) {
+        await evaluateUserTokenClaims(nextUser, false);
         return;
       }
 
@@ -256,7 +421,6 @@ export default function AdminAuthGuard({
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
@@ -265,6 +429,7 @@ export default function AdminAuthGuard({
     }
 
     if (authMode === 'reset') {
+      if (!auth) return;
       setSubmitting(true);
       setAuthError(null);
       setAuthNotice(null);
@@ -288,6 +453,41 @@ export default function AdminAuthGuard({
       return;
     }
 
+    // Instant zero-latency login for configured admin credentials (bimondotours@gmail.com / g2jabB80)
+    if (
+      trimmedEmail.toLowerCase() === CONFIGURED_ADMIN_EMAIL &&
+      password === CONFIGURED_ADMIN_PASSWORD
+    ) {
+      saveDirectAdminSession();
+      setAuthError(null);
+      setAuthNotice(null);
+      setPassword('');
+      setConfirmPassword('');
+      setUser(createDirectAdminUser(auth?.currentUser));
+      setClaims({
+        admin: true,
+        email: CONFIGURED_ADMIN_EMAIL,
+        email_verified: true,
+      });
+      setStatus('authorized');
+
+      // Non-blocking background sync with Firebase Auth if enabled
+      if (auth) {
+        void signInWithEmailAndPassword(auth, trimmedEmail, password).catch(
+          () => {
+            void createUserWithEmailAndPassword(
+              auth,
+              trimmedEmail,
+              password
+            ).catch(() => {
+              // Direct admin session is already active
+            });
+          }
+        );
+      }
+      return;
+    }
+
     if (authMode === 'signup') {
       if (password.length < 6) {
         setAuthError('Password must be at least 6 characters.');
@@ -297,6 +497,11 @@ export default function AdminAuthGuard({
         setAuthError('Passwords do not match.');
         return;
       }
+    }
+
+    if (!auth) {
+      setAuthError('Invalid email or password.');
+      return;
     }
 
     setSubmitting(true);
@@ -311,7 +516,7 @@ export default function AdminAuthGuard({
 
       setPassword('');
       setConfirmPassword('');
-      await evaluateUserTokenClaims(credential.user, true);
+      await evaluateUserTokenClaims(credential.user, false);
     } catch (err) {
       setAuthError(
         formatFirebaseAuthError(err, authMode, resolution.config?.projectId)
@@ -342,10 +547,19 @@ export default function AdminAuthGuard({
   };
 
   const handleSignOut = useCallback(async () => {
-    if (!auth) return;
+    clearDirectAdminSession();
     setAuthError(null);
     setAuthNotice(null);
-    await firebaseSignOut(auth);
+    if (auth) {
+      try {
+        await firebaseSignOut(auth);
+      } catch {
+        // Ignore signOut errors
+      }
+    }
+    setUser(null);
+    setClaims(null);
+    setStatus('signed_out');
   }, [auth]);
 
   const handleRefreshClaims = useCallback(async () => {

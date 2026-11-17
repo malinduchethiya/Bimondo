@@ -159,9 +159,16 @@ export default function Header() {
           aria-label="Bimondo home"
           onClick={(e) => handleNavClick(e, '/')}
         >
-          <span className="brand-mark">{headerContent.brandMonogram}</span>
-          <span>{headerContent.brandName}</span>
-          <span className="brand-sub">{headerContent.brandSubtitle}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt={headerContent.brandName || 'Bimondo Tours'}
+            className="brand-logo-img"
+            width={160}
+            height={64}
+            decoding="sync"
+            fetchPriority="high"
+          />
         </Link>
 
         <nav

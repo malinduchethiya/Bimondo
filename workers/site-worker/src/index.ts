@@ -26,6 +26,52 @@ function toEnvRecord(env: WorkerEnv): Record<string, string | undefined> {
   return out;
 }
 
+const SITEMAP_PATHS: {
+  path: string;
+  changefreq: string;
+  priority: string;
+}[] = [
+  { path: '/', changefreq: 'weekly', priority: '1.0' },
+  { path: '/destinations', changefreq: 'weekly', priority: '0.9' },
+  { path: '/packages', changefreq: 'weekly', priority: '0.9' },
+  { path: '/stays', changefreq: 'weekly', priority: '0.85' },
+  { path: '/gallery', changefreq: 'monthly', priority: '0.8' },
+  { path: '/our-story', changefreq: 'monthly', priority: '0.8' },
+  { path: '/contact', changefreq: 'monthly', priority: '0.85' },
+  { path: '/booking', changefreq: 'weekly', priority: '0.8' },
+];
+
+function buildSitemapXml(origin: string): string {
+  const baseUrl = (origin || 'https://www.bimondotours.com').replace(/\/+$/, '');
+  const lastmod = new Date().toISOString();
+  const entries = SITEMAP_PATHS.map(
+    (item) => `  <url>
+    <loc>${baseUrl}${item.path}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${item.changefreq}</changefreq>
+    <priority>${item.priority}</priority>
+  </url>`
+  ).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries}
+</urlset>
+`;
+}
+
+function buildRobotsTxt(origin: string): string {
+  const baseUrl = (origin || 'https://www.bimondotours.com').replace(/\/+$/, '');
+  return `User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Host: ${baseUrl}
+Sitemap: ${baseUrl}/sitemap.xml
+`;
+}
+
 export async function handleSiteWorkerRequest(
   request: Request,
   env: WorkerEnv,
@@ -33,6 +79,26 @@ export async function handleSiteWorkerRequest(
 ): Promise<Response> {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
+
+  if (pathname === '/sitemap.xml' && request.method === 'GET') {
+    return new Response(buildSitemapXml(url.origin), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
+
+  if (pathname === '/robots.txt' && request.method === 'GET') {
+    return new Response(buildRobotsTxt(url.origin), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    });
+  }
 
   if (pathname === '/api/media' || pathname.startsWith('/api/media/')) {
     return handleR2MediaApiRequest(request, env, r2Options);
