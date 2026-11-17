@@ -16,7 +16,9 @@ import {
   filterCmsForPublic,
   FirestoreImportResult,
   FirestoreSaveResult,
+  isForbiddenImageUrl,
   normalizeCmsData,
+  readCachedFirestoreSnapshot,
 } from '@/lib/content-repository';
 
 interface CmsStoreSnapshot {
@@ -45,16 +47,105 @@ const serverSnapshot: CmsStoreSnapshot = {
   loadError: null,
 };
 
-let clientSnapshot: CmsStoreSnapshot = {
-  ...serverSnapshot,
-  loading: true,
-};
+const initialCached =
+  typeof window !== 'undefined' ? readCachedFirestoreSnapshot() : null;
+
+let clientSnapshot: CmsStoreSnapshot = initialCached
+  ? {
+      publicCms: initialCached.publicCms,
+      adminCms: initialCached.adminCms,
+      sectionMeta: initialCached.sectionMeta,
+      existingSectionCount: initialCached.existingSectionCount,
+      totalSectionCount: initialCached.totalSectionCount,
+      loading: false,
+      initializedFromServer: true,
+      loadError: null,
+    }
+  : {
+      ...serverSnapshot,
+      loading: true,
+    };
 
 type StoreListener = () => void;
 const listeners = new Set<StoreListener>();
 let inflightLoadPromise: Promise<SiteCmsData> | null = null;
 let hasTriggeredInitialLoad = false;
 let windowEventsAttached = false;
+const preloadedImageUrls = new Set<string>();
+
+function warmCriticalCmsImages(cms: SiteCmsData) {
+  if (typeof window === 'undefined') return;
+
+  const highPriorityUrls: string[] = [];
+  const warmUrls: string[] = [];
+
+  for (const slide of cms.pages?.home?.hero?.slides || []) {
+    if (slide.visible !== false && !slide.deletedAt && slide.image?.url) {
+      highPriorityUrls.push(slide.image.url.trim());
+    }
+  }
+
+  if (cms.pages?.home?.story?.mainImage?.url) {
+    highPriorityUrls.push(cms.pages.home.story.mainImage.url.trim());
+  }
+  if (cms.pages?.home?.story?.secondaryImage?.url) {
+    warmUrls.push(cms.pages.home.story.secondaryImage.url.trim());
+  }
+  if (cms.pages?.home?.experience?.featureImage?.url) {
+    warmUrls.push(cms.pages.home.experience.featureImage.url.trim());
+  }
+
+  const firstBento = (cms.bentoDestinations || []).find(
+    (b) => b.visible !== false && !b.deletedAt
+  );
+  if (firstBento) {
+    for (const ref of [
+      firstBento.heroImageRef,
+      firstBento.pathwayImageRef,
+      firstBento.tallSceneImageRef,
+      firstBento.natureImageRef,
+      firstBento.cuisineImageRef,
+    ]) {
+      if (ref?.url) warmUrls.push(ref.url.trim());
+    }
+  }
+
+  for (const dest of (cms.destinations || []).slice(0, 4)) {
+    const u = (dest.imageRef?.url || dest.image || '').trim();
+    if (u) warmUrls.push(u);
+  }
+
+  const preloadSingle = (rawUrl: string, highPriority: boolean) => {
+    if (
+      !rawUrl ||
+      isForbiddenImageUrl(rawUrl) ||
+      preloadedImageUrls.has(rawUrl)
+    ) {
+      return;
+    }
+    preloadedImageUrls.add(rawUrl);
+
+    try {
+      const img = new window.Image();
+      img.decoding = 'async';
+      if (highPriority && 'fetchPriority' in img) {
+        (img as HTMLImageElement & { fetchPriority?: string }).fetchPriority =
+          'high';
+      }
+      img.referrerPolicy = 'no-referrer';
+      img.src = rawUrl;
+    } catch {
+      // Ignore image warm errors
+    }
+  };
+
+  highPriorityUrls.forEach((u) => preloadSingle(u, true));
+  warmUrls.forEach((u) => preloadSingle(u, false));
+}
+
+if (initialCached) {
+  warmCriticalCmsImages(initialCached.publicCms);
+}
 
 function getClientSnapshot(): CmsStoreSnapshot {
   return clientSnapshot;
@@ -68,20 +159,25 @@ function notifyListeners() {
   listeners.forEach((fn) => fn());
 }
 
-async function performFirestoreFetch(): Promise<SiteCmsData> {
-  if (inflightLoadPromise) {
+async function performFirestoreFetch(forceServer = false): Promise<SiteCmsData> {
+  if (inflightLoadPromise && !forceServer) {
     return inflightLoadPromise;
   }
 
-  clientSnapshot = {
-    ...clientSnapshot,
-    loading: true,
-  };
-  notifyListeners();
+  if (!clientSnapshot.initializedFromServer) {
+    clientSnapshot = {
+      ...clientSnapshot,
+      loading: true,
+    };
+    notifyListeners();
+  }
 
   inflightLoadPromise = (async () => {
     try {
-      const result = await contentRepository.fetchFromFirestore();
+      const result = await contentRepository.fetchFromFirestore({
+        forceServer,
+      });
+      warmCriticalCmsImages(result.publicCms);
       clientSnapshot = {
         publicCms: result.publicCms,
         adminCms: result.adminCms,
@@ -102,12 +198,18 @@ async function performFirestoreFetch(): Promise<SiteCmsData> {
   return inflightLoadPromise;
 }
 
+if (typeof window !== 'undefined' && !hasTriggeredInitialLoad) {
+  hasTriggeredInitialLoad = true;
+  contentRepository.clearLegacyLocalStorage();
+  void performFirestoreFetch(false);
+}
+
 function ensureWindowEvents() {
   if (windowEventsAttached || typeof window === 'undefined') return;
   windowEventsAttached = true;
 
   const handleCustomUpdate = () => {
-    void performFirestoreFetch();
+    void performFirestoreFetch(true);
   };
 
   window.addEventListener(CMS_UPDATED_EVENT, handleCustomUpdate);
@@ -139,16 +241,16 @@ export function useSiteCms() {
     contentRepository.clearLegacyLocalStorage();
     if (!hasTriggeredInitialLoad) {
       hasTriggeredInitialLoad = true;
-      void performFirestoreFetch();
+      void performFirestoreFetch(false);
     }
   }, []);
 
   const reloadFromRepository = useCallback(async (): Promise<SiteCmsData> => {
-    return performFirestoreFetch();
+    return performFirestoreFetch(true);
   }, []);
 
   const refresh = useCallback(async () => {
-    await performFirestoreFetch();
+    await performFirestoreFetch(true);
   }, []);
 
   const saveCmsToFirestore = useCallback(
@@ -165,7 +267,7 @@ export function useSiteCms() {
       });
 
       if (result.valid) {
-        await performFirestoreFetch();
+        await performFirestoreFetch(true);
       }
       return result;
     },
@@ -176,7 +278,7 @@ export function useSiteCms() {
     async (adminUid: string): Promise<FirestoreImportResult> => {
       const result =
         await contentRepository.initializeMissingContentInFirestore(adminUid);
-      await performFirestoreFetch();
+      await performFirestoreFetch(true);
       return result;
     },
     []

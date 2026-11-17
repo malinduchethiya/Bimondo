@@ -81,7 +81,7 @@ export default function HeroSection() {
         {visibleSlides.length > 0 ? (
           visibleSlides.map((slide, idx) => {
             const isActive = idx === safeActiveIndex;
-            const shouldEagerLoad =
+            const isHighPriority =
               idx === 0 || isActive || idx === nextSlideIndex;
 
             return (
@@ -95,8 +95,8 @@ export default function HeroSection() {
                   alt={slide.image?.alt || `Sri Lanka Hero Slide ${idx + 1}`}
                   fill
                   sizes="100vw"
-                  priority={idx === 0}
-                  loading={shouldEagerLoad ? 'eager' : 'lazy'}
+                  priority={isHighPriority}
+                  loading="eager"
                   className="object-cover"
                 />
               </div>

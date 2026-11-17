@@ -41,11 +41,11 @@ export default function PackagesPage() {
 
   const categories = [
     { id: 'all', label: `All Signature Journeys (${toursList.length})` },
-    { id: 'heritage', label: 'Culture, Heritage & Island Circuits' },
-    { id: 'wildlife', label: 'Hiking & Wildlife' },
-    { id: 'adventure', label: 'Adventure Tours' },
-    { id: 'coast', label: 'Sea, Sand, Luxury & Honeymoon' },
-    { id: 'family', label: 'Family & Slow Travel' },
+    { id: 'adventure', label: 'Adventure Journeys' },
+    { id: 'heritage', label: 'Culture and Heritage Journeys' },
+    { id: 'coast', label: 'Sea and Sand Escapes' },
+    { id: 'wildlife', label: 'Hiking and Wildlife Journeys' },
+    { id: 'family', label: 'Families and Special Markets' },
   ];
 
   const filtered =
@@ -88,7 +88,7 @@ export default function PackagesPage() {
           <p>{pageContent.introSection.description}</p>
         </div>
 
-        {/* Required Qualification Notice from Company Profile Section 09 */}
+        {/* Required Qualification Notice from Company Profile Section 06 / 09 */}
         <div
           style={{
             padding: '14px 18px',
@@ -101,8 +101,9 @@ export default function PackagesPage() {
             color: 'var(--ink)',
           }}
         >
-          <strong>{pageContent.introSection.qualificationLabel}</strong>{' '}
-          {pageContent.introSection.qualificationNotice}
+          <strong>{pageContent.introSection.qualificationLabel}</strong> These
+          are sample itineraries. Routes, durations, hotels, and inclusions are
+          confirmed upon consultation. {pageContent.introSection.qualificationNotice}
         </div>
 
         {/* Filter Pills */}
@@ -122,7 +123,7 @@ export default function PackagesPage() {
         {/* Split Layout: Packages Grid + Sticky Desktop Booking Panel */}
         <div className="tour-detail-booking-layout">
           <div className="packages-grid">
-            {filtered.map((tour) => {
+            {filtered.map((tour, idx) => {
               const isSelected = resolvedBookingTour?.id === tour.id;
               const cmsTour = tour as CmsTourItem;
               return (
@@ -139,6 +140,8 @@ export default function PackagesPage() {
                       alt={cmsTour.imageRef?.alt || tour.name}
                       fill
                       sizes="(max-width: 768px) 100vw, 33vw"
+                      priority={idx < 2}
+                      loading={idx < 6 ? 'eager' : 'lazy'}
                       className="object-cover"
                     />
                     <span className="tour-tag">
@@ -230,6 +233,90 @@ export default function PackagesPage() {
               />
             </aside>
           )}
+        </div>
+
+        {/* Section 13: Target Travellers and Markets */}
+        <div style={{ marginTop: '64px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 13 · TARGET TRAVELLERS & SOURCE MARKETS
+              </div>
+              <h2 className="serif">
+                Tailored for international{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  markets & travel styles.
+                </em>
+              </h2>
+            </div>
+            <p>
+              Our itineraries are designed around the flight schedules, holiday
+              durations, dietary preferences, and travel styles of our core
+              source markets and guest profiles.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                code: '01 · UNITED KINGDOM AND EUROPE',
+                title: 'Longer Island Circuits & Slow Travel',
+                desc: 'Multi-region island journeys combining the Cultural Triangle, hill-country tea estates, national park wildlife safaris, southern beaches, highland hiking on The Pekoe Trail, and unhurried boutique stays.',
+              },
+              {
+                code: '02 · INDIA',
+                title: 'Short & Medium Breaks',
+                desc: 'Convenient 4 to 7-day holidays connecting Colombo, Kandy, Nuwara Eliya, and Bentota for couples, families, and small private groups—featuring vegetarian-friendly four-star and five-star hotels.',
+              },
+              {
+                code: '03 · AUSTRALIA',
+                title: 'Surfing, Wildlife & Active Holidays',
+                desc: 'Longer active itineraries timed to the right coastal season—pairing warm-water surf breaks in Weligama or Arugam Bay with highland hikes, national park safaris, and relaxed coastal stays.',
+              },
+              {
+                code: '04 · FAMILIES',
+                title: 'Comfortable Pace & Family Stays',
+                desc: 'Shorter daily driving times, interconnecting family rooms, safe swimming beaches, visits to the Udawalawe Elephant Transit Home, scenic highland train journeys, and gentle activities for all ages.',
+              },
+              {
+                code: '05 · ADVENTURE TRAVELLERS',
+                title: 'Multi-Sport Island Expeditions',
+                desc: 'Dedicated adventure routes featuring surfing, Kelani River white-water rafting and waterfall abseiling in Kitulgala, paramotoring in Bentota, kite surfing in Kalpitiya, reef/wreck diving in Galle, and rainforest trekking.',
+              },
+            ].map((market) => (
+              <div
+                key={market.code}
+                className="value"
+                style={{ borderTopColor: '#c8dbe2' }}
+              >
+                <span
+                  className="number"
+                  style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                >
+                  {market.code}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    color: 'var(--ink)',
+                    fontSize: '23px',
+                    margin: '10px 0 8px',
+                  }}
+                >
+                  {market.title}
+                </h3>
+                <p style={{ color: '#557180', lineHeight: 1.75 }}>
+                  {market.desc}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Section 10: Colombo & Battaramulla Day Experiences */}

@@ -1336,6 +1336,9 @@ function sanitizePlainFirestoreMap<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj)) as T;
 }
 
+export const FIRESTORE_CMS_SNAPSHOT_CACHE_KEY =
+  'bimondo_firestore_cms_snapshot_v1';
+
 export interface LoadedFirestoreContentSnapshot {
   adminCms: SiteCmsData;
   publicCms: SiteCmsData;
@@ -1345,10 +1348,64 @@ export interface LoadedFirestoreContentSnapshot {
   error: string | null;
 }
 
+export function readCachedFirestoreSnapshot(): LoadedFirestoreContentSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(FIRESTORE_CMS_SNAPSHOT_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<LoadedFirestoreContentSnapshot>;
+    if (!parsed || !isPlainObject(parsed.adminCms)) return null;
+    const normalizedAdmin = normalizeCmsData(parsed.adminCms);
+    const normalizedPublic = filterCmsForPublic(normalizedAdmin);
+    const baseMeta = createInitialSectionMetaMap();
+    const mergedMeta = isPlainObject(parsed.sectionMeta)
+      ? {
+          ...baseMeta,
+          ...(parsed.sectionMeta as Record<CmsSectionDocId, CmsSectionMetadata>),
+        }
+      : baseMeta;
+
+    return {
+      adminCms: normalizedAdmin,
+      publicCms: normalizedPublic,
+      sectionMeta: mergedMeta,
+      existingSectionCount:
+        typeof parsed.existingSectionCount === 'number'
+          ? parsed.existingSectionCount
+          : 0,
+      totalSectionCount: CMS_SECTION_DEFINITIONS.length,
+      error: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedFirestoreSnapshot(
+  snapshot: LoadedFirestoreContentSnapshot
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      FIRESTORE_CMS_SNAPSHOT_CACHE_KEY,
+      JSON.stringify({
+        adminCms: snapshot.adminCms,
+        sectionMeta: snapshot.sectionMeta,
+        existingSectionCount: snapshot.existingSectionCount,
+        totalSectionCount: snapshot.totalSectionCount,
+      })
+    );
+  } catch {
+    // Ignore storage quota or access errors
+  }
+}
+
 export interface ContentRepository {
   readonly storageLabel: string;
   clearLegacyLocalStorage(): void;
-  fetchFromFirestore(): Promise<LoadedFirestoreContentSnapshot>;
+  fetchFromFirestore(options?: {
+    forceServer?: boolean;
+  }): Promise<LoadedFirestoreContentSnapshot>;
   saveChangedSectionsToFirestore(params: {
     nextCms: SiteCmsData;
     baselineCms: SiteCmsData;
@@ -1379,7 +1436,9 @@ class FirestoreContentRepository implements ContentRepository {
     }
   }
 
-  async fetchFromFirestore(): Promise<LoadedFirestoreContentSnapshot> {
+  async fetchFromFirestore(options?: {
+    forceServer?: boolean;
+  }): Promise<LoadedFirestoreContentSnapshot> {
     this.clearLegacyLocalStorage();
 
     const defaults = getDefaultCmsData();
@@ -1387,6 +1446,8 @@ class FirestoreContentRepository implements ContentRepository {
     const { db, resolution } = getFirebaseClientServices();
 
     if (!resolution.isConfigured || !db) {
+      const cached = readCachedFirestoreSnapshot();
+      if (cached) return cached;
       const normalizedDefaults = normalizeCmsData(defaults);
       return {
         adminCms: normalizedDefaults,
@@ -1401,11 +1462,18 @@ class FirestoreContentRepository implements ContentRepository {
     try {
       const colRef = collection(db, CMS_SECTIONS_COLLECTION);
       let snap;
-      try {
-        // Prefer fresh server reads so admin saves are reflected immediately on next page load
-        snap = await getDocsFromServer(colRef);
-      } catch {
-        snap = await getDocs(colRef);
+      if (options?.forceServer) {
+        try {
+          snap = await getDocsFromServer(colRef);
+        } catch {
+          snap = await getDocs(colRef);
+        }
+      } else {
+        try {
+          snap = await getDocs(colRef);
+        } catch {
+          snap = await getDocsFromServer(colRef);
+        }
       }
 
       const workingCms = JSON.parse(JSON.stringify(defaults)) as SiteCmsData;
@@ -1457,7 +1525,7 @@ class FirestoreContentRepository implements ContentRepository {
       const normalizedAdmin = normalizeCmsData(workingCms);
       const normalizedPublic = filterCmsForPublic(normalizedAdmin);
 
-      return {
+      const snapshot: LoadedFirestoreContentSnapshot = {
         adminCms: normalizedAdmin,
         publicCms: normalizedPublic,
         sectionMeta,
@@ -1465,6 +1533,12 @@ class FirestoreContentRepository implements ContentRepository {
         totalSectionCount: CMS_SECTION_DEFINITIONS.length,
         error: null,
       };
+
+      if (existingCount > 0) {
+        writeCachedFirestoreSnapshot(snapshot);
+      }
+
+      return snapshot;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('Missing or insufficient permissions')) {
@@ -1473,6 +1547,14 @@ class FirestoreContentRepository implements ContentRepository {
         } catch {
           // Logged structured error; return graceful fallback for UI
         }
+      }
+
+      const cached = readCachedFirestoreSnapshot();
+      if (cached) {
+        return {
+          ...cached,
+          error: msg,
+        };
       }
 
       const normalizedDefaults = normalizeCmsData(defaults);

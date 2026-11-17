@@ -159,7 +159,7 @@ export const TOURS: Tour[] = [
     name: 'Ancient Kingdoms',
     days: 7,
     category: 'heritage',
-    categoryLabel: 'Culture and Heritage',
+    categoryLabel: 'Culture and Heritage Journeys',
     route: 'Anuradhapura, Polonnaruwa, Sigiriya, Dambulla, Kandy',
     description:
       'The great ancient capitals, the Lion Rock and Pidurangala, the Dambulla cave temple and the Temple of the Tooth.',
@@ -173,7 +173,7 @@ export const TOURS: Tour[] = [
     name: 'Sunrise on Two Rocks',
     days: 4,
     category: 'heritage',
-    categoryLabel: 'Culture and Heritage',
+    categoryLabel: 'Culture and Heritage Journeys',
     route: 'Sigiriya, Pidurangala, Minneriya',
     description:
       'A short journey with a sunrise climb of Pidurangala, Sigiriya, village life and the elephant gathering at Minneriya in season.',
@@ -187,7 +187,7 @@ export const TOURS: Tour[] = [
     name: 'Ceylon Grand Circuit',
     days: 14,
     category: 'heritage',
-    categoryLabel: 'Culture and Heritage',
+    categoryLabel: 'Culture and Heritage Journeys',
     route: 'Islandwide (Cultural Triangle, Kandy, Tea Country, Ella, Yala, South Coast)',
     description:
       'The classic first time journey through the Cultural Triangle, Kandy, the tea country, Ella, Yala and the south coast.',
@@ -201,7 +201,7 @@ export const TOURS: Tour[] = [
     name: 'Kandy and the Hill Capital',
     days: 5,
     category: 'heritage',
-    categoryLabel: 'Culture and Heritage',
+    categoryLabel: 'Culture and Heritage Journeys',
     route: 'Kandy, Peradeniya, Nuwara Eliya',
     description:
       'The Temple of the Tooth, the Royal Botanical Gardens, tea estates and the cool hill station of Nuwara Eliya.',
@@ -257,7 +257,7 @@ export const TOURS: Tour[] = [
     name: 'Leopards, Elephants and Whales',
     days: 9,
     category: 'wildlife',
-    categoryLabel: 'Hiking and Wildlife',
+    categoryLabel: 'Hiking and Wildlife Journeys',
     route: 'Minneriya, Udawalawe, Yala, Mirissa',
     description:
       'A wildlife focused journey with safaris in three national parks and whale watching in season.',
@@ -271,7 +271,7 @@ export const TOURS: Tour[] = [
     name: 'Wilpattu Wilderness',
     days: 4,
     category: 'wildlife',
-    categoryLabel: 'Hiking and Wildlife',
+    categoryLabel: 'Hiking and Wildlife Journeys',
     route: 'Wilpattu and Anuradhapura',
     description:
       'Safaris in Sri Lanka’s largest national park, known for its lakes and leopards, combined with the sacred city.',
@@ -285,7 +285,7 @@ export const TOURS: Tour[] = [
     name: 'The Pekoe Trail Walk',
     days: 8,
     category: 'wildlife',
-    categoryLabel: 'Hiking and Wildlife',
+    categoryLabel: 'Hiking and Wildlife Journeys',
     route: 'Kandy, the tea country, Ella',
     description:
       'Selected stages of the Pekoe Trail through tea estates and villages, with comfortable stays and luggage transfers.',
@@ -299,7 +299,7 @@ export const TOURS: Tour[] = [
     name: 'Rainforest and Waterfalls',
     days: 6,
     category: 'wildlife',
-    categoryLabel: 'Hiking and Wildlife',
+    categoryLabel: 'Hiking and Wildlife Journeys',
     route: 'Sinharaja, Ella, Horton Plains',
     description:
       'A trek in the Sinharaja rainforest, waterfall hikes around Ella and the walk to World’s End.',
@@ -313,7 +313,7 @@ export const TOURS: Tour[] = [
     name: 'Family Island Discovery',
     days: 10,
     category: 'family',
-    categoryLabel: 'Families & Special Markets',
+    categoryLabel: 'Families and Special Markets',
     route: 'Islandwide',
     description:
       'Elephants, safaris, turtle hatcheries, train rides and safe beach time, with short drives and family rooms.',
@@ -327,7 +327,7 @@ export const TOURS: Tour[] = [
     name: 'Little Explorers',
     days: 6,
     category: 'family',
-    categoryLabel: 'Families & Special Markets',
+    categoryLabel: 'Families and Special Markets',
     route: 'Kandy, Udawalawe, Bentota',
     description:
       'A shorter family trip with an elephant transit home visit, a safari, a river safari and beach fun.',
@@ -341,7 +341,7 @@ export const TOURS: Tour[] = [
     name: 'India to Island Express',
     days: 5,
     category: 'family',
-    categoryLabel: 'Families & Special Markets',
+    categoryLabel: 'Families and Special Markets',
     route: 'Colombo, Kandy, Nuwara Eliya',
     description:
       'A short holiday for small Indian groups with city shopping, the hill country and vegetarian friendly hotels.',
@@ -355,7 +355,7 @@ export const TOURS: Tour[] = [
     name: 'Hills and Beaches for Friends',
     days: 7,
     category: 'family',
-    categoryLabel: 'Families & Special Markets',
+    categoryLabel: 'Families and Special Markets',
     route: 'Kandy, Nuwara Eliya, Ella, Bentota',
     description:
       'A lively journey for small groups of friends with the Ella train, adventure options and beach days.',
@@ -369,7 +369,7 @@ export const TOURS: Tour[] = [
     name: 'Australian Adventure Combo',
     days: 12,
     category: 'family',
-    categoryLabel: 'Families & Special Markets',
+    categoryLabel: 'Families and Special Markets',
     route: 'Islandwide',
     description:
       'Surfing, safaris, hiking and the Cultural Triangle in one active holiday, timed to the right coast for the season.',

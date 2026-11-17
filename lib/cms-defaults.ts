@@ -529,6 +529,7 @@ export interface CmsOurStoryPageContent {
     founderName: string;
     credentialsLine: string;
     bioParagraph: string;
+    involvementAreas?: string[];
     quote: string;
     ctaLabel: string;
     ctaHref: string;
@@ -541,6 +542,30 @@ export interface CmsOurStoryPageContent {
     primaryMarketsText: string;
     supportText: string;
   };
+  competitiveAdvantagesSection?: {
+    eyebrow: string;
+    headingPrefix: string;
+    headingItalic: string;
+    description: string;
+    items: {
+      id: string;
+      num: string;
+      title: string;
+      desc: string;
+    }[];
+  };
+  sustainabilitySection?: {
+    eyebrow: string;
+    headingPrefix: string;
+    headingItalic: string;
+    description: string;
+    items: {
+      id: string;
+      category: string;
+      title: string;
+      desc: string;
+    }[];
+  };
   roadmapSection: {
     eyebrow: string;
     headingPrefix: string;
@@ -549,9 +574,18 @@ export interface CmsOurStoryPageContent {
     stages: {
       id: string;
       stage: string;
+      statusLabel?: string;
       title: string;
       desc: string;
     }[];
+  };
+  promiseSection?: {
+    eyebrow: string;
+    headingPrefix: string;
+    headingItalic: string;
+    description: string;
+    commitments: string[];
+    closingTagline: string;
   };
 }
 
@@ -829,85 +863,85 @@ export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [];
 export const DEFAULT_REVIEWS: CmsReviewItem[] = [
   {
     id: 'thought-1',
-    name: 'David & Sarah Miller',
-    location: 'United Kingdom',
+    name: 'United Kingdom & Europe Travellers',
+    location: 'United Kingdom & Europe',
     rating: 5,
-    tour: 'Grand Island Journey',
-    date: 'Visited 2026',
+    tour: 'Ceylon Grand Circuit & Ancient Kingdoms',
+    date: 'Primary Market Profile',
     quote:
-      '“Traveling privately with Bimondo made Sri Lanka feel effortless. From climbing Sigiriya at dawn to quiet tea hills in Ella, every day moved at our own pace.”',
+      'Longer 10 to 14-day private island journeys combining the ancient capitals of Sigiriya, Anuradhapura, Polonnaruwa, and Kandy with tea-country rail journeys, national park safaris, and unhurried south-coast stays.',
     image: '',
-    imageRef: createImageRef('', 'David & Sarah Miller'),
+    imageRef: createImageRef('', 'United Kingdom & Europe Travellers'),
     visible: true,
     order: 1,
   },
   {
     id: 'thought-2',
-    name: 'Claire Dubois',
-    location: 'France',
+    name: 'Hiking, Tea Hills & Slow Travel',
+    location: 'United Kingdom & Europe',
     rating: 5,
-    tour: 'Pekoe Trail & South Coast',
-    date: 'Visited 2026',
+    tour: 'The Pekoe Trail Walk & Galle Coast',
+    date: 'Traveller Focus',
     quote:
-      '“Walking stages of The Pekoe Trail and finishing along the southern coast in Galle was unforgettable. Our guide shared the real Sri Lanka with such warmth.”',
+      'Curated walking stages on The Pekoe Trail from Kandy through the highland tea estates to Ella with point-to-point luggage transfers, followed by boutique heritage stays and coastal relaxation in Galle.',
     image: '',
-    imageRef: createImageRef('', 'Claire Dubois'),
+    imageRef: createImageRef('', 'Hiking, Tea Hills & Slow Travel'),
     visible: true,
     order: 2,
   },
   {
     id: 'thought-3',
-    name: 'Liam & Chloe Reynolds',
+    name: 'Australian Surf & Active Travellers',
     location: 'Australia',
     rating: 5,
-    tour: 'Surf, Safari & Coast',
-    date: 'Visited 2026',
+    tour: 'Australian Adventure Combo & Surf Circuits',
+    date: 'Primary Market Profile',
     quote:
-      '“Morning surf sessions in Weligama, watching wild elephants gather in Udawalawe, and 24-hour support from the Battaramulla team — truly a feeling you carry home.”',
+      'Active 8 to 12-day journeys timed to the right coast for the season—pairing warm-water surf breaks in Weligama (Nov–Apr) or Arugam Bay (May–Oct) with highland hikes, wildlife safaris, and 24-hour local support.',
     image: '',
-    imageRef: createImageRef('', 'Liam & Chloe Reynolds'),
+    imageRef: createImageRef('', 'Australian Surf & Active Travellers'),
     visible: true,
     order: 3,
   },
   {
     id: 'thought-4',
-    name: 'Ananya & Rohan Sharma',
+    name: 'Indian Couples, Families & Small Groups',
     location: 'India',
     rating: 5,
-    tour: 'Cultural Triangle & Hills',
-    date: 'Visited 2026',
+    tour: 'India to Island Express & Hill Country',
+    date: 'Primary Market Profile',
     quote:
-      '“Every detail was thoughtfully arranged for our family. Visiting Kandy, Nuwara Eliya, and Bentota with a private driver made the whole trip calm and memorable.”',
+      'Convenient short and medium breaks connecting Colombo shopping, Kandy heritage, cool Nuwara Eliya tea hills, and Bentota beaches—with private air-conditioned vehicles and vegetarian-friendly four-star to five-star hotels.',
     image: '',
-    imageRef: createImageRef('', 'Ananya & Rohan Sharma'),
+    imageRef: createImageRef('', 'Indian Couples, Families & Small Groups'),
     visible: true,
     order: 4,
   },
   {
     id: 'thought-5',
-    name: 'Lukas & Hannah Weber',
-    location: 'Germany',
+    name: 'Wildlife, Rainforest & Nature Lovers',
+    location: 'International Private Guests',
     rating: 5,
-    tour: 'Wildlife & Rainforests',
-    date: 'Visited 2026',
+    tour: 'Leopards, Elephants, Whales & Sinharaja',
+    date: 'Traveller Focus',
     quote:
-      '“Our safaris in Yala and Wilpattu were handled with genuine respect for nature. Starting with the Thalangama wetland walk near Colombo was a wonderful touch.”',
+      'Responsible wildlife safaris across Yala, Udawalawe, Wilpattu, and Minneriya with experienced naturalists, UNESCO Sinharaja rainforest walks, and early morning birdwalks around Thalangama Wetland near Colombo.',
     image: '',
-    imageRef: createImageRef('', 'Lukas & Hannah Weber'),
+    imageRef: createImageRef('', 'Wildlife, Rainforest & Nature Lovers'),
     visible: true,
     order: 5,
   },
   {
     id: 'thought-6',
-    name: 'Sofía & Mateo Rossi',
-    location: 'Italy',
+    name: 'Families & Multi-Generational Guests',
+    location: 'Families & Private Groups',
     rating: 5,
-    tour: 'Romance in Ceylon',
-    date: 'Visited 2026',
+    tour: 'Family Island Discovery & Little Explorers',
+    date: 'Traveller Focus',
     quote:
-      '“From candlelit hill-country stays in Ella to sunset walks along Galle Fort ramparts, our honeymoon felt completely personal from arrival to departure.”',
+      'Thoughtfully paced family holidays with shorter driving days, interconnecting family rooms, safe beaches, the Udawalawe Elephant Transit Home, scenic highland train rides, and attentive private drivers.',
     image: '',
-    imageRef: createImageRef('', 'Sofía & Mateo Rossi'),
+    imageRef: createImageRef('', 'Families & Multi-Generational Guests'),
     visible: true,
     order: 6,
   },
@@ -1241,26 +1275,26 @@ export function buildDefaultPagesMap(): CmsPagesMap {
           {
             id: 'exp-1',
             num: '01',
-            title: 'Adventure Tours',
-            desc: 'Surfing at Weligama (Nov–Apr) & Arugam Bay (May–Oct), white-water rafting & waterfall abseiling in Kitulgala, paramotoring in Bentota, and diving & kite surfing in Kalpitiya.',
+            title: 'Adventure Sri Lanka',
+            desc: 'Surfing at Weligama (Nov–Apr) & Arugam Bay (May–Oct), white-water rafting & waterfall abseiling in Kitulgala, paramotoring in Bentota, kite surfing & Bar Reef snorkelling in Kalpitiya, and diving off Galle & Unawatuna.',
           },
           {
             id: 'exp-2',
             num: '02',
-            title: 'Culture & Heritage',
-            desc: 'Sigiriya Rock Fortress, Pidurangala, the Temple of the Tooth in Kandy, Dambulla cave temple, and the ancient capitals of Anuradhapura and Polonnaruwa.',
+            title: 'Culture and Heritage',
+            desc: 'Sigiriya Rock Fortress, Pidurangala sunrise climbs, the Temple of the Sacred Tooth Relic in Kandy, Dambulla Cave Temple, and the ancient capitals of Anuradhapura and Polonnaruwa.',
           },
           {
             id: 'exp-3',
             num: '03',
-            title: 'Sea & Sand Escapes',
-            desc: 'Relaxed coastal stays in Galle, Unawatuna, Mirissa, Weligama, Bentota, Kalpitiya, and Arugam Bay matched carefully to the island’s seasons.',
+            title: 'Sea and Sand Escapes',
+            desc: 'Relaxed four-star, boutique, and five-star coastal stays across Galle, Unawatuna, Mirissa, Weligama, Bentota, Kalpitiya, and Arugam Bay matched carefully to the island’s two coastal seasons.',
           },
           {
             id: 'exp-4',
             num: '04',
-            title: 'Hiking & Wildlife',
-            desc: 'Safaris in Yala, Udawalawe, Wilpattu & Minneriya, walks along The Pekoe Trail, Sinharaja rainforest, Horton Plains & World’s End, Little Adam’s Peak, and Ella Rock.',
+            title: 'Hiking and Wildlife',
+            desc: 'Safaris in Yala, Udawalawe, Wilpattu & Minneriya, guided walks along The Pekoe Trail, Sinharaja Rainforest, Horton Plains & World’s End, Little Adam’s Peak, and Ella Rock.',
           },
         ],
       },
@@ -1276,58 +1310,58 @@ export function buildDefaultPagesMap(): CmsPagesMap {
       },
       valuesReviews: {
         visible: true,
-        eyebrow: '05 / TRAVELLER THOUGHTS',
-        headingPrefix: 'Stories carried',
-        headingItalic: 'home.',
+        eyebrow: '05 / WHO WE HOST · MARKETS & TRAVELLER PROFILES',
+        headingPrefix: 'Designed around',
+        headingItalic: 'how you travel.',
       },
       planningFaq: {
         visible: true,
-        eyebrow: '06 / HOW A BIMONDO JOURNEY WORKS',
-        headingLine1: 'Seven clear steps.',
+        eyebrow: '06 / THE GUEST JOURNEY · SEVEN STAGES',
+        headingLine1: 'Seven clear stages.',
         headingItalic: 'Personal from day one.',
-        lead: 'From your first message to your departure flight, every itinerary is designed around your pace with clear written arrangements and 24-hour local support.',
+        lead: 'From your first enquiry via website, email, WhatsApp, Facebook, or Instagram to your departure transfer and post-trip follow-up, every journey is planned around your dates, pace, and interests.',
         steps: [
           {
             id: 'step-01',
             num: '01',
             title: 'Enquiry',
-            desc: 'Reach us via website, email, or WhatsApp.',
+            desc: 'Contact us via website, email, WhatsApp, Facebook, or Instagram.',
           },
           {
             id: 'step-02',
             num: '02',
             title: 'Consultation',
-            desc: 'Discuss your pace, stays, and interests.',
+            desc: 'Discuss travel dates, group size, interests, pace, accommodation level, and budget.',
           },
           {
             id: 'step-03',
             num: '03',
             title: 'Itinerary Design',
-            desc: 'Custom day-by-day route & hotel curation.',
+            desc: 'Tailor-made route, daily activities, driving times, and hotel options.',
           },
           {
             id: 'step-04',
             num: '04',
-            title: 'Confirmation',
-            desc: 'Clear quotation & confirmed reservations.',
+            title: 'Quotation & Confirmation',
+            desc: 'Clear written quotation with inclusions, exclusions, and booking terms.',
           },
           {
             id: 'step-05',
             num: '05',
-            title: 'Pre-Arrival',
-            desc: 'Packing notes, etiquette & guide details.',
+            title: 'Pre-Arrival Information',
+            desc: 'Practical guidance on visas, weather, clothing, money, temple etiquette, and emergency contacts.',
           },
           {
             id: 'step-06',
             num: '06',
-            title: 'Arrival & Journey',
-            desc: 'Airport greeting & 24-hour local support.',
+            title: 'Arrival and Journey',
+            desc: 'Airport greeting, private transport, confirmed stays, and 24-hour local support.',
           },
           {
             id: 'step-07',
             num: '07',
-            title: 'Follow-Up',
-            desc: 'Departure transfer & post-trip care.',
+            title: 'Departure & Follow-Up',
+            desc: 'Airport transfer on departure and post-trip feedback follow-up.',
           },
         ],
         stepCtaKicker: 'START YOUR JOURNEY',
@@ -1543,10 +1577,10 @@ export function buildDefaultPagesMap(): CmsPagesMap {
         headingItalic: 'every itinerary.',
         visionLabel: 'Our Vision:',
         visionText:
-          'To be a trusted and admired Sri Lankan travel company known for authentic experiences, responsible tourism, and warm, personal service.',
+          'To be the most beloved name in the Sri Lankan tourism industry, creating authentic and unique travel experiences while uplifting our people and preserving our heritage.',
         missionLabel: 'Our Mission:',
         missionText:
-          "To design and deliver well-planned journeys across Sri Lanka that connect travellers with the island's landscapes, heritage, wildlife, and people—while supporting local communities and protecting the places we visit.",
+          'To craft private, authentic journeys across the island, driven by innovation while maintaining respect for our heritage.',
         coreValues: [
           {
             id: 'val-01',
@@ -1592,68 +1626,186 @@ export function buildDefaultPagesMap(): CmsPagesMap {
         credentialsLine:
           'Founder, Bimondo Travels · Established 2022 · No. 596/1, Thalangama South, Battaramulla, Sri Lanka.',
         bioParagraph:
-          'Bimondo Travels was founded by I.M. Bimsara Illangasinghe with a hands-on approach to travel planning and guest care. Every itinerary is shaped with direct attention to route pacing, accommodation quality, guide selection, and on-the-ground reliability.',
+          'Bimondo Travels was founded in 2022 by I.M. Bimsara Illangasinghe in Thalangama, Battaramulla, with direct hands-on involvement across itinerary development, hotel selection, guest relations, drivers and guides, supplier partnerships, quality assurance, and guest feedback.',
+        involvementAreas: [
+          'Itinerary development',
+          'Hotel selection',
+          'Guest relations',
+          'Drivers and guides',
+          'Supplier partnerships',
+          'Quality assurance',
+          'Guest feedback',
+        ],
         quote:
-          '“When you travel with Bimondo Travels, you are not a booking number on a manifest. You are our guest in our home country. We promise honest advice before you book, thoughtful planning tailored to your interests, reliable people on the ground, respect for Sri Lanka’s nature and culture, and a team that stays with you from arrival to departure.”',
+          '“When you travel with Bimondo Travels, you are not a booking number on a manifest. You are our guest in our home country. We promise careful planning, honest advice, safe travel, comfortable accommodation, reliable 24-hour support, and personalized journeys from arrival to departure.”',
         ctaLabel: 'PLAN YOUR JOURNEY WITH US ↗',
         ctaHref: '/contact',
-        glanceHeading: 'Leadership Values & At a Glance',
+        glanceHeading: 'Five Leadership Principles',
         leadershipValues: [
           {
             id: 'lead-1',
-            title: 'Personal Accountability',
-            desc: 'Direct involvement in trip planning, supplier selection, and guest satisfaction.',
+            title: 'Listen to the guest first.',
+            desc: 'Every itinerary begins with understanding the guest’s interests, preferred travel pace, accommodation expectations, and budget.',
           },
           {
             id: 'lead-2',
-            title: 'Local Knowledge',
-            desc: 'First-hand understanding of routes, seasons, hotels, guides, and local communities across Sri Lanka.',
+            title: 'Be honest about what is possible.',
+            desc: 'We give realistic advice on driving times, regional seasons, sea conditions, wildlife sightings, and daily pacing.',
           },
           {
             id: 'lead-3',
-            title: 'Fair Partnerships',
-            desc: 'Long-term relationships with drivers, specialist guides, small hotels, and activity providers.',
+            title: 'Respond quickly.',
+            desc: 'Fast, clear communication before booking and 24-hour on-call assistance throughout your journey in Sri Lanka.',
           },
           {
             id: 'lead-4',
-            title: 'Attention to Detail',
-            desc: 'Careful pacing, realistic driving times, and thoughtful touches that make a journey run smoothly.',
+            title: 'Choose reliable partners.',
+            desc: 'Working with vetted local drivers, licensed guides, four-star to five-star hotels, and qualified adventure operators.',
           },
           {
             id: 'lead-5',
-            title: 'Continuous Improvement',
-            desc: 'Refining itineraries and services based on direct feedback from every guest.',
+            title: 'Respect Sri Lankan people, culture, and nature.',
+            desc: 'Uplifting local communities, honouring sacred heritage sites, and protecting the island’s wildlife, forests, and coasts.',
           },
         ],
-        primaryMarketsText: 'United Kingdom & Europe · India · Australia',
+        primaryMarketsText: 'United Kingdom and Europe · India · Australia',
         supportText: '24-hour on-call assistance (+94 76 223 2054)',
       },
-      roadmapSection: {
-        eyebrow: '17 / LOOKING AHEAD',
-        headingPrefix: 'Realistic growth',
-        headingItalic: 'roadmap.',
+      competitiveAdvantagesSection: {
+        eyebrow: '06 / WHY BIMONDO TRAVELS · COMPETITIVE ADVANTAGES',
+        headingPrefix: 'Eight reasons guests',
+        headingItalic: 'travel with us.',
         description:
-          'Growing steadily while keeping our service personal, hands-on, and grounded in Battaramulla.',
+          'Combining personal, private itinerary design from our Battaramulla base with a strong islandwide adventure range, luxury accommodation options, and 24-hour guest support.',
+        items: [
+          {
+            id: 'adv-01',
+            num: '01',
+            title: 'Operating Since 2022',
+            desc: 'Established in 2022 in Thalangama South, Battaramulla, serving international travellers from the United Kingdom, Europe, India, and Australia.',
+          },
+          {
+            id: 'adv-02',
+            num: '02',
+            title: 'Strong Adventure Range',
+            desc: 'Surfing in Weligama and Arugam Bay, white-water rafting and abseiling in Kitulgala, paramotoring in Bentota, kite surfing in Kalpitiya, diving in Galle, and highland trekking.',
+          },
+          {
+            id: 'adv-03',
+            num: '03',
+            title: 'Private and Personal Travel',
+            desc: 'Tailor-made itineraries built around your own dates, pace, and interests—for solo travellers, couples, families, and small private groups.',
+          },
+          {
+            id: 'adv-04',
+            num: '04',
+            title: '24-Hour Support',
+            desc: 'Round-the-clock on-call assistance from our local operations team throughout your journey in Sri Lanka.',
+          },
+          {
+            id: 'adv-05',
+            num: '05',
+            title: 'Digital Convenience',
+            desc: 'Online booking confirmations, clear written itinerary summaries, WhatsApp concierge support, and social media enquiry handling.',
+          },
+          {
+            id: 'adv-06',
+            num: '06',
+            title: 'Luxury Accommodation Options',
+            desc: 'Handpicked four-star hotels, characterful boutique properties, and five-star luxury resorts matched to your route and budget.',
+          },
+          {
+            id: 'adv-07',
+            num: '07',
+            title: 'Colombo-Area Operational Base',
+            desc: 'Strategically based in Thalangama South, Battaramulla near Colombo, Parliament, Diyawanna Lake, Kotte, and the airport expressway network.',
+          },
+          {
+            id: 'adv-08',
+            num: '08',
+            title: 'Authenticity with Sustainability',
+            desc: 'Genuine local experiences that uplift Sri Lankan communities, respect sacred heritage, and protect wildlife and natural habitats.',
+          },
+        ],
+      },
+      sustainabilitySection: {
+        eyebrow: '16 / SUSTAINABILITY & HERITAGE PRESERVATION',
+        headingPrefix: 'Uplifting our people.',
+        headingItalic: 'Preserving our heritage.',
+        description:
+          'Responsible tourism is central to how we plan and operate every journey across Sri Lanka.',
+        items: [
+          {
+            id: 'sust-01',
+            category: 'COMMUNITY UPLIFTMENT',
+            title: 'Local Drivers, Guides & Family-Run Businesses',
+            desc: 'Working directly with Sri Lankan drivers, licensed guides, family-run restaurants, and authentic community experiences so tourism income benefits local people.',
+          },
+          {
+            id: 'sust-02',
+            category: 'CULTURAL RESPECT',
+            title: 'Temple Dress Codes & Responsible Photography',
+            desc: 'Briefing guests on respectful dress codes at sacred Buddhist and Hindu sites, etiquette at the Temple of the Tooth and ancient capitals, and considerate photography.',
+          },
+          {
+            id: 'sust-03',
+            category: 'ETHICAL WILDLIFE',
+            title: 'Responsible National Park & Marine Viewing',
+            desc: 'Partnering with safari and marine operators in Yala, Udawalawe, Wilpattu, Minneriya, Mirissa, and Kalpitiya who follow park rules and never crowd or disturb wildlife.',
+          },
+          {
+            id: 'sust-04',
+            category: 'ENVIRONMENTAL CARE',
+            title: 'Reduced Plastic & Habitat Protection',
+            desc: 'Encouraging reduced single-use plastic and protecting Sri Lanka’s rainforests, highland trails, beaches, wetlands, and coral reefs.',
+          },
+        ],
+      },
+      roadmapSection: {
+        eyebrow: '17 / GROWTH ROADMAP (2022 – 2031)',
+        headingPrefix: 'Three stages of',
+        headingItalic: 'steady growth.',
+        description:
+          'Stage One reflects our foundation built since 2022; Stages Two and Three outline our future strategic objectives through 2031.',
         stages: [
           {
             id: 'stage-1',
-            stage: 'STAGE ONE · 2022 – 2026',
+            stage: 'STAGE ONE · 2022 – 2026 (FOUNDATION)',
+            statusLabel: 'Current Foundation',
             title: 'Foundation',
-            desc: 'Establishing Bimondo Travels in Battaramulla, building a trusted network of drivers, guides, and hotel partners, and refining our core tour collection across adventure, culture, coast, and wildlife.',
+            desc: 'Establish the company in Battaramulla, build hotel, transport, and adventure partnerships, develop signature tours, launch www.bimondotours.com, build presence on Facebook and Instagram, and serve travellers from the UK, Europe, India, and Australia.',
           },
           {
             id: 'stage-2',
-            stage: 'STAGE TWO · 2026 – 2028',
-            title: 'Strengthening Partnerships',
-            desc: 'Expanding relationships with overseas travel advisors and tour operators in the UK, Europe, India, and Australia, while enhancing our digital itinerary and online booking tools.',
+            stage: 'STAGE TWO · 2026 – 2028 (FUTURE OBJECTIVE)',
+            statusLabel: 'Planned Objective',
+            title: 'Expansion',
+            desc: 'Expand luxury and boutique accommodation partnerships, add curated adventure and hiking routes, strengthen B2B partnerships with international travel agents, improve digital booking, itinerary, and customer support systems, and grow repeat and referral business.',
           },
           {
             id: 'stage-3',
-            stage: 'STAGE THREE · 2028 – 2031',
-            title: 'Sustainable Growth',
-            desc: 'Developing deeper regional experiences—including walking stages of The Pekoe Trail, community-led rural visits, and conservation-focused wildlife journeys—while keeping our service personal and hands-on.',
+            stage: 'STAGE THREE · 2028 – 2031 (FUTURE OBJECTIVE)',
+            statusLabel: 'Planned Objective',
+            title: 'Global Footprint',
+            desc: 'Position Bimondo Travels as a recognised Sri Lankan boutique adventure and experiential travel brand, build stronger trade representation in key source markets, expand sustainable and community-linked travel experiences, and develop specialist sub-brands or collections for surf, trekking, wildlife, and luxury coastal travel.',
           },
         ],
+      },
+      promiseSection: {
+        eyebrow: '18 / OUR PROMISE',
+        headingPrefix: 'Our commitment to',
+        headingItalic: 'every guest.',
+        description:
+          'Every journey we operate across Sri Lanka is backed by six clear commitments from our team in Battaramulla:',
+        commitments: [
+          'Careful planning tailored around your travel dates, pace, and interests',
+          'Honest advice on driving times, regional seasons, sea conditions, and wildlife',
+          'Safe travel with vetted vehicles, professional drivers, and qualified adventure operators',
+          'Comfortable accommodation across curated four-star, boutique, and five-star stays',
+          'Reliable 24-hour local support from arrival at the airport to departure',
+          'Personalized journeys that respect Sri Lankan people, heritage, and nature',
+        ],
+        closingTagline: 'Not a place you visit, but a feeling you carry home.',
       },
     },
     contactPage: {
@@ -1803,10 +1955,9 @@ export function getDefaultCmsData(): SiteCmsData {
       locationLabel: 'No. 596/1, Thalangama South, Battaramulla, Sri Lanka',
       foundedYear: '2022',
       founderName: 'I.M. Bimsara Illangasinghe',
-      facebookLabel: 'Bimondo',
+      facebookLabel: 'Bimondo tours',
       websiteUrl: 'https://www.bimondotours.com',
-      primaryMarkets:
-        'United Kingdom, Europe, Australia, India, and the Middle East',
+      primaryMarkets: 'United Kingdom and Europe, India, Australia',
       heroImages: DEFAULT_HERO_IMAGES,
       storyMainImage: '',
       storySecondaryImage: '',

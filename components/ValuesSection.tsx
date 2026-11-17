@@ -17,6 +17,63 @@ interface TouristThoughtCard {
 
 const TRAIN_SPEED_PX_PER_SEC = 85;
 
+const DOCUMENTED_PROFILE_MAP: Record<
+  string,
+  { name: string; location: string; tour: string; quote: string }
+> = {
+  'thought-1': {
+    name: 'United Kingdom & Europe Travellers',
+    location: 'United Kingdom & Europe',
+    tour: 'Ceylon Grand Circuit & Ancient Kingdoms',
+    quote:
+      'Longer 10 to 14-day private island journeys combining the ancient capitals of Sigiriya, Anuradhapura, Polonnaruwa, and Kandy with tea-country rail journeys, national park safaris, and unhurried south-coast stays.',
+  },
+  'thought-2': {
+    name: 'Hiking, Tea Hills & Slow Travel',
+    location: 'United Kingdom & Europe',
+    tour: 'The Pekoe Trail Walk & Galle Coast',
+    quote:
+      'Curated walking stages on The Pekoe Trail from Kandy through the highland tea estates to Ella with point-to-point luggage transfers, followed by boutique heritage stays and coastal relaxation in Galle.',
+  },
+  'thought-3': {
+    name: 'Australian Surf & Active Travellers',
+    location: 'Australia',
+    tour: 'Australian Adventure Combo & Surf Circuits',
+    quote:
+      'Active 8 to 12-day journeys timed to the right coast for the season—pairing warm-water surf breaks in Weligama (Nov–Apr) or Arugam Bay (May–Oct) with highland hikes, wildlife safaris, and 24-hour local support.',
+  },
+  'thought-4': {
+    name: 'Indian Couples, Families & Small Groups',
+    location: 'India',
+    tour: 'India to Island Express & Hill Country',
+    quote:
+      'Convenient short and medium breaks connecting Colombo shopping, Kandy heritage, cool Nuwara Eliya tea hills, and Bentota beaches—with private air-conditioned vehicles and vegetarian-friendly four-star to five-star hotels.',
+  },
+  'thought-5': {
+    name: 'Wildlife, Rainforest & Nature Lovers',
+    location: 'International Private Guests',
+    tour: 'Leopards, Elephants, Whales & Sinharaja',
+    quote:
+      'Responsible wildlife safaris across Yala, Udawalawe, Wilpattu, and Minneriya with experienced naturalists, UNESCO Sinharaja rainforest walks, and early morning birdwalks around Thalangama Wetland near Colombo.',
+  },
+  'thought-6': {
+    name: 'Families & Multi-Generational Guests',
+    location: 'Families & Private Groups',
+    tour: 'Family Island Discovery & Little Explorers',
+    quote:
+      'Thoughtfully paced family holidays with shorter driving days, interconnecting family rooms, safe beaches, the Udawalawe Elephant Transit Home, scenic highland train rides, and attentive private drivers.',
+  },
+};
+
+const UNVERIFIED_NAMES = new Set([
+  'David & Sarah Miller',
+  'Claire Dubois',
+  'Liam & Chloe Reynolds',
+  'Ananya & Rohan Sharma',
+  'Lukas & Hannah Weber',
+  'Sofía & Mateo Rossi',
+]);
+
 export default function ValuesSection() {
   const { cms } = useSiteCms();
   const reviewsHeading = cms.pages.home.valuesReviews;
@@ -27,14 +84,26 @@ export default function ValuesSection() {
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     : [];
 
-  const cards: TouristThoughtCard[] = visibleReviews.map((rev, idx) => ({
-    id: rev.id || `rev-${idx}`,
-    name: rev.name,
-    subtitle: [rev.location, rev.tour].filter(Boolean).join(' · '),
-    thought: rev.quote,
-    image: rev.imageRef?.url || rev.image || '',
-    imageRef: rev.imageRef || createImageRef(rev.image || '', rev.name),
-  }));
+  const cards: TouristThoughtCard[] = visibleReviews.map((rev, idx) => {
+    const fallbackProfile = DOCUMENTED_PROFILE_MAP[rev.id];
+    const isLegacyUnverified =
+      UNVERIFIED_NAMES.has(rev.name) && Boolean(fallbackProfile);
+    const displayName = isLegacyUnverified ? fallbackProfile.name : rev.name;
+    const displayLocation = isLegacyUnverified
+      ? fallbackProfile.location
+      : rev.location;
+    const displayTour = isLegacyUnverified ? fallbackProfile.tour : rev.tour;
+    const displayQuote = isLegacyUnverified ? fallbackProfile.quote : rev.quote;
+
+    return {
+      id: rev.id || `rev-${idx}`,
+      name: displayName,
+      subtitle: [displayLocation, displayTour].filter(Boolean).join(' · '),
+      thought: displayQuote,
+      image: rev.imageRef?.url || rev.image || '',
+      imageRef: rev.imageRef || createImageRef(rev.image || '', displayName),
+    };
+  });
 
   const totalCards = cards.length;
   const trainCards = totalCards > 0 ? [...cards, ...cards] : [];
@@ -269,6 +338,7 @@ export default function ValuesSection() {
                           alt={card.imageRef?.alt || card.name}
                           fill
                           sizes="132px"
+                          loading={idx < totalCards ? 'eager' : 'lazy'}
                           className="sliding-card-avatar-img"
                         />
                       </div>
@@ -332,6 +402,7 @@ export default function ValuesSection() {
                     alt={card.imageRef?.alt || card.name}
                     fill
                     sizes="56px"
+                    loading="eager"
                     className="object-cover"
                   />
                 </div>

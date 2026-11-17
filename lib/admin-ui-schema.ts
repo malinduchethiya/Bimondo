@@ -4264,8 +4264,133 @@ export function buildAdminPagesFromCms(
               ],
             },
             {
-              id: 'story-roadmap-sub',
+              id: 'story-founder-principles-sub',
               code: '3.2',
+              title: 'Five Leadership Principles',
+              fields: (
+                cms.pages.ourStoryPage.founderSection.leadershipValues || []
+              ).flatMap((lv, idx) => [
+                {
+                  id: `osp-lv-title-${lv.id}`,
+                  label: `Principle 0${idx + 1} Title`,
+                  type: 'text' as const,
+                  value: lv.title,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.ourStoryPage.founderSection.leadershipValues =
+                      next.pages.ourStoryPage.founderSection.leadershipValues.map(
+                        (item) =>
+                          item.id === lv.id ? { ...item, title: val } : item
+                      );
+                    return next;
+                  },
+                },
+                {
+                  id: `osp-lv-desc-${lv.id}`,
+                  label: `Principle 0${idx + 1} Description`,
+                  type: 'textarea' as const,
+                  value: lv.desc,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.ourStoryPage.founderSection.leadershipValues =
+                      next.pages.ourStoryPage.founderSection.leadershipValues.map(
+                        (item) =>
+                          item.id === lv.id ? { ...item, desc: val } : item
+                      );
+                    return next;
+                  },
+                },
+              ]),
+            },
+            {
+              id: 'story-competitive-advantages-sub',
+              code: '3.3',
+              title: 'Eight Competitive Advantages (Why Bimondo Travels)',
+              fields: (
+                cms.pages.ourStoryPage.competitiveAdvantagesSection?.items || []
+              ).flatMap((adv) => [
+                {
+                  id: `osp-adv-title-${adv.id}`,
+                  label: `Advantage ${adv.num} Title`,
+                  type: 'text' as const,
+                  value: adv.title,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    if (next.pages.ourStoryPage.competitiveAdvantagesSection) {
+                      next.pages.ourStoryPage.competitiveAdvantagesSection.items =
+                        next.pages.ourStoryPage.competitiveAdvantagesSection.items.map(
+                          (item) =>
+                            item.id === adv.id ? { ...item, title: val } : item
+                        );
+                    }
+                    return next;
+                  },
+                },
+                {
+                  id: `osp-adv-desc-${adv.id}`,
+                  label: `Advantage ${adv.num} Description`,
+                  type: 'textarea' as const,
+                  value: adv.desc,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    if (next.pages.ourStoryPage.competitiveAdvantagesSection) {
+                      next.pages.ourStoryPage.competitiveAdvantagesSection.items =
+                        next.pages.ourStoryPage.competitiveAdvantagesSection.items.map(
+                          (item) =>
+                            item.id === adv.id ? { ...item, desc: val } : item
+                        );
+                    }
+                    return next;
+                  },
+                },
+              ]),
+            },
+            {
+              id: 'story-sustainability-sub',
+              code: '3.4',
+              title: 'Sustainability & Heritage Preservation',
+              fields: (
+                cms.pages.ourStoryPage.sustainabilitySection?.items || []
+              ).flatMap((sust, idx) => [
+                {
+                  id: `osp-sust-title-${sust.id}`,
+                  label: `Sustainability Pillar 0${idx + 1} Title`,
+                  type: 'text' as const,
+                  value: sust.title,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    if (next.pages.ourStoryPage.sustainabilitySection) {
+                      next.pages.ourStoryPage.sustainabilitySection.items =
+                        next.pages.ourStoryPage.sustainabilitySection.items.map(
+                          (item) =>
+                            item.id === sust.id ? { ...item, title: val } : item
+                        );
+                    }
+                    return next;
+                  },
+                },
+                {
+                  id: `osp-sust-desc-${sust.id}`,
+                  label: `Sustainability Pillar 0${idx + 1} Description`,
+                  type: 'textarea' as const,
+                  value: sust.desc,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    if (next.pages.ourStoryPage.sustainabilitySection) {
+                      next.pages.ourStoryPage.sustainabilitySection.items =
+                        next.pages.ourStoryPage.sustainabilitySection.items.map(
+                          (item) =>
+                            item.id === sust.id ? { ...item, desc: val } : item
+                        );
+                    }
+                    return next;
+                  },
+                },
+              ]),
+            },
+            {
+              id: 'story-roadmap-sub',
+              code: '3.5',
               title: 'Realistic Growth Roadmap (Stages 1 – 3)',
               fields: (
                 cms.pages.ourStoryPage.roadmapSection.stages || []

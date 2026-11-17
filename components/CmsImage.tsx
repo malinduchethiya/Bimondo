@@ -13,6 +13,7 @@ interface CmsImageProps {
   priority?: boolean;
   loading?: 'lazy' | 'eager';
   decoding?: 'async' | 'sync' | 'auto';
+  fetchPriority?: 'high' | 'low' | 'auto';
   className?: string;
   fallbackSrc?: string;
 }
@@ -20,8 +21,6 @@ interface CmsImageProps {
 /**
  * Renders an image when a valid URL is configured in the content model,
  * or a clean minimal placeholder surface when empty or failed to load.
- * Defaults to native lazy loading (`loading="lazy"`) and async decoding (`decoding="async"`)
- * unless `priority` is explicitly set for the primary above-the-fold hero image.
  */
 export default function CmsImage({
   src,
@@ -32,6 +31,7 @@ export default function CmsImage({
   priority = false,
   loading,
   decoding,
+  fetchPriority,
   className = 'object-cover',
 }: CmsImageProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -55,7 +55,8 @@ export default function CmsImage({
   }
 
   const resolvedLoading = loading ?? (priority ? 'eager' : 'lazy');
-  const resolvedDecoding = decoding ?? 'async';
+  const resolvedDecoding = decoding ?? (priority ? 'sync' : 'async');
+  const resolvedFetchPriority = fetchPriority ?? (priority ? 'high' : 'auto');
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -65,7 +66,7 @@ export default function CmsImage({
       sizes={sizes}
       loading={resolvedLoading}
       decoding={resolvedDecoding}
-      fetchPriority={priority ? 'high' : 'low'}
+      fetchPriority={resolvedFetchPriority}
       referrerPolicy="no-referrer"
       onError={() => setFailedUrl(rawUrl)}
       className={`${

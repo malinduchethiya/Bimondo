@@ -34,6 +34,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <link
+          rel="preconnect"
+          href="https://cdn.bimondotours.com"
+          crossOrigin="anonymous"
+        />
+        <link rel="dns-prefetch" href="https://cdn.bimondotours.com" />
+        <link
+          rel="preconnect"
+          href="https://firestore.googleapis.com"
+          crossOrigin="anonymous"
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

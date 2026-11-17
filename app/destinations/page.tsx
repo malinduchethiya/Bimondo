@@ -90,7 +90,7 @@ export default function DestinationsPage() {
 
         {/* Destinations Grid */}
         <div className="destinations-detail-grid">
-          {filtered.map((dest) => (
+          {filtered.map((dest, idx) => (
             <article key={dest.id} className="destination-detail-card">
               <div className="dest-img-wrap">
                 <CmsImage
@@ -99,6 +99,8 @@ export default function DestinationsPage() {
                   alt={dest.imageRef?.alt || dest.name}
                   fill
                   sizes="(max-width: 768px) 100vw, 50vw"
+                  priority={idx < 2}
+                  loading={idx < 6 ? 'eager' : 'lazy'}
                   className="object-cover"
                 />
                 <span className="dest-season-badge">{dest.season}</span>
@@ -151,6 +153,129 @@ export default function DestinationsPage() {
           ))}
         </div>
 
+        {/* Section 07: Complete Adventure & Activity Portfolio */}
+        <div style={{ marginTop: '72px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 07 · ADVENTURE & ACTIVITY PORTFOLIO
+              </div>
+              <h2 className="serif">
+                Surfing, rivers, reefs,{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  trails & wildlife.
+                </em>
+              </h2>
+            </div>
+            <p>
+              Matched to seasonal suitability across Sri Lanka’s two coastal
+              monsoons and operated with reputable, safety-checked adventure
+              partners, qualified instructors, safety briefings, life jackets,
+              helmets, and certified equipment.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                code: '01 · SURFING (TWO SEASONAL COASTS)',
+                title: 'Weligama & Arugam Bay',
+                desc: 'Weligama on the south coast offers beginner-friendly sandy-bottom waves and vetted surf schools during the November to April season. Arugam Bay on the east coast delivers world-renowned point breaks from May to October.',
+              },
+              {
+                code: '02 · RIVERS & RAINFOREST GORGES',
+                title: 'Kitulgala White-Water & Canyoning',
+                desc: 'White-water rafting on the Kelani River, waterfall abseiling, natural rock-pool canyoning, guided jungle walks, and peaceful riverside accommodation.',
+              },
+              {
+                code: '03 · AERIAL & RIVER EXPERIENCES',
+                title: 'Bentota Paramotoring & Coast',
+                desc: 'Powered paramotoring flights with coastline and river views operated by qualified pilots (subject to wind and weather conditions), paired with Bentota river safaris.',
+              },
+              {
+                code: '04 · LAGOON WINDS & MARINE REEFS',
+                title: 'Kalpitiya Kite Surfing & Bar Reef',
+                desc: 'Flat-water lagoon kite surfing lessons, boat trips to the Bar Reef marine sanctuary for snorkelling and diving, and seasonal offshore dolphin watching.',
+              },
+              {
+                code: '05 · SOUTHERN REEFS & HISTORIC FORT',
+                title: 'Galle & Unawatuna Diving',
+                desc: 'Reef diving, historic wreck diving, calm-bay snorkelling, relaxed southern beach days, and guided heritage walks inside UNESCO-listed Galle Fort.',
+              },
+              {
+                code: '06 · HIGHLAND & RAINFOREST HIKING',
+                title: 'The Pekoe Trail, Ella & Horton Plains',
+                desc: 'Selected stages of The Pekoe Trail, Little Adam’s Peak, Ella Rock, Horton Plains & World’s End, Pidurangala sunrise climbs, and guided walks in Sinharaja Rainforest.',
+              },
+              {
+                code: '07 · NATIONAL PARKS & RAINFORESTS',
+                title: 'Yala, Udawalawe, Wilpattu, Minneriya & Sinharaja',
+                desc: 'Ethical 4x4 safaris for leopards, elephants, and sloth bears across Yala, Udawalawe, and Wilpattu, the seasonal Minneriya elephant gathering, and endemic birding in Sinharaja.',
+              },
+              {
+                code: '08 · SACRED CAPITALS & LIVING HERITAGE',
+                title: 'Sigiriya, Dambulla, Anuradhapura, Polonnaruwa & Kandy',
+                desc: 'Unhurried guided exploration of Sigiriya Rock Fortress, Dambulla Cave Temple, the ancient capitals of Anuradhapura and Polonnaruwa, and Kandy’s Temple of the Tooth.',
+              },
+            ].map((item) => (
+              <div
+                key={item.code}
+                className="value"
+                style={{ borderTopColor: '#c8dbe2' }}
+              >
+                <span
+                  className="number"
+                  style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                >
+                  {item.code}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    color: 'var(--ink)',
+                    fontSize: '23px',
+                    margin: '10px 0 8px',
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <p style={{ color: '#557180', lineHeight: 1.75 }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              marginTop: '24px',
+              padding: '18px 22px',
+              borderRadius: '14px',
+              background: '#fff',
+              border: '1px solid var(--line)',
+              fontSize: '0.88rem',
+              color: '#536f7e',
+              lineHeight: 1.65,
+            }}
+          >
+            <strong style={{ color: 'var(--ink)' }}>
+              Seasonal & Safety Practices:
+            </strong>{' '}
+            Every adventure activity is scheduled around seasonal suitability,
+            operated with reputable partners, and preceded by safety briefings,
+            proper equipment (life jackets, helmets, certified dive/surf gear),
+            and advance checks for medical or dietary requirements. Wildlife
+            sightings, sea conditions, and aerial/water activities depend on
+            nature and weather and are never guaranteed.
+          </div>
+        </div>
+
         {/* Section 10: Colombo & Battaramulla Day Experiences */}
         <div style={{ marginTop: '64px' }}>
           <div className="section-head">
@@ -165,7 +290,15 @@ export default function DestinationsPage() {
                 </em>
               </h2>
             </div>
-            <p>{pageContent.colomboSection.description}</p>
+            <div>
+              <p style={{ marginBottom: '8px' }}>
+                {pageContent.colomboSection.description}
+              </p>
+              <p style={{ fontSize: '0.88rem', color: '#557180' }}>
+                Ideal for arrival days, departure days before an evening flight,
+                and short stays in Colombo or Battaramulla.
+              </p>
+            </div>
           </div>
 
           <div

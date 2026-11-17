@@ -1,0 +1,1149 @@
+# BIMONDO TRAVELS — COMPLETE WEBSITE CONTENT & UI RESTRUCTURING
+## Source: Company Profile 2026 | Existing Next.js Project
+
+# 1. YOUR ROLE AND OBJECTIVE
+
+Act as a senior Next.js developer, UI/UX architect, content strategist, and full-stack code auditor.
+
+You have been provided with:
+
+1. The existing Bimondo Travels website project.
+2. The complete 19-page Bimondo Travels Company Profile (2026 Edition).
+
+Your task is to inspect the entire codebase and company profile, then update the existing website so that **every substantive detail from the company profile is accurately represented in the public website UI**.
+
+The website must feel like a complete, premium, authentic Sri Lankan inbound tour operator website rather than a generic travel website.
+
+You must retain the existing project architecture, functionality, content management system, and all previously uploaded images.
+
+**THIS IS A CONTENT AND UI RESTRUCTURING PROJECT, NOT AN IMAGE REPLACEMENT OR WEBSITE RESET PROJECT.**
+
+---
+
+# 2. ABSOLUTE RULE — PRESERVE ALL EXISTING IMAGES
+
+## THIS IS THE HIGHEST-PRIORITY REQUIREMENT
+
+The website owner has already uploaded and configured images through the existing admin panel.
+
+These images must not be changed, replaced, deleted, overwritten, reassigned, or reset under any circumstances during this implementation.
+
+This restriction applies to:
+
+- Homepage hero images and backgrounds
+- Images used in the hero transition
+- Founder and company story images
+- Destination images
+- Tour package thumbnails and banners
+- Experience photographs
+- Accommodation photographs
+- Gallery images
+- Contact section images
+- Background images
+- Mobile-specific images
+- Images assigned to cards, sliders, and carousels
+- Every image stored in Cloudflare R2
+- Every image URL stored in Firestore
+- Every image reference configured through the admin panel
+- Any other existing visual media assets
+
+## 2.1 Cloudflare R2 protection
+
+The existing website uses Cloudflare R2 to store and serve uploaded media.
+
+You must:
+
+1. Preserve the existing R2 bucket and object paths.
+2. Preserve all existing image URLs.
+3. Preserve the existing image upload workflow.
+4. Preserve the R2 custom domain and image delivery configuration.
+5. Preserve existing directory structures.
+6. Preserve image metadata and references.
+7. Preserve existing image selection and assignment.
+8. Never delete or overwrite R2 objects.
+9. Never migrate images to another storage provider.
+10. Never replace existing images with Unsplash, stock photography, AI-generated images, or placeholders.
+
+Do not modify the image upload system unless a change is strictly necessary to prevent existing functionality from breaking. Any such change must preserve all stored media.
+
+## 2.2 Firestore image protection
+
+Images uploaded through the admin panel are associated with website sections through Firestore.
+
+These references must remain intact.
+
+Do not overwrite existing Firestore documents with default CMS content.
+
+Do not reset existing CMS records.
+
+Do not replace administrator-selected images with hardcoded default image paths.
+
+Do not change image field values when updating text.
+
+If a document contains both text and image data, update only the relevant text fields.
+
+Prefer non-destructive field-level updates.
+
+Avoid whole-document replacements that could accidentally remove image fields.
+
+## 2.3 Preserve image assignments during UI changes
+
+When restructuring an existing section:
+
+- Keep its current image.
+- Keep its current image URL.
+- Keep its existing media reference.
+- Preserve its connection to the correct section.
+- Preserve its mobile and desktop image assignments.
+- Preserve existing image focal points and cropping settings where stored.
+
+You may change the surrounding typography, spacing, layout, borders, or animation behavior.
+
+However, do not alter the underlying image asset, its CMS assignment, or administrator-defined display settings.
+
+If a section is moved, its image must move with it.
+
+If a section is renamed, its existing image reference must remain connected.
+
+If an existing section is split into multiple sections, preserve the original image in its original content context. Do not automatically duplicate or redistribute the image.
+
+If a section is merged with another, preserve all existing image references without overwriting them.
+
+## 2.4 New sections
+
+If a new section requires an image but no existing image has been assigned:
+
+- Do not automatically generate an image.
+- Do not insert random stock photographs.
+- Do not borrow an image from an unrelated section.
+- Do not replace an existing image.
+- Do not invent a new R2 URL.
+
+Instead, create an image-free layout or an optional CMS image field that the administrator can populate later.
+
+The section must remain visually attractive even without an image.
+
+## 2.5 Mandatory image audit
+
+Before making any changes, identify all existing image fields, references, and assignments.
+
+Create a baseline inventory of image references and their associated sections.
+
+After implementation, compare the final state with the baseline.
+
+Every previously assigned image must remain assigned to its original content.
+
+**Image preservation is more important than visual redesign.**
+
+If a proposed UI change would risk losing an existing image assignment, redesign the UI change instead.
+
+---
+
+# 3. COMPLETE CODEBASE AUDIT
+
+Before editing anything, inspect the entire project.
+
+Pay particular attention to:
+
+- `app/page.tsx`
+- `app/our-story`
+- `app/packages`
+- `app/destinations`
+- `app/stays`
+- `app/gallery`
+- `app/contact`
+- `app/booking`
+- `app/admin`
+- `lib/tours.ts`
+- `lib/cms-defaults.ts`
+- `lib/admin-ui-schema.ts`
+- `lib/content-repository.ts`
+- `hooks/useSiteCms.ts`
+- Existing Firebase integration
+- Existing R2 integration
+- Existing booking APIs
+- Existing GSAP animations
+
+Inspect the complete component tree, route structure, CMS content schemas, and public rendering behavior.
+
+Determine:
+
+1. What content already exists?
+2. What content is missing from the company profile?
+3. What content is factually incorrect?
+4. Which existing sections can be reused?
+5. Which new sections are necessary?
+6. Which sections need better visual hierarchy?
+7. Which CMS fields must be extended?
+8. Which existing images are assigned to each section?
+
+Do not rewrite working components unnecessarily.
+
+Do not change any existing image during this process.
+
+---
+
+# 4. HOMEPAGE — CONTENT AND VISUAL REFINEMENT
+
+Route: `/`
+
+The homepage should immediately communicate the company's actual identity.
+
+## Hero section
+
+Use the existing administrator-assigned hero image without modification.
+
+Official company name:
+
+Bimondo Travels
+
+Official tagline:
+
+"Not a place you visit, but a feeling you carry home"
+
+The homepage must communicate:
+
+- Private and tailor-made Sri Lankan tours
+- Authentic local experiences
+- Established in 2022
+- Adventure, culture, heritage, beaches, hiking, and wildlife
+- Four-star to five-star accommodation options
+- Professional local drivers and guides
+- 24-hour guest assistance
+- International travellers from the UK, Europe, India, and Australia
+
+Keep the hero visually premium and uncluttered.
+
+Use a strong headline, concise supporting text, and appropriate CTAs.
+
+Do not overload the hero with all company details.
+
+## Homepage story
+
+Introduce the founding of Bimondo Travels by I.M. Bimsara Illangasinghe in 2022.
+
+Explain the company's origins in Thalangama, Battaramulla.
+
+Describe the philosophy of creating personal journeys instead of rushing travellers through standardized itineraries.
+
+Link to the complete Our Story page.
+
+## Homepage experiences
+
+Present the four primary travel categories:
+
+1. Adventure Sri Lanka
+2. Culture and Heritage
+3. Sea and Sand Escapes
+4. Hiking and Wildlife
+
+Explain the actual activities available in each category.
+
+Retain all currently assigned category images.
+
+## Featured journeys
+
+Show selected existing signature tour packages.
+
+Reuse the existing tour data.
+
+Do not create duplicate tours.
+
+Do not change existing tour images.
+
+## Why Bimondo Travels
+
+Explain:
+
+- Operating since 2022
+- Private itineraries
+- Strong adventure offerings
+- 24-hour support
+- Digital convenience
+- Luxury accommodation options
+- Colombo-area operational base
+- Responsible and authentic tourism
+
+## Planning section
+
+Explain how guests can request a customized itinerary.
+
+Include consultation, itinerary planning, quotation, confirmation, and support.
+
+## Sustainability
+
+Introduce local community support, heritage preservation, responsible wildlife experiences, and environmental care.
+
+## Contact CTA
+
+Use the correct company contact information.
+
+Preserve all existing contact images and functionality.
+
+---
+
+# 5. OUR STORY PAGE — COMPLETE COMPANY IDENTITY
+
+Route: `/our-story`
+
+This page must accurately represent company profile sections 01–05, 15–18.
+
+## A. Where the Story Begins
+
+Include the original founding narrative:
+
+- Thalangama's paddy fields and wetlands
+- Proximity to Colombo
+- The company's establishment in 2022
+- Founder I.M. Bimsara Illangasinghe
+- The motivation to move beyond rushed sightseeing
+- Private and personalized travel experiences
+- Different journeys for surfers, history lovers, and families
+- Growth through guest experiences and trusted partnerships
+
+Present this as engaging editorial storytelling.
+
+Retain the existing story images.
+
+## B. Company Overview
+
+Explain:
+
+- Sri Lankan inbound tour operator
+- Based in Battaramulla
+- Serving international travellers since 2022
+- Private and tailor-made tours
+- Four-star to five-star accommodation
+- Authenticity and sustainability
+- Local partnerships
+- The meaning of "Bimondo," including the Italian word "mondo"
+
+## C. Founder and Leadership
+
+Feature I.M. Bimsara Illangasinghe.
+
+Explain his involvement in:
+
+- Itinerary development
+- Hotel selection
+- Guest relations
+- Drivers and guides
+- Supplier partnerships
+- Quality assurance
+- Guest feedback
+
+Include the founder's leadership principles:
+
+1. Listen to the guest first.
+2. Be honest about what is possible.
+3. Respond quickly.
+4. Choose reliable partners.
+5. Respect Sri Lankan people, culture, and nature.
+
+Do not invent founder credentials or achievements.
+
+## D. Battaramulla and Thalangama
+
+Explain:
+
+- Thalangama wetlands
+- Paddy fields and birdlife
+- Diyawanna Lake
+- Sri Lankan Parliament
+- Sri Jayawardenepura Kotte
+- Proximity to Colombo
+- Airport and expressway access
+- Convenient starting point for island journeys
+- Local supplier relationships
+
+## E. Vision
+
+Use the official vision:
+
+"To be the most beloved name in the Sri Lankan tourism industry, creating authentic and unique travel experiences while uplifting our people and preserving our heritage."
+
+## F. Mission
+
+Use the official mission:
+
+"To craft private, authentic journeys across the island, driven by innovation while maintaining respect for our heritage."
+
+## G. Core Values
+
+Present all six:
+
+- Authenticity
+- Personal Service
+- Sustainability
+- Innovation
+- Reliability
+- Respect for Heritage
+
+Explain each using the original company profile.
+
+## H. Competitive Advantages
+
+Present all eight:
+
+- Operating since 2022
+- Strong adventure range
+- Private and personal travel
+- 24-hour support
+- Digital convenience
+- Luxury accommodation options
+- Colombo-area base
+- Authenticity with sustainability
+
+## I. Sustainability and Heritage
+
+Include:
+
+- Supporting local drivers and guides
+- Working with family-run restaurants
+- Supporting community experiences
+- Respecting temple dress codes
+- Responsible photography
+- Ethical wildlife viewing
+- Reduced plastic use
+- Protecting forests, beaches, and reefs
+
+## J. Growth Roadmap
+
+Represent the company's development accurately.
+
+Stage One — Foundation, 2022–2026
+
+Stage Two — Expansion, 2026–2028
+
+Stage Three — Global Footprint, 2028–2031
+
+Include the documented goals for each stage.
+
+Clearly identify expansion and global footprint plans as future objectives, not completed achievements.
+
+## K. Our Promise
+
+Explain the commitment to:
+
+- Careful planning
+- Honest advice
+- Safe travel
+- Comfortable accommodation
+- Reliable support
+- Personalized journeys
+
+Preserve the company's official tagline.
+
+---
+
+# 6. SIGNATURE TOUR COLLECTION — ALL 20 TOURS
+
+Route: `/packages`
+
+Existing data: `lib/tours.ts`
+
+The website already contains the 20 signature journeys.
+
+Reuse the existing data and preserve all existing tour images.
+
+Audit each journey against the company profile.
+
+## Adventure Journeys
+
+1. Waves and Rapids — 8 days — Kitulgala, Weligama, Mirissa
+2. Two Coasts Surf Circuit — 10 days — Weligama and Arugam Bay
+3. Wind and Reef — 6 days — Kalpitiya and Wilpattu
+4. Sky, Sea and River — 7 days — Bentota, Kitulgala, Galle
+
+## Culture and Heritage Journeys
+
+5. Ancient Kingdoms — 7 days — Anuradhapura, Polonnaruwa, Sigiriya, Dambulla, Kandy
+6. Sunrise on Two Rocks — 4 days — Sigiriya, Pidurangala, Minneriya
+7. Ceylon Grand Circuit — 14 days — Islandwide
+8. Kandy and the Hill Capital — 5 days — Kandy, Peradeniya, Nuwara Eliya
+
+## Sea and Sand Escapes
+
+9. Southern Shores in Luxury — 8 days — Galle, Unawatuna, Mirissa
+10. Galle Fort and Beach Days — 5 days — Galle and Unawatuna
+11. Culture and Coast — 10 days — Cultural Triangle, Kandy, south coast
+
+## Hiking and Wildlife Journeys
+
+12. Leopards, Elephants and Whales — 9 days — Minneriya, Udawalawe, Yala, Mirissa
+13. Wilpattu Wilderness — 4 days — Wilpattu and Anuradhapura
+14. The Pekoe Trail Walk — 8 days — Kandy, tea country, Ella
+15. Rainforest and Waterfalls — 6 days — Sinharaja, Ella, Horton Plains
+
+## Families and Special Markets
+
+16. Family Island Discovery — 10 days — Islandwide
+17. Little Explorers — 6 days — Kandy, Udawalawe, Bentota
+18. India to Island Express — 5 days — Colombo, Kandy, Nuwara Eliya
+19. Hills and Beaches for Friends — 7 days — Kandy, Nuwara Eliya, Ella, Bentota
+20. Australian Adventure Combo — 12 days — Islandwide
+
+Every tour must include:
+
+- Correct title
+- Correct category
+- Duration
+- Route
+- Full source-grounded description
+- Existing administrator-assigned image
+- Relevant enquiry action
+
+Preserve existing tour identifiers and image references.
+
+If the tour descriptions are incomplete, update the text without changing the image fields.
+
+Include the document's qualification that these are sample itineraries, and final arrangements depend on consultation and confirmation.
+
+Do not invent prices or guaranteed wildlife encounters.
+
+---
+
+# 7. DESTINATIONS AND ADVENTURE ACTIVITIES
+
+Route: `/destinations`
+
+Represent the complete adventure portfolio from company profile sections 07 and 08.
+
+## Surfing
+
+Weligama:
+
+- Beginner-friendly waves
+- Surf schools
+- Approximately November–April season
+
+Arugam Bay:
+
+- East-coast surfing
+- Approximately May–October season
+
+## Kitulgala
+
+- White-water rafting
+- Waterfall abseiling
+- Canyoning
+- Jungle walks
+- Riverside accommodation
+
+## Bentota
+
+- Paramotoring
+- Coastline views
+- River experiences
+- Qualified operators
+- Weather-dependent activities
+
+## Kalpitiya
+
+- Kite surfing
+- Bar Reef
+- Snorkelling
+- Diving
+- Seasonal dolphin watching
+
+## Galle and Unawatuna
+
+- Reef diving
+- Wreck diving
+- Snorkelling
+- Beach experiences
+- Galle Fort
+
+## Hiking
+
+- The Pekoe Trail
+- Little Adam's Peak
+- Ella Rock
+- Horton Plains
+- World's End
+- Pidurangala
+- Sinharaja
+
+## Wildlife
+
+- Yala
+- Udawalawe
+- Wilpattu
+- Minneriya
+- Sinharaja
+
+## Culture and Heritage
+
+- Sigiriya
+- Dambulla
+- Anuradhapura
+- Polonnaruwa
+- Temple of the Tooth
+- Kandy
+
+Explain seasonal considerations, activities, and safety practices.
+
+**Preserve all existing destination photographs and image assignments.**
+
+If a destination lacks an assigned image, use an image-free presentation until the administrator supplies one.
+
+---
+
+# 8. COLOMBO AND BATTARAMULLA DAY EXPERIENCES
+
+Reuse the six existing day experiences from `lib/tours.ts`.
+
+1. Thalangama Wetland Birdwalk
+2. Colombo City Highlights
+3. Colombo Food Trail
+4. Kotte Heritage Walk
+5. Kelaniya Temple Visit
+6. Negombo Lagoon Day
+
+Include the original descriptions from the company profile.
+
+Explain their suitability for arrival days, departure days, and short visits.
+
+Preserve existing experience images.
+
+Do not create duplicate records.
+
+---
+
+# 9. ACCOMMODATION AND GUEST COMFORT
+
+Route: `/stays`
+
+Explain the company's accommodation and transport offering:
+
+- Four-star hotels
+- Boutique properties
+- Five-star luxury resorts
+- Guest-specific accommodation selection
+- Hotel quality monitoring
+- Professional drivers
+- Comfortable air-conditioned vehicles
+- Family-friendly options
+- Reliable local partners
+
+Do not invent hotel ownership, exclusive partnerships, or room guarantees.
+
+Preserve all existing accommodation images.
+
+---
+
+# 10. GUEST JOURNEY AND BOOKING
+
+The website must explain the complete seven-stage guest journey.
+
+## Stage 1 — Enquiry
+
+Guests contact Bimondo Travels through the website, WhatsApp, email, Facebook, or Instagram.
+
+## Stage 2 — Consultation
+
+The team discusses interests, dates, budget, accommodation preferences, activity levels, and special requirements.
+
+## Stage 3 — Itinerary Design
+
+A personalized itinerary is prepared and refined with the guest.
+
+## Stage 4 — Quotation and Confirmation
+
+The company provides a clear quotation showing inclusions and exclusions.
+
+Bookings are confirmed in writing.
+
+## Stage 5 — Pre-Arrival Information
+
+Guests receive information about visas, weather, clothing, money, temple etiquette, emergency contacts, and driver arrangements.
+
+## Stage 6 — Arrival and Journey
+
+Guests receive airport pickup and professional driver or guide assistance.
+
+The team remains available throughout the journey.
+
+## Stage 7 — Departure and Follow-Up
+
+Guests are transferred to the airport and invited to share feedback.
+
+Preserve existing booking components, APIs, payment integrations, and data structures.
+
+Do not break the current booking flow.
+
+---
+
+# 11. OPERATIONS, QUALITY AND SAFETY
+
+Ensure the website publicly explains the following.
+
+## Vehicles and Drivers
+
+- Professional drivers
+- Air-conditioned vehicles
+- Vehicle cleanliness
+- Insurance checks
+- Safety checks
+- Trusted transport partners
+
+## Guides
+
+- Licensed national guides
+- Site guides
+- Specialist guides
+- Wildlife and rainforest naturalists
+
+## Accommodation Quality
+
+- Four-star hotels
+- Boutique properties
+- Five-star resorts
+- Guest feedback
+- Regular supplier reviews
+
+## Adventure Partners
+
+- Surf schools
+- Rafting operators
+- Dive centres
+- Kite surfing schools
+- Paramotoring operators
+- Qualified instructors
+- Proper equipment
+
+## Guest Care
+
+- 24-hour assistance
+- Medical contact arrangements
+- Travel insurance recommendations
+- Weather monitoring
+- Alternative itinerary planning
+- Backup accommodation
+- Backup vehicles
+- Backup activity providers
+
+## Quality Standards
+
+- On-time pickups
+- Clean vehicles
+- Confirmed hotel rooms
+- Accurate information
+- Fast responses
+- Supplier issue resolution
+
+Present these details in an organized, reassuring, professional UI.
+
+---
+
+# 12. DIGITAL SERVICES
+
+Explain the company's existing digital services:
+
+- Online booking confirmations
+- Clear written booking summaries
+- Social media enquiry handling
+- Facebook communication
+- Instagram communication
+- WhatsApp support
+- 24-hour online assistance
+- Website-based tour discovery
+- Guest feedback and referrals
+
+Do not claim that unimplemented digital features are already operational.
+
+---
+
+# 13. TARGET TRAVELLERS AND MARKETS
+
+Represent the company's documented target markets.
+
+## United Kingdom and Europe
+
+- Longer holidays
+- Cultural experiences
+- Wildlife
+- Boutique and luxury hotels
+- Beaches
+- Food experiences
+
+## India
+
+- Shorter holidays
+- Couples
+- Families
+- Small groups
+- Hill country
+- Beaches
+- Colombo shopping
+
+## Australia
+
+- Surfing
+- Adventure
+- Wildlife
+- Multi-destination journeys
+
+## Families
+
+- Comfortable accommodation
+- Safe transport
+- Shorter driving days
+- Child-friendly activities
+
+## Adventure Travellers
+
+- Surfing
+- Diving
+- Rafting
+- Kite surfing
+- Hiking
+
+Integrate this information into the appropriate website sections.
+
+---
+
+# 14. CONTACT PAGE
+
+Route: `/contact`
+
+Use the official information.
+
+Company: Bimondo Travels
+
+Founder: I.M. Bimsara Illangasinghe
+
+Established: 2022
+
+Address: No. 596/1, Thalangama South, Battaramulla, Sri Lanka
+
+Phone and WhatsApp: +94 76 223 2054
+
+Email: tours@bimondo.com
+
+Website: www.bimondotours.com
+
+Facebook: Bimondo tours
+
+Instagram: @Bimondo.tours
+
+Markets: United Kingdom and Europe, India, Australia
+
+Ensure all contact links work.
+
+Preserve existing forms, integrations, and contact section images.
+
+---
+
+# 15. ADMIN PANEL AND FIRESTORE CMS
+
+The website already has an administrator panel used to edit text and upload images.
+
+Preserve the entire existing system.
+
+## Existing content
+
+Never reset existing CMS documents.
+
+Never overwrite existing administrator-uploaded image URLs.
+
+Never overwrite existing administrator-selected image assignments.
+
+Never replace live Firestore image references with defaults.
+
+## New text content
+
+Add CMS fields for missing company-profile information.
+
+New fields should support:
+
+- Headings
+- Paragraphs
+- Descriptions
+- Lists
+- Cards
+- Tour descriptions
+- Company information
+- CTA labels
+- Section ordering where supported
+
+Ensure all new content is editable from the admin panel.
+
+## New image fields
+
+If a new section supports an optional image:
+
+- Leave the field empty initially.
+- Do not assign an existing image automatically.
+- Do not use placeholder URLs.
+- Allow the administrator to upload or select an image later.
+
+## CMS migration
+
+Inspect the current Firestore content and schema behavior.
+
+Implement safe schema evolution.
+
+Use non-destructive merging for missing fields.
+
+Do not perform destructive resets.
+
+Do not replace whole documents when only text needs updating.
+
+If updating existing content requires a migration, preserve the original media references and administrator edits.
+
+Never run an automatic migration that overwrites images.
+
+If live Firestore content is unavailable for inspection, do not assume it matches local defaults.
+
+In that case, make code and schema changes safely and report any migration requiring access to live data.
+
+---
+
+# 16. UI/UX REDESIGN REQUIREMENTS
+
+The website must remain premium, modern, visually distinctive, and professional.
+
+You may redesign:
+
+- Typography
+- Spacing
+- Content hierarchy
+- Section layout
+- Navigation organization
+- Text presentation
+- Cards
+- Tabs
+- Accordions
+- Content transitions
+- GSAP animations
+- Responsive layouts
+- Section backgrounds that do not contain user-uploaded imagery
+
+You must NOT redesign by replacing existing photographs.
+
+## Visual direction
+
+Use:
+
+- Premium editorial travel design
+- Bold typography
+- Sophisticated layouts
+- Strong section hierarchy
+- Spacious compositions
+- Carefully controlled motion
+- Asymmetric grids
+- Smooth GSAP transitions
+- Premium card interactions
+- Elegant mobile navigation
+- Purposeful visual storytelling
+
+Avoid:
+
+- Generic AI-generated travel slogans
+- Repetitive three-column layouts
+- Unnecessary gradients
+- Excessive icons
+- Artificial-looking decorative elements
+- Overloaded hero sections
+- Duplicate information
+- Unnecessary new dependencies
+
+## Animation requirements
+
+Preserve working GSAP animations.
+
+Improve animations only where needed.
+
+Ensure:
+
+- Proper initialization
+- Correct cleanup
+- No hydration errors
+- No layout shifts
+- Mobile compatibility
+- Reduced-motion accessibility
+- No broken scrolling
+- No image flickering
+- No accidental replacement or resetting of image components
+
+---
+
+# 17. CONTENT ACCURACY REQUIREMENTS
+
+The company profile is the primary source of truth.
+
+Do not invent:
+
+- Awards
+- Certifications
+- Fake reviews
+- Customer names
+- Fixed package prices
+- Hotel ownership
+- Guaranteed wildlife encounters
+- Guaranteed adventure availability
+- Unverified achievements
+- Completed future expansion projects
+
+Check existing traveller testimonials.
+
+If testimonials cannot be verified, do not present them as authentic customer statements.
+
+Preserve their underlying CMS records unless explicitly instructed otherwise.
+
+Use natural, polished British English.
+
+Preserve the company's actual personality and founding story.
+
+Do not replace meaningful content with generic AI marketing text.
+
+---
+
+# 18. TECHNICAL REQUIREMENTS
+
+Preserve the existing Next.js architecture.
+
+Preserve:
+
+- Firebase Authentication
+- Firestore
+- Cloudflare R2
+- R2 custom domain
+- Admin panel
+- CMS editing
+- Existing image uploads
+- Existing image URLs
+- Existing image assignments
+- Booking integrations
+- Existing public routes
+- SEO functionality
+- GSAP
+- Responsive layouts
+- Cloudflare deployment compatibility
+
+Do not introduce destructive database changes.
+
+Do not modify environment variables unnecessarily.
+
+Do not expose credentials.
+
+Do not replace working services with mocked implementations.
+
+---
+
+# 19. FINAL VERIFICATION AND ACCEPTANCE TESTS
+
+Before completing the task, verify all requirements.
+
+## Company-profile coverage
+
+- All 19 document sections represented
+- All 20 signature journeys present
+- All six Colombo-area day experiences present
+- All adventure activities covered
+- Founder and company history correct
+- Vision and mission correct
+- Six core values present
+- Eight competitive advantages present
+- Guest journey complete
+- Operations and safety information complete
+- Sustainability commitments complete
+- Growth roadmap accurate
+- Contact details correct
+
+## Image preservation
+
+This is mandatory.
+
+Verify:
+
+- All original image URLs remain unchanged.
+- All original R2 object paths remain unchanged.
+- All original Firestore image references remain unchanged.
+- All administrator image assignments remain unchanged.
+- No existing image has been deleted.
+- No existing image has been overwritten.
+- No image has been replaced with stock photography.
+- No image has been replaced with an AI-generated image.
+- No image has been reassigned to unrelated content.
+- No existing gallery item has been removed.
+- No existing hero image has been changed.
+- No existing tour thumbnail has been changed.
+- No existing destination image has been changed.
+- No existing accommodation image has been changed.
+
+If an image assignment cannot be verified because live Firestore access is unavailable, explicitly report it as unverified.
+
+Do not falsely claim verification.
+
+## Technical tests
+
+- TypeScript validation
+- Production build
+- Existing route checks
+- CMS editing
+- Firestore persistence
+- R2 image rendering
+- Booking functionality
+- Admin authentication
+- Mobile responsiveness
+- Desktop responsiveness
+- GSAP functionality
+- SEO metadata
+- Contact forms
+- Navigation
+- Console and hydration errors
+
+## Final report
+
+Provide:
+
+1. Files changed
+2. Components updated
+3. New components created
+4. Missing company-profile content added
+5. CMS schema changes
+6. Image-preservation audit results
+7. Booking and admin functionality verification
+8. Build and test results
+9. Any unresolved issues
+10. A section-by-section document coverage matrix
+
+---
+
+# 20. FINAL NON-NEGOTIABLE INSTRUCTION
+
+Your task is to improve the existing Bimondo Travels website using the complete company profile.
+
+You must:
+
+**ADD missing information.**
+
+**CORRECT inaccurate information.**
+
+**IMPROVE content structure.**
+
+**IMPROVE UI quality.**
+
+**PRESERVE existing functionality.**
+
+**PRESERVE EVERY ADMINISTRATOR-UPLOADED IMAGE AND ITS EXISTING ASSIGNMENT.**
+
+Do not reset the website.
+
+Do not rebuild the CMS from scratch.
+
+Do not replace existing images.
+
+Do not automatically insert stock images.
+
+Do not modify R2 media objects.
+
+Do not overwrite Firestore image references.
+
+Do not remove working features.
+
+Read the document completely, inspect the actual codebase, implement the necessary changes, and verify the final result.
+
+The final website must accurately communicate every substantive detail of the Bimondo Travels Company Profile while retaining the exact images that the website owner has already configured through the admin panel.

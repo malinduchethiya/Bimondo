@@ -238,7 +238,156 @@ export default function BookingPage() {
             />
           </div>
         )}
+
+        {/* Section 10: The 7-Stage Guest Journey */}
+        <div style={{ marginTop: '64px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 12 · THE GUEST JOURNEY (SEVEN STAGES)
+              </div>
+              <h2 className="serif">
+                From first enquiry to{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  departure & follow-up.
+                </em>
+              </h2>
+            </div>
+            <p>
+              Every booking with Bimondo Travels follows a structured 7-stage
+              process managed by our team in Thalangama South, Battaramulla.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                stage: 'STAGE 01 · ENQUIRY',
+                title: 'Multi-Channel Enquiry',
+                desc: 'Contact our team via www.bimondotours.com, email (tours@bimondo.com), WhatsApp (+94 76 223 2054), Facebook (Bimondo tours), or Instagram (@Bimondo.tours).',
+              },
+              {
+                stage: 'STAGE 02 · CONSULTATION',
+                title: 'Personal Travel Consultation',
+                desc: 'We discuss your travel dates, group size, personal interests, preferred travel pace, accommodation level (four-star, boutique, or five-star), and budget.',
+              },
+              {
+                stage: 'STAGE 03 · ITINERARY DESIGN',
+                title: 'Tailor-Made Route Planning',
+                desc: 'We craft a personalized day-by-day route detailing daily activities, realistic driving times, seasonal suitability, and curated hotel options.',
+              },
+              {
+                stage: 'STAGE 04 · QUOTATION & CONFIRMATION',
+                title: 'Written Quotation & Terms',
+                desc: 'You receive a clear written quotation specifying all inclusions, exclusions, hotel room categories, and transparent booking terms.',
+              },
+              {
+                stage: 'STAGE 05 · PRE-ARRIVAL INFORMATION',
+                title: 'Practical Sri Lanka Briefing',
+                desc: 'Before you fly, we share practical guidance on Sri Lanka visas, regional weather, clothing, currency/money, temple dress etiquette, and 24-hour emergency contacts.',
+              },
+              {
+                stage: 'STAGE 06 · ARRIVAL AND JOURNEY',
+                title: 'Airport Greeting & 24-Hour Support',
+                desc: 'Personal airport greeting on arrival, private air-conditioned transport with your driver/guide, pre-confirmed accommodation, and 24-hour local on-call support.',
+              },
+              {
+                stage: 'STAGE 07 · DEPARTURE & FOLLOW-UP',
+                title: 'Departure Transfer & Feedback',
+                desc: 'Punctual airport transfer for your departure flight followed by a personal post-trip follow-up to gather your feedback.',
+              },
+            ].map((item) => (
+              <div
+                key={item.stage}
+                className="value"
+                style={{ borderTopColor: '#c8dbe2' }}
+              >
+                <span
+                  className="number"
+                  style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                >
+                  {item.stage}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    color: 'var(--ink)',
+                    fontSize: '22px',
+                    margin: '10px 0 8px',
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <p style={{ color: '#557180', lineHeight: 1.75 }}>
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 12: Digital Services & Online Convenience */}
+        <div
+          style={{
+            marginTop: '48px',
+            background: '#fff',
+            border: '1px solid var(--line)',
+            borderRadius: '18px',
+            padding: 'clamp(22px, 3.5vw, 34px)',
+          }}
+        >
+          <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+            SECTION 14 · DIGITAL SERVICES & ONLINE CONVENIENCE
+          </div>
+          <h3
+            className="serif"
+            style={{
+              fontSize: 'clamp(1.5rem, 2.5vw, 2.1rem)',
+              margin: '8px 0 16px',
+            }}
+          >
+            Modern digital convenience backed by 24-hour local care.
+          </h3>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+              gap: '12px',
+            }}
+          >
+            {[
+              'Online booking confirmations & status verification',
+              'Clear written booking summaries & itineraries',
+              'Website-based tour & stay discovery (www.bimondotours.com)',
+              'Direct WhatsApp concierge support (+94 76 223 2054)',
+              'Social media enquiry handling on Facebook (Bimondo tours) & Instagram (@Bimondo.tours)',
+              '24-hour online assistance & post-journey guest feedback',
+            ].map((service) => (
+              <div
+                key={service}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '12px',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--line)',
+                  fontSize: '0.86rem',
+                  color: 'var(--ink)',
+                  lineHeight: 1.5,
+                }}
+              >
+                ✓ {service}
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
     </main>
   );
 }
+

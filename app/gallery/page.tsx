@@ -72,7 +72,7 @@ export default function GalleryPage() {
 
         {/* Gallery Grid */}
         <div className="gallery-grid">
-          {filtered.map((photo) => (
+          {filtered.map((photo, idx) => (
             <div
               key={photo.id}
               className="gallery-item"
@@ -84,6 +84,8 @@ export default function GalleryPage() {
                 alt={photo.imageRef?.alt || photo.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 33vw"
+                priority={idx < 3}
+                loading={idx < 6 ? 'eager' : 'lazy'}
                 className="object-cover"
               />
               <div className="gallery-overlay">
@@ -155,6 +157,8 @@ export default function GalleryPage() {
                 alt={selectedPhoto.imageRef?.alt || selectedPhoto.title}
                 fill
                 sizes="(max-width: 768px) 100vw, 850px"
+                priority
+                loading="eager"
                 className="object-cover"
               />
               <button

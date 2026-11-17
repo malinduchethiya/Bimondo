@@ -252,6 +252,32 @@ export default function BentoDestinationSlider() {
     [isAnimating, runFourSidesSwipeIn]
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || bentoSlides.length <= 1) return;
+    const nextSlide = bentoSlides[(safeIndex + 1) % bentoSlides.length];
+    const prevSlide =
+      bentoSlides[(safeIndex - 1 + bentoSlides.length) % bentoSlides.length];
+
+    for (const slide of [nextSlide, prevSlide]) {
+      if (!slide) continue;
+      const urls = [
+        slide.heroImageRef?.url || slide.heroImage,
+        slide.pathwayImageRef?.url || slide.pathwayImage,
+        slide.tallSceneImageRef?.url || slide.tallSceneImage,
+        slide.natureImageRef?.url || slide.natureImage,
+        slide.cuisineImageRef?.url || slide.cuisineImage,
+      ];
+      for (const raw of urls) {
+        const u = (raw || '').trim();
+        if (!u || u.startsWith('data:') || u.startsWith('blob:')) continue;
+        const img = new window.Image();
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.src = u;
+      }
+    }
+  }, [bentoSlides, safeIndex]);
+
   if (bentoSettings?.visible === false || !dest) {
     return null;
   }
@@ -306,6 +332,8 @@ export default function BentoDestinationSlider() {
                 alt={dest.heroImageRef?.alt || dest.name}
                 fill
                 sizes="(max-width: 900px) 100vw, 50vw"
+                priority
+                loading="eager"
                 className="object-cover bento-sr-img"
               />
             </div>
@@ -341,6 +369,7 @@ export default function BentoDestinationSlider() {
                 alt={dest.pathwayImageRef?.alt || `${dest.name} pathway`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
+                loading="eager"
                 className="object-cover bento-sr-img"
               />
             </div>
@@ -397,6 +426,7 @@ export default function BentoDestinationSlider() {
                 alt={dest.tallSceneImageRef?.alt || `${dest.name} atmosphere`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
+                loading="eager"
                 className="object-cover bento-sr-img"
               />
             </div>
@@ -420,6 +450,7 @@ export default function BentoDestinationSlider() {
                 alt={dest.natureImageRef?.alt || `${dest.name} nature`}
                 fill
                 sizes="(max-width: 900px) 50vw, 25vw"
+                loading="eager"
                 className="object-cover bento-sr-img"
               />
             </div>
@@ -439,6 +470,7 @@ export default function BentoDestinationSlider() {
                   alt={dest.cuisineImageRef?.alt || `${dest.name} cuisine`}
                   fill
                   sizes="(max-width: 900px) 50vw, 25vw"
+                  loading="eager"
                   className="object-cover bento-sr-img"
                 />
               </div>

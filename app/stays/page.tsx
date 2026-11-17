@@ -173,7 +173,7 @@ export default function StaysPage() {
         {/* Split Layout: Accommodation Cards + Sticky Desktop Booking Panel */}
         <div className="tour-detail-booking-layout">
           <div className="destinations-detail-grid">
-            {filtered.map((stay) => {
+            {filtered.map((stay, idx) => {
               const isSelected = resolvedActiveStay?.id === stay.id;
               const cmsStay = stay as CmsStayItem;
               return (
@@ -190,6 +190,8 @@ export default function StaysPage() {
                       alt={cmsStay.imageRef?.alt || stay.name}
                       fill
                       sizes="(max-width: 768px) 100vw, 50vw"
+                      priority={idx < 2}
+                      loading={idx < 6 ? 'eager' : 'lazy'}
                       className="object-cover"
                     />
                     <span className="dest-season-badge">
@@ -264,6 +266,166 @@ export default function StaysPage() {
               />
             </aside>
           )}
+        </div>
+
+        {/* Section 09: Accommodation Tiers & Guest Comfort */}
+        <div style={{ marginTop: '64px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 13 · ACCOMMODATION TIERS & GUEST COMFORT
+              </div>
+              <h2 className="serif">
+                Handpicked stays &{' '}
+                <em style={{ color: 'var(--terracotta)' }}>
+                  seamless comfort.
+                </em>
+              </h2>
+            </div>
+            <p>
+              Every property is selected for its location, comfort, hospitality,
+              and suitability for your route—paired with comfortable
+              air-conditioned private vehicles, professional drivers, and
+              family-friendly room arrangements.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                code: '01 · FOUR-STAR HOTELS',
+                title: 'Dependable Four-Star Comfort',
+                desc: 'Well-located four-star properties across the Cultural Triangle, Kandy, Nuwara Eliya, Ella, national park gateways, and the coast—offering modern amenities, swimming pools, and warm Sri Lankan service.',
+              },
+              {
+                code: '02 · BOUTIQUE PROPERTIES',
+                title: 'Characterful Boutique Stays',
+                desc: 'Intimate tea-planter bungalows, historic Galle Fort townhouses, riverside eco-lodges, and design-led coastal villas selected for atmosphere, privacy, and regional dining.',
+              },
+              {
+                code: '03 · FIVE-STAR LUXURY RESORTS',
+                title: 'Five-Star Luxury Resorts',
+                desc: 'Premier beachfront resorts, private-pool safari lodges, and luxury highland sanctuaries with spa facilities, fine dining, and personalized concierge care.',
+              },
+            ].map((tier) => (
+              <div
+                key={tier.code}
+                className="value"
+                style={{ borderTopColor: '#c8dbe2' }}
+              >
+                <span
+                  className="number"
+                  style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                >
+                  {tier.code}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    color: 'var(--ink)',
+                    fontSize: '23px',
+                    margin: '10px 0 8px',
+                  }}
+                >
+                  {tier.title}
+                </h3>
+                <p style={{ color: '#557180', lineHeight: 1.75 }}>
+                  {tier.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 11: Operations, Quality, and Safety */}
+        <div style={{ marginTop: '64px' }}>
+          <div className="section-head">
+            <div>
+              <div className="eyebrow" style={{ color: 'var(--terracotta)' }}>
+                SECTION 15 · OPERATIONS, QUALITY & SAFETY STANDARDS
+              </div>
+              <h2 className="serif">
+                Six operational pillars{' '}
+                <em style={{ color: 'var(--terracotta)' }}>on the ground.</em>
+              </h2>
+            </div>
+            <p>
+              Managed directly from our operational base in Thalangama South,
+              Battaramulla to ensure safe, punctual, and comfortable travel
+              across Sri Lanka.
+            </p>
+          </div>
+
+          <div
+            className="values-grid"
+            style={{
+              gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))',
+              marginTop: '24px',
+            }}
+          >
+            {[
+              {
+                code: '01 · VEHICLES AND DRIVERS',
+                title: 'Private Air-Conditioned Transport',
+                desc: 'Professional, courteous local drivers and comfortable air-conditioned cars, SUVs, and vans—with daily cleanliness standards, comprehensive insurance checks, vehicle safety inspections, and trusted transport partners.',
+              },
+              {
+                code: '02 · GUIDES',
+                title: 'Licensed & Specialist Local Guides',
+                desc: 'Licensed national guides, accredited monument site guides at ancient capitals, specialist trekking and adventure guides, and experienced wildlife and rainforest naturalists.',
+              },
+              {
+                code: '03 · ACCOMMODATION QUALITY',
+                title: 'Ongoing Hotel Quality Monitoring',
+                desc: 'Guest-specific hotel selection across four-star hotels, boutique properties, and five-star luxury resorts—backed by continuous guest feedback tracking and regular supplier reviews.',
+              },
+              {
+                code: '04 · ADVENTURE PARTNERS',
+                title: 'Vetted Operators & Equipment',
+                desc: 'Partnering only with reputable surf schools, white-water rafting operators, dive centres, kite surfing schools, and paramotoring pilots using qualified instructors and certified safety equipment.',
+              },
+              {
+                code: '05 · GUEST CARE & CONTINGENCIES',
+                title: '24-Hour Assistance & Backup Planning',
+                desc: '24-hour on-call guest assistance, medical contact arrangements, travel insurance guidance, real-time weather monitoring, alternative itinerary planning, and backup accommodation, vehicles, and activity providers.',
+              },
+              {
+                code: '06 · QUALITY STANDARDS',
+                title: 'Punctuality & Fast Resolution',
+                desc: 'On-time pickups, clean vehicles, pre-confirmed hotel rooms, accurate pre-arrival and daily information, fast communication responses, and immediate supplier issue resolution.',
+              },
+            ].map((op) => (
+              <div
+                key={op.code}
+                className="value"
+                style={{ borderTopColor: '#c8dbe2' }}
+              >
+                <span
+                  className="number"
+                  style={{ color: 'var(--terracotta)', fontWeight: 700 }}
+                >
+                  {op.code}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    color: 'var(--ink)',
+                    fontSize: '23px',
+                    margin: '10px 0 8px',
+                  }}
+                >
+                  {op.title}
+                </h3>
+                <p style={{ color: '#557180', lineHeight: 1.75 }}>{op.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Custom Route & Stay Combination CTA */}

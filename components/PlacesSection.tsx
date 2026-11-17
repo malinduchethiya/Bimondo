@@ -243,6 +243,7 @@ export default function PlacesSection() {
                   alt={slide.imageRef?.alt || slide.name}
                   fill
                   sizes="(max-width: 720px) 180px, 230px"
+                  loading={idx < totalSlides ? 'eager' : 'lazy'}
                   className="object-cover"
                 />
                 <div className="place-name staggered-place-label">
