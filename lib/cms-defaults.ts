@@ -58,6 +58,24 @@ export interface CmsHeroSlideItem {
   deletedBy?: string | null;
 }
 
+export interface CmsExperienceMapPin {
+  id: string;
+  label: string;
+  regionEyebrow: string;
+  heading: string;
+  headingItalic: string;
+  description: string;
+  highlights: string;
+  ctaLabel: string;
+  ctaHref: string;
+  x: number;
+  y: number;
+  visible?: boolean;
+  order?: number;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+}
+
 export interface CmsDestination {
   id: string;
   name: string;
@@ -305,6 +323,7 @@ export interface CmsHomePageContent {
     secondaryCtaLabel: string;
     secondaryCtaHref: string;
     featureImage: CmsImageRef;
+    mapPins: CmsExperienceMapPin[];
     items: {
       id: string;
       num: string;
@@ -1269,8 +1288,112 @@ export function buildDefaultPagesMap(): CmsPagesMap {
         secondaryCtaHref: '/contact',
         featureImage: createImageRef(
           '',
-          'Sri Lanka coastal and highland landscapes'
+          'Sri Lanka interactive destination map'
         ),
+        mapPins: [
+          {
+            id: 'pin-sigiriya',
+            label: 'Sigiriya & Dambulla',
+            regionEyebrow: 'CULTURAL TRIANGLE · NORTH CENTRAL',
+            heading: 'Sigiriya, Dambulla',
+            headingItalic: '& Ancient Kingdoms.',
+            description:
+              'Climb the 5th-century Sigiriya Sky Fortress at sunrise, hike Pidurangala Rock for panoramic views, explore the golden Dambulla Cave Temples, and cycle through Polonnaruwa’s sacred ruins.',
+            highlights:
+              'Sigiriya Lion Rock · Pidurangala Sunrise · Dambulla Cave Temple · Minneriya Elephants',
+            ctaLabel: 'EXPLORE CULTURAL TOURS ↗',
+            ctaHref: '/packages',
+            x: 48,
+            y: 36,
+            visible: true,
+            order: 0,
+          },
+          {
+            id: 'pin-kandy',
+            label: 'Kandy',
+            regionEyebrow: 'SACRED HIGHLANDS · CENTRAL PROVINCE',
+            heading: 'Kandy & The Sacred',
+            headingItalic: 'Hill Capital.',
+            description:
+              'Visit the revered Temple of the Sacred Tooth Relic, stroll the Royal Botanical Gardens in Peradeniya, and begin the scenic highland train and Pekoe Trail walks through misty tea estates.',
+            highlights:
+              'Temple of the Tooth · Peradeniya Gardens · Pekoe Trail Stage 1 · Kandyan Heritage',
+            ctaLabel: 'VIEW HIGHLAND JOURNEYS ↗',
+            ctaHref: '/packages',
+            x: 47,
+            y: 52,
+            visible: true,
+            order: 1,
+          },
+          {
+            id: 'pin-ella',
+            label: 'Ella & Tea Country',
+            regionEyebrow: 'MISTY HIGHLANDS · UVA PROVINCE',
+            heading: 'Ella, Nuwara Eliya',
+            headingItalic: '& Tea Trails.',
+            description:
+              'Ride the iconic blue train over the Nine Arch Bridge, hike Little Adam’s Peak and Ella Rock, taste artisanal Ceylon tea at historic estates, and trek Horton Plains & World’s End.',
+            highlights:
+              'Nine Arch Bridge · Little Adam’s Peak · Ceylon Tea Estates · Horton Plains',
+            ctaLabel: 'EXPLORE HILL COUNTRY ↗',
+            ctaHref: '/destinations',
+            x: 57,
+            y: 63,
+            visible: true,
+            order: 2,
+          },
+          {
+            id: 'pin-colombo',
+            label: 'Colombo & Battaramulla',
+            regionEyebrow: 'WEST COAST GATEWAY · OUR HOME BASE',
+            heading: 'Colombo, Kotte',
+            headingItalic: '& Thalangama.',
+            description:
+              'Our operational base in Thalangama South, Battaramulla—offering private airport pickups, Thalangama Wetland birdwatching walks, Kelaniya Raja Maha Viharaya visits, and Colombo heritage tours.',
+            highlights:
+              'Thalangama Wetland · Colombo Heritage · Kelaniya Temple · 24/7 Operations Base',
+            ctaLabel: 'PLAN YOUR ARRIVAL ↗',
+            ctaHref: '/contact',
+            x: 29,
+            y: 63,
+            visible: true,
+            order: 3,
+          },
+          {
+            id: 'pin-yala',
+            label: 'Yala Wildlife',
+            regionEyebrow: 'WILDERNESS & SAFARI · DEEP SOUTH-EAST',
+            heading: 'Yala & Udawalawe',
+            headingItalic: 'Safari Parks.',
+            description:
+              'Track wild leopards, sloth bears, and elephant herds on private dawn and dusk jeep safaris with experienced naturalists across Yala Block 1 and Udawalawe National Park.',
+            highlights:
+              'Private Leopard Safaris · Udawalawe Elephants · Luxury Safari Tented Camps',
+            ctaLabel: 'DISCOVER WILDLIFE TOURS ↗',
+            ctaHref: '/packages',
+            x: 67,
+            y: 75,
+            visible: true,
+            order: 4,
+          },
+          {
+            id: 'pin-galle',
+            label: 'Galle & South Coast',
+            regionEyebrow: 'SOUTHERN COAST · INDIAN OCEAN',
+            heading: 'Galle Fort, Mirissa',
+            headingItalic: '& Weligama Bay.',
+            description:
+              'Walk the 17th-century UNESCO ramparts of Galle Fort, surf beginner-friendly waves in Weligama, set out for ethical whale watching from Mirissa, and unwind in boutique beachfront villas.',
+            highlights:
+              'UNESCO Galle Fort · Weligama Surf · Mirissa Coast · Boutique Beach Stays',
+            ctaLabel: 'VIEW COASTAL STAYS ↗',
+            ctaHref: '/stays',
+            x: 38,
+            y: 84,
+            visible: true,
+            order: 5,
+          },
+        ],
         items: [
           {
             id: 'exp-1',

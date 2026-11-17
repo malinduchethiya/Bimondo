@@ -998,12 +998,105 @@ header.site-header .desktop-nav-cta:focus {
 }
 
 .experience-photo {
-  height: clamp(290px, 80vw, 390px);
+  height: clamp(320px, 82vw, 420px);
   width: 100%;
   overflow: hidden;
-  border-radius: 150px 150px 14px 14px;
+  border-radius: 16px;
   order: -1;
   contain: layout paint;
+  border: 1px solid rgba(21, 91, 114, 0.18);
+  background: #cde4ec;
+}
+
+.discover-map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0e3242;
+  border: 1px solid rgba(14, 50, 66, 0.22);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(8, 34, 49, 0.18);
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.discover-map-pin:hover,
+.discover-map-pin:focus-visible,
+.discover-map-pin.is-active {
+  background: #0e3242;
+  color: #ffffff;
+  border-color: #ffffff;
+  z-index: 10;
+  transform: translate(-50%, -50%) scale(1.05);
+}
+
+.discover-map-pin-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #1f7a9c;
+  flex-shrink: 0;
+}
+
+.discover-map-pin:hover .discover-map-pin-dot,
+.discover-map-pin:focus-visible .discover-map-pin-dot,
+.discover-map-pin.is-active .discover-map-pin-dot {
+  background: #7ee3f2;
+}
+
+.discover-pin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.discover-pin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(21, 91, 114, 0.24);
+  background: rgba(255, 255, 255, 0.55);
+  color: #164457;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.discover-pin-tab:hover,
+.discover-pin-tab.is-active {
+  background: #0e3242;
+  color: #ffffff;
+  border-color: #0e3242;
+}
+
+.discover-pin-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 18px;
+}
+
+.discover-pin-highlight-item {
+  font-size: 12px;
+  font-weight: 600;
+  color: #164457;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(21, 91, 114, 0.18);
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 .experience h2 {
@@ -2117,7 +2210,7 @@ main:nth-of-type(1) > section#planning-faq:nth-of-type(8) {
 
 #discover.horizontal-panel-section .experience-photo {
   height: clamp(210px, 42vh, 360px) !important;
-  border-radius: 160px 160px 12px 12px !important;
+  border-radius: 16px !important;
   order: 0 !important;
 }
 
@@ -3173,7 +3266,7 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
 
   .experience-photo {
     height: 480px;
-    border-radius: 220px 220px 12px 12px;
+    border-radius: 16px;
     order: 0;
   }
 

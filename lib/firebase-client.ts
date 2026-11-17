@@ -11,6 +11,8 @@ import {
   Firestore,
   getDocFromServer,
   getFirestore,
+  initializeFirestore,
+  setLogLevel,
 } from 'firebase/firestore';
 import appletConfigJson from '../firebase-applet-config.json';
 
@@ -214,6 +216,8 @@ export function getFirebaseClientServices(): {
   }
 
   try {
+    setLogLevel('silent');
+
     if (!cachedApp) {
       cachedApp =
         getApps().length > 0 ? getApp() : initializeApp(resolution.config);
@@ -222,16 +226,33 @@ export function getFirebaseClientServices(): {
       cachedAuth = getAuth(cachedApp);
     }
     if (!cachedDb) {
-      cachedDb =
+      const targetDbId =
         resolution.firestoreDatabaseId &&
         resolution.firestoreDatabaseId !== '(default)'
-          ? getFirestore(cachedApp, resolution.firestoreDatabaseId)
+          ? resolution.firestoreDatabaseId
+          : undefined;
+      try {
+        cachedDb = targetDbId
+          ? initializeFirestore(
+              cachedApp,
+              {
+                experimentalForceLongPolling: true,
+              },
+              targetDbId
+            )
+          : initializeFirestore(cachedApp, {
+              experimentalForceLongPolling: true,
+            });
+      } catch {
+        cachedDb = targetDbId
+          ? getFirestore(cachedApp, targetDbId)
           : getFirestore(cachedApp);
+      }
     }
 
     if (typeof window !== 'undefined' && !hasTestedConnection && cachedDb) {
       hasTestedConnection = true;
-      testFirestoreConnection(cachedDb);
+      void testFirestoreConnection(cachedDb, resolution);
     }
 
     return {
@@ -262,7 +283,10 @@ export function getFirebaseClientAuth(): {
   return { app, auth, resolution };
 }
 
-async function testFirestoreConnection(dbInstance: Firestore) {
+async function testFirestoreConnection(
+  dbInstance: Firestore,
+  resolution: FirebaseConfigResolution
+) {
   try {
     await getDocFromServer(doc(dbInstance, 'cms_sections', 'shared_header'));
   } catch (error) {
@@ -270,7 +294,30 @@ async function testFirestoreConnection(dbInstance: Firestore) {
       error instanceof Error &&
       error.message.includes('the client is offline')
     ) {
-      console.error('Please check your Firebase configuration.');
+      // Verify via direct REST check before reporting a configuration error,
+      // as iframe proxies or browser extensions can transiently delay WebChannel.
+      const projectId = resolution.config?.projectId;
+      const apiKey = resolution.config?.apiKey;
+      const dbId = resolution.firestoreDatabaseId || '(default)';
+      if (projectId && apiKey) {
+        try {
+          const res = await fetch(
+            `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+              projectId
+            )}/databases/${encodeURIComponent(
+              dbId
+            )}/documents/cms_sections/shared_header?key=${encodeURIComponent(
+              apiKey
+            )}`
+          );
+          if (res.ok || res.status === 404) {
+            return;
+          }
+        } catch {
+          // Ignore network offline check error
+        }
+      }
+      console.warn('Firestore client is operating in offline/cached mode.');
     }
   }
 }

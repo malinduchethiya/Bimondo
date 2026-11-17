@@ -94,12 +94,29 @@ const FEATURED_TOUR_IDS = [
 export default function ExperienceSection() {
   const { cms } = useSiteCms();
   const expSection = cms.pages.home.experience;
+  const [activePinId, setActivePinId] = React.useState<string | null>(null);
 
   if (expSection.visible === false) {
     return null;
   }
 
   const experiences = expSection.items || [];
+  const visibleMapPins = [...(expSection.mapPins || [])]
+    .filter((pin) => pin.visible !== false && !pin.deletedAt)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const activePin =
+    (activePinId
+      ? visibleMapPins.find((pin) => pin.id === activePinId)
+      : null) || null;
+
+  const activePinHighlights = activePin?.highlights
+    ? activePin.highlights
+        .split(/[·,\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
   const visibleTours = [...(cms.tours || [])]
     .filter((t) => t.visible !== false && !t.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -125,24 +142,100 @@ export default function ExperienceSection() {
     <section className="section experience" id="discover">
       <div className="wrap">
         <div className="experience-grid">
-          <div>
-            <div className="eyebrow">{expSection.eyebrow}</div>
-            <h2 className="serif">
-              {expSection.headingLine1}
-              <br />
-              {expSection.headingLine2Prefix}{' '}
-              <em>{expSection.headingItalic}</em>
-              <br />
-              {expSection.headingLine3}
-            </h2>
-            <p>{expSection.description}</p>
+          <div aria-live="polite">
+            <div className="eyebrow">
+              {activePin
+                ? activePin.regionEyebrow || expSection.eyebrow
+                : expSection.eyebrow}
+            </div>
+
+            {activePin ? (
+              <h2 className="serif">
+                {activePin.heading || activePin.label}
+                {activePin.headingItalic ? (
+                  <>
+                    {' '}
+                    <em>{activePin.headingItalic}</em>
+                  </>
+                ) : null}
+              </h2>
+            ) : (
+              <h2 className="serif">
+                {expSection.headingLine1}
+                <br />
+                {expSection.headingLine2Prefix}{' '}
+                <em>{expSection.headingItalic}</em>
+                <br />
+                {expSection.headingLine3}
+              </h2>
+            )}
+
+            {visibleMapPins.length > 0 && (
+              <div
+                className="discover-pin-tabs"
+                role="tablist"
+                aria-label="Map Locations"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activePin === null}
+                  onClick={() => setActivePinId(null)}
+                  className={`discover-pin-tab ${
+                    activePin === null ? 'is-active' : ''
+                  }`}
+                >
+                  Overview
+                </button>
+                {visibleMapPins.map((pin) => {
+                  const isCurrent = activePin?.id === pin.id;
+                  return (
+                    <button
+                      key={pin.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={isCurrent}
+                      onMouseEnter={() => setActivePinId(pin.id)}
+                      onClick={() => setActivePinId(pin.id)}
+                      className={`discover-pin-tab ${
+                        isCurrent ? 'is-active' : ''
+                      }`}
+                    >
+                      {pin.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <p>
+              {activePin
+                ? activePin.description || expSection.description
+                : expSection.description}
+            </p>
+
+            {activePin && activePinHighlights.length > 0 && (
+              <div className="discover-pin-highlights">
+                {activePinHighlights.map((item, idx) => (
+                  <span key={idx} className="discover-pin-highlight-item">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <Link
                 className="pill dark"
-                href={expSection.primaryCtaHref || '/packages'}
+                href={
+                  (activePin?.ctaHref && activePin.ctaHref.trim()) ||
+                  expSection.primaryCtaHref ||
+                  '/packages'
+                }
                 prefetch={false}
               >
-                {expSection.primaryCtaLabel}
+                {(activePin?.ctaLabel && activePin.ctaLabel.trim()) ||
+                  expSection.primaryCtaLabel}
               </Link>
               <Link
                 className="pill"
@@ -160,12 +253,35 @@ export default function ExperienceSection() {
               src={expSection.featureImage?.url}
               alt={
                 expSection.featureImage?.alt ||
-                'Sri Lanka coastal and highland landscapes'
+                'Sri Lanka interactive destination map'
               }
               fill
               sizes="(max-width: 720px) 100vw, 50vw"
               className="object-cover"
             />
+
+            {visibleMapPins.map((pin) => {
+              const isCurrent = activePin?.id === pin.id;
+              return (
+                <button
+                  key={pin.id}
+                  type="button"
+                  style={{
+                    left: `${pin.x}%`,
+                    top: `${pin.y}%`,
+                  }}
+                  aria-label={`Show details for ${pin.label}`}
+                  aria-pressed={isCurrent}
+                  onMouseEnter={() => setActivePinId(pin.id)}
+                  onFocus={() => setActivePinId(pin.id)}
+                  onClick={() => setActivePinId(pin.id)}
+                  className={`discover-map-pin ${isCurrent ? 'is-active' : ''}`}
+                >
+                  <span className="discover-map-pin-dot" />
+                  <span>{pin.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

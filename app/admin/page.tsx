@@ -49,6 +49,7 @@ import AdminImageUploadField, {
 import AdminMediaLibrary, {
   SelectedMediaLibraryAsset,
 } from '@/components/admin/AdminMediaLibrary';
+import AdminDiscoverMapPinEditor from '@/components/admin/AdminDiscoverMapPinEditor';
 
 type WorkspaceMode = 'editor' | 'enquiries' | 'media' | 'trash';
 
@@ -1603,6 +1604,15 @@ export default function AdminPanelPage() {
                     </button>
                   </div>
                 )}
+
+              {/* Interactive Map & Location Pin Studio when editing #discover (home-experience) */}
+              {activeSection.id === 'home-experience' && (
+                <AdminDiscoverMapPinEditor
+                  draft={draft}
+                  currentAdminUid={user?.uid || 'admin'}
+                  onMutateDraft={applyDraftMutation}
+                />
+              )}
 
               {/* Direct Booking Requests Banner when editing Contact & Multi-Channel Booking (#contact) */}
               {(activeSection.id === 'home-contact' ||

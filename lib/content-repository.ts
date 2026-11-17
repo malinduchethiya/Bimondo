@@ -119,7 +119,8 @@ export interface TrashItemEntry {
     | 'stays'
     | 'gallery'
     | 'reviews'
-    | 'faqs';
+    | 'faqs'
+    | 'experienceMapPins';
   id: string;
   title: string;
   locationLabel: string;
@@ -411,14 +412,56 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
   merged.general.storySecondaryImage =
     merged.pages.home.story.secondaryImage.url;
 
-  // Sync Home Experience image
+  // Sync Home Experience image & map pins
   merged.pages.home.experience.featureImage = normalizeImageRef(
     merged.pages.home.experience.featureImage,
     merged.general.experienceImage || '',
-    'Sri Lanka coastal and highland landscapes'
+    'Sri Lanka interactive destination map'
   );
   merged.general.experienceImage =
     merged.pages.home.experience.featureImage.url;
+
+  const rawMapPins = Array.isArray(merged.pages.home.experience.mapPins)
+    ? merged.pages.home.experience.mapPins
+    : defaults.pages.home.experience.mapPins;
+  merged.pages.home.experience.mapPins = rawMapPins.map((pin, idx) => {
+    const rawX = typeof pin?.x === 'number' && Number.isFinite(pin.x) ? pin.x : 50;
+    const rawY = typeof pin?.y === 'number' && Number.isFinite(pin.y) ? pin.y : 50;
+    return {
+      id:
+        typeof pin?.id === 'string' && pin.id.trim()
+          ? pin.id.trim()
+          : `pin-${idx + 1}`,
+      label:
+        typeof pin?.label === 'string' && pin.label.trim()
+          ? pin.label
+          : `Location ${idx + 1}`,
+      regionEyebrow:
+        typeof pin?.regionEyebrow === 'string' ? pin.regionEyebrow : '',
+      heading:
+        typeof pin?.heading === 'string' && pin.heading.trim()
+          ? pin.heading
+          : typeof pin?.label === 'string' && pin.label.trim()
+            ? pin.label
+            : `Location ${idx + 1}`,
+      headingItalic:
+        typeof pin?.headingItalic === 'string' ? pin.headingItalic : '',
+      description:
+        typeof pin?.description === 'string' ? pin.description : '',
+      highlights:
+        typeof pin?.highlights === 'string' ? pin.highlights : '',
+      ctaLabel:
+        typeof pin?.ctaLabel === 'string' ? pin.ctaLabel : '',
+      ctaHref:
+        typeof pin?.ctaHref === 'string' ? pin.ctaHref : '',
+      x: Math.round(Math.max(2, Math.min(98, rawX)) * 10) / 10,
+      y: Math.round(Math.max(2, Math.min(98, rawY)) * 10) / 10,
+      visible: pin?.visible !== false,
+      order: typeof pin?.order === 'number' ? pin.order : idx,
+      deletedAt: pin?.deletedAt ?? null,
+      deletedBy: pin?.deletedBy ?? null,
+    };
+  });
 
   // Sync Tripadvisor fields
   merged.general.tripadvisorEnabled = merged.pages.home.hero.tripadvisorEnabled;
@@ -807,6 +850,10 @@ export function filterCmsForPublic(cms: SiteCmsData): SiteCmsData {
     .sort((a, b) => a.order - b.order)
     .map((s) => s.image.url.trim());
 
+  cloned.pages.home.experience.mapPins = (
+    cloned.pages.home.experience.mapPins || []
+  ).filter((item) => !item.deletedAt);
+
   cloned.bentoDestinations = (cloned.bentoDestinations || []).filter(
     (item) => !item.deletedAt
   );
@@ -929,6 +976,20 @@ export function listSoftDeletedItems(cms: SiteCmsData): TrashItemEntry[] {
         locationLabel: 'Home Page · Hero Slide',
         deletedAt: slide.deletedAt,
         deletedBy: slide.deletedBy ?? null,
+      });
+    }
+  }
+
+  for (const pin of cms.pages.home.experience.mapPins || []) {
+    if (pin.deletedAt) {
+      entries.push({
+        kind: 'item',
+        collectionKey: 'experienceMapPins',
+        id: pin.id,
+        title: pin.label || `Map Pin (${pin.id})`,
+        locationLabel: 'Home Page · Discover Map Pin',
+        deletedAt: pin.deletedAt,
+        deletedBy: pin.deletedBy ?? null,
       });
     }
   }
@@ -1074,6 +1135,13 @@ export function restoreSoftDeletedEntry(
     case 'heroSlides':
       next.pages.home.hero.slides = next.pages.home.hero.slides.map((s) =>
         s.id === entry.id ? { ...s, deletedAt: null, deletedBy: null } : s
+      );
+      break;
+    case 'experienceMapPins':
+      next.pages.home.experience.mapPins = (
+        next.pages.home.experience.mapPins || []
+      ).map((p) =>
+        p.id === entry.id ? { ...p, deletedAt: null, deletedBy: null } : p
       );
       break;
     case 'bentoDestinations':
@@ -1598,6 +1666,77 @@ export interface ContentRepository {
   deleteCustomerEnquiryInFirestore(enquiryId: string): Promise<void>;
 }
 
+function parseFirestoreRestValue(val: unknown): unknown {
+  if (!val || typeof val !== 'object') return null;
+  const v = val as Record<string, unknown>;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return Boolean(v.booleanValue);
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('timestampValue' in v) return String(v.timestampValue);
+  if ('stringValue' in v) return String(v.stringValue);
+  if ('arrayValue' in v) {
+    const arrObj = v.arrayValue as { values?: unknown[] } | undefined;
+    return Array.isArray(arrObj?.values)
+      ? arrObj.values.map(parseFirestoreRestValue)
+      : [];
+  }
+  if ('mapValue' in v) {
+    const mapObj = v.mapValue as
+      | { fields?: Record<string, unknown> }
+      | undefined;
+    return parseFirestoreRestFields(mapObj?.fields || {});
+  }
+  return null;
+}
+
+function parseFirestoreRestFields(
+  fields: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, rawVal] of Object.entries(fields)) {
+    out[k] = parseFirestoreRestValue(rawVal);
+  }
+  return out;
+}
+
+async function fetchCmsSectionsMapViaRest(): Promise<Map<
+  string,
+  Record<string, unknown>
+> | null> {
+  const { resolution } = getFirebaseClientServices();
+  const projectId = resolution.config?.projectId;
+  const apiKey = resolution.config?.apiKey;
+  const dbId = resolution.firestoreDatabaseId || '(default)';
+  if (!projectId || !apiKey) return null;
+
+  try {
+    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+      projectId
+    )}/databases/${encodeURIComponent(
+      dbId
+    )}/documents/${CMS_SECTIONS_COLLECTION}?pageSize=50&key=${encodeURIComponent(
+      apiKey
+    )}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      documents?: { name?: string; fields?: Record<string, unknown> }[];
+    };
+    const docsById = new Map<string, Record<string, unknown>>();
+    for (const docItem of json.documents || []) {
+      const nameParts = (docItem.name || '').split('/');
+      const docId = nameParts[nameParts.length - 1];
+      if (docId && docItem.fields) {
+        docsById.set(docId, parseFirestoreRestFields(docItem.fields));
+      }
+    }
+    return docsById;
+  } catch {
+    return null;
+  }
+}
+
 class FirestoreContentRepository implements ContentRepository {
   readonly storageLabel =
     'Cloud Firestore Published Content (22 modular section documents in /cms_sections)';
@@ -1692,29 +1831,47 @@ class FirestoreContentRepository implements ContentRepository {
 
     try {
       const colRef = collection(db, CMS_SECTIONS_COLLECTION);
-      let snap;
-      if (options?.forceServer) {
-        try {
-          snap = await getDocsFromServer(colRef);
-        } catch {
-          snap = await getDocs(colRef);
+      const docsById = new Map<string, Record<string, unknown>>();
+
+      let loadedViaSdk = false;
+      try {
+        const sdkPromise = options?.forceServer
+          ? getDocsFromServer(colRef).catch(() => getDocs(colRef))
+          : getDocs(colRef).catch(() => getDocsFromServer(colRef));
+
+        const timeoutPromise = new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 3500);
+        });
+
+        const snap = await Promise.race([sdkPromise, timeoutPromise]);
+        if (snap) {
+          snap.forEach((docSnap) => {
+            docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
+          });
+          loadedViaSdk = true;
         }
-      } else {
-        try {
-          snap = await getDocs(colRef);
-        } catch {
-          snap = await getDocsFromServer(colRef);
+      } catch {
+        loadedViaSdk = false;
+      }
+
+      if (!loadedViaSdk) {
+        const restDocs = await fetchCmsSectionsMapViaRest();
+        if (restDocs) {
+          restDocs.forEach((val, key) => {
+            docsById.set(key, val);
+          });
+        } else {
+          // Final SDK attempt if REST failed
+          const snap = await getDocs(colRef);
+          snap.forEach((docSnap) => {
+            docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
+          });
         }
       }
 
       const workingCms = JSON.parse(JSON.stringify(defaults)) as SiteCmsData;
       let existingCount = 0;
       let latestUpdatedAt = workingCms.updatedAt;
-
-      const docsById = new Map<string, Record<string, unknown>>();
-      snap.forEach((docSnap) => {
-        docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
-      });
 
       for (const def of CMS_SECTION_DEFINITIONS) {
         const docData = docsById.get(def.docId);

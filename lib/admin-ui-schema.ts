@@ -2,6 +2,7 @@ import {
   CmsBentoSlideItem,
   CmsColomboExperienceItem,
   CmsDestination,
+  CmsExperienceMapPin,
   CmsFaqItem,
   CmsGalleryPhoto,
   CmsHeroSlideItem,
@@ -167,6 +168,9 @@ export function buildAdminPagesFromCms(
     .filter((item) => !item.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const sortedFaqs = [...(cms.faqs || [])]
+    .filter((item) => !item.deletedAt)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sortedExperiencePins = [...(cms.pages.home.experience.mapPins || [])]
     .filter((item) => !item.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -1482,13 +1486,13 @@ export function buildAdminPagesFromCms(
           ],
         },
 
-        // SEC 05: Experience Section
+        // SEC 05: Experience Section (#discover Interactive Map & Location Pins)
         {
           id: 'home-experience',
           code: 'SEC 05',
-          title: 'Experience Section (#discover)',
+          title: 'Experience & Interactive Map Section (#discover)',
           description:
-            'Four core experience pillars, buttons, and featured landscape image.',
+            'Upload a map image, place and drag interactive location pins on the map, and configure the location details shown in the left text area when visitors hover or click a pin.',
           visible: cms.pages.home.experience.visible !== false,
           canToggleSectionVisible: true,
           onToggleSectionVisible: (prev) => {
@@ -1512,15 +1516,67 @@ export function buildAdminPagesFromCms(
               : currentAdminUid;
             return next;
           },
+          addRepeatableLabel: 'Add Location Pin',
+          onAddRepeatable: (prev) => {
+            const next = cloneCms(prev);
+            const existing = next.pages.home.experience.mapPins || [];
+            const activeCount = existing.filter((p) => !p.deletedAt).length;
+            const newPin: CmsExperienceMapPin = {
+              id: `pin-custom-${Date.now()}`,
+              label: `Location ${activeCount + 1}`,
+              regionEyebrow: 'SRI LANKA · FEATURED DESTINATION',
+              heading: `Location ${activeCount + 1}`,
+              headingItalic: 'Highlights.',
+              description:
+                'Add details for this pinned location. When a visitor hovers or clicks this pin on the map, these details appear in the left text area.',
+              highlights: 'Private Guided Tour · Tailored Pacing · Boutique Stays',
+              ctaLabel: 'EXPLORE JOURNEYS ↗',
+              ctaHref: '/packages',
+              x: 50,
+              y: 50,
+              visible: true,
+              order: existing.length,
+              deletedAt: null,
+              deletedBy: null,
+            };
+            next.pages.home.experience.mapPins = [...existing, newPin];
+            return next;
+          },
           subsections: [
             {
               id: 'home-exp-intro',
               code: '5.1',
-              title: 'Section Heading, Buttons & Feature Image',
+              title: 'Default Section Text, Buttons & Uploaded Map Image',
+              description:
+                'Upload your map image here and edit the default overview text shown before a visitor hovers or selects a location pin.',
               fields: [
                 {
+                  id: 'exp-feature-img',
+                  label: 'Uploaded Map Image (Displayed in Box Container with Location Pins)',
+                  helperText:
+                    'Upload your map image here. Once uploaded, use the Interactive Map Pin Placer above to drag pins to exact positions on the map.',
+                  type: 'image',
+                  value: cms.pages.home.experience.featureImage?.url || '',
+                  altText:
+                    cms.pages.home.experience.featureImage?.alt ||
+                    'Sri Lanka interactive destination map',
+                  objectKey:
+                    cms.pages.home.experience.featureImage?.key ?? null,
+                  applyImage: (prev, updates) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.featureImage = updateImageRef(
+                      next.pages.home.experience.featureImage,
+                      updates,
+                      'Sri Lanka interactive destination map'
+                    );
+                    next.general.experienceImage =
+                      next.pages.home.experience.featureImage.url;
+                    return next;
+                  },
+                },
+                {
                   id: 'exp-eyebrow',
-                  label: 'Eyebrow',
+                  label: 'Default Overview Eyebrow',
                   type: 'text',
                   value: cms.pages.home.experience.eyebrow,
                   applyText: (prev, val) => {
@@ -1531,7 +1587,7 @@ export function buildAdminPagesFromCms(
                 },
                 {
                   id: 'exp-h1',
-                  label: 'Heading Line 1',
+                  label: 'Default Heading Line 1',
                   type: 'text',
                   value: cms.pages.home.experience.headingLine1,
                   applyText: (prev, val) => {
@@ -1542,7 +1598,7 @@ export function buildAdminPagesFromCms(
                 },
                 {
                   id: 'exp-h2-prefix',
-                  label: 'Heading Line 2 Prefix',
+                  label: 'Default Heading Line 2 Prefix',
                   type: 'text',
                   value: cms.pages.home.experience.headingLine2Prefix,
                   applyText: (prev, val) => {
@@ -1553,7 +1609,7 @@ export function buildAdminPagesFromCms(
                 },
                 {
                   id: 'exp-h2-italic',
-                  label: 'Heading Line 2 Italic Word',
+                  label: 'Default Heading Line 2 Italic Word',
                   type: 'text',
                   value: cms.pages.home.experience.headingItalic,
                   applyText: (prev, val) => {
@@ -1564,7 +1620,7 @@ export function buildAdminPagesFromCms(
                 },
                 {
                   id: 'exp-h3',
-                  label: 'Heading Line 3',
+                  label: 'Default Heading Line 3',
                   type: 'text',
                   value: cms.pages.home.experience.headingLine3,
                   applyText: (prev, val) => {
@@ -1575,7 +1631,7 @@ export function buildAdminPagesFromCms(
                 },
                 {
                   id: 'exp-desc',
-                  label: 'Description Paragraph',
+                  label: 'Default Overview Description Paragraph',
                   type: 'textarea',
                   value: cms.pages.home.experience.description,
                   applyText: (prev, val) => {
@@ -1628,30 +1684,213 @@ export function buildAdminPagesFromCms(
                     return next;
                   },
                 },
+              ],
+            },
+            ...sortedExperiencePins.map((pin, idx) => ({
+              id: `home-exp-pin-${pin.id}`,
+              code: `5.P${idx + 1}`,
+              title: `Map Pin ${idx + 1}: ${pin.label} (${pin.x}%, ${pin.y}%)`,
+              description:
+                'Details shown in the left text area when a visitor hovers or clicks this pin on the map.',
+              repeatableItemId: pin.id,
+              visible: pin.visible !== false,
+              canToggleVisible: true,
+              onToggleVisible: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.experience.mapPins = (
+                  next.pages.home.experience.mapPins || []
+                ).map((p) =>
+                  p.id === pin.id ? { ...p, visible: p.visible === false } : p
+                );
+                return next;
+              },
+              canMoveUp: idx > 0,
+              canMoveDown: idx < sortedExperiencePins.length - 1,
+              canRemove: true,
+              onMoveUp: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.experience.mapPins = moveArrayItem(
+                  sortedExperiencePins,
+                  idx,
+                  'up',
+                  next.pages.home.experience.mapPins || []
+                );
+                return next;
+              },
+              onMoveDown: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.experience.mapPins = moveArrayItem(
+                  sortedExperiencePins,
+                  idx,
+                  'down',
+                  next.pages.home.experience.mapPins || []
+                );
+                return next;
+              },
+              onRemove: (prev: SiteCmsData) => {
+                const next = cloneCms(prev);
+                next.pages.home.experience.mapPins = softDeleteItemById(
+                  next.pages.home.experience.mapPins || [],
+                  pin.id,
+                  currentAdminUid
+                );
+                return next;
+              },
+              fields: [
                 {
-                  id: 'exp-feature-img',
-                  label: 'Experience Feature Image',
-                  type: 'image',
-                  value: cms.pages.home.experience.featureImage?.url || '',
-                  altText:
-                    cms.pages.home.experience.featureImage?.alt ||
-                    'Sri Lanka coastal and highland landscapes',
-                  objectKey:
-                    cms.pages.home.experience.featureImage?.key ?? null,
-                  applyImage: (prev, updates) => {
+                  id: `exp-pin-label-${pin.id}`,
+                  label: 'Pin Label (Shown on Map Pin)',
+                  type: 'text' as const,
+                  value: pin.label,
+                  applyText: (prev: SiteCmsData, val: string) => {
                     const next = cloneCms(prev);
-                    next.pages.home.experience.featureImage = updateImageRef(
-                      next.pages.home.experience.featureImage,
-                      updates,
-                      'Sri Lanka coastal and highland landscapes'
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) => (p.id === pin.id ? { ...p, label: val } : p));
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-eyebrow-${pin.id}`,
+                  label: 'Location Eyebrow / Region Subtitle',
+                  type: 'text' as const,
+                  value: pin.regionEyebrow,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, regionEyebrow: val } : p
                     );
-                    next.general.experienceImage =
-                      next.pages.home.experience.featureImage.url;
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-heading-${pin.id}`,
+                  label: 'Location Main Heading',
+                  type: 'text' as const,
+                  value: pin.heading,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, heading: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-italic-${pin.id}`,
+                  label: 'Location Heading Italic Accent',
+                  type: 'text' as const,
+                  value: pin.headingItalic,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, headingItalic: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-desc-${pin.id}`,
+                  label: 'Location Description / Details (Shown in Left Text Area)',
+                  type: 'textarea' as const,
+                  value: pin.description,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, description: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-highlights-${pin.id}`,
+                  label: 'Key Highlights (Optional · Separated by · or commas)',
+                  type: 'text' as const,
+                  value: pin.highlights,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, highlights: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-cta-label-${pin.id}`,
+                  label: 'Custom CTA Button Label (Optional)',
+                  type: 'text' as const,
+                  value: pin.ctaLabel,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, ctaLabel: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-cta-href-${pin.id}`,
+                  label: 'Custom CTA Button Link Path (Optional)',
+                  type: 'text' as const,
+                  value: pin.ctaHref,
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) =>
+                      p.id === pin.id ? { ...p, ctaHref: val } : p
+                    );
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-x-${pin.id}`,
+                  label: 'Horizontal Position X (% from left, 2–98)',
+                  type: 'text' as const,
+                  value: String(pin.x),
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    const parsed = parseFloat(val);
+                    const nextX = Number.isFinite(parsed)
+                      ? Math.round(Math.max(2, Math.min(98, parsed)) * 10) / 10
+                      : pin.x;
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) => (p.id === pin.id ? { ...p, x: nextX } : p));
+                    return next;
+                  },
+                },
+                {
+                  id: `exp-pin-y-${pin.id}`,
+                  label: 'Vertical Position Y (% from top, 2–98)',
+                  type: 'text' as const,
+                  value: String(pin.y),
+                  applyText: (prev: SiteCmsData, val: string) => {
+                    const next = cloneCms(prev);
+                    const parsed = parseFloat(val);
+                    const nextY = Number.isFinite(parsed)
+                      ? Math.round(Math.max(2, Math.min(98, parsed)) * 10) / 10
+                      : pin.y;
+                    next.pages.home.experience.mapPins = (
+                      next.pages.home.experience.mapPins || []
+                    ).map((p) => (p.id === pin.id ? { ...p, y: nextY } : p));
                     return next;
                   },
                 },
               ],
-            },
+            })),
             {
               id: 'home-exp-items',
               code: '5.2',
