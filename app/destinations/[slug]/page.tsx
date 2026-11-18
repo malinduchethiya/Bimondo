@@ -7,8 +7,6 @@ import {
   resolveDestinationSlug,
 } from '@/lib/sri-lanka-47-destinations';
 
-export const dynamicParams = true;
-
 export async function generateStaticParams() {
   return SRI_LANKA_47_DESTINATIONS.map((dest) => ({
     slug: resolveDestinationSlug(dest),
