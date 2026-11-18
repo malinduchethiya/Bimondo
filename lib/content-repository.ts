@@ -28,6 +28,7 @@ import {
   resolveDestinationSlug,
   SRI_LANKA_47_DESTINATIONS,
 } from '@/lib/sri-lanka-47-destinations';
+import { resolveExperienceMapPinsWith47 } from '@/lib/sri-lanka-47-map-pins';
 import {
   getFirebaseClientServices,
   handleFirestoreError,
@@ -431,9 +432,11 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
   merged.general.experienceImage =
     merged.pages.home.experience.featureImage.url;
 
-  const rawMapPins = Array.isArray(merged.pages.home.experience.mapPins)
-    ? merged.pages.home.experience.mapPins
-    : defaults.pages.home.experience.mapPins;
+  const rawMapPins = resolveExperienceMapPinsWith47(
+    Array.isArray(merged.pages.home.experience.mapPins)
+      ? merged.pages.home.experience.mapPins
+      : defaults.pages.home.experience.mapPins
+  );
   merged.pages.home.experience.mapPins = rawMapPins.map((pin, idx) => {
     const rawX = typeof pin?.x === 'number' && Number.isFinite(pin.x) ? pin.x : 50;
     const rawY = typeof pin?.y === 'number' && Number.isFinite(pin.y) ? pin.y : 50;

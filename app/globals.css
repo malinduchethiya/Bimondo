@@ -1033,15 +1033,15 @@ header.site-header .desktop-nav-cta:focus {
 .discover-map-pin:hover,
 .discover-map-pin:focus-visible,
 .discover-map-pin.is-active {
-  z-index: 10;
-  transform: translate(-50%, -100%) scale(1.22);
-  filter: drop-shadow(0 5px 10px rgba(185, 28, 28, 0.45));
+  z-index: 20;
+  transform: translate(-50%, -100%) scale(1.38);
+  filter: drop-shadow(0 5px 10px rgba(185, 28, 28, 0.48));
   outline: none;
 }
 
 .discover-map-pin-icon {
-  width: 30px;
-  height: 30px;
+  width: 18px;
+  height: 18px;
   fill: #dc2626;
   color: #7f1d1d;
   stroke-width: 1.75px;
