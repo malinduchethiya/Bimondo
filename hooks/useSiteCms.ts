@@ -14,6 +14,7 @@ import {
   contentRepository,
   createInitialSectionMetaMap,
   filterCmsForPublic,
+  FIRESTORE_CMS_SNAPSHOT_CACHE_KEY,
   FirestoreImportResult,
   FirestoreSaveResult,
   isForbiddenImageUrl,
@@ -71,6 +72,7 @@ const listeners = new Set<StoreListener>();
 let inflightLoadPromise: Promise<SiteCmsData> | null = null;
 let hasTriggeredInitialLoad = false;
 let windowEventsAttached = false;
+let lastFocusRefreshAt = 0;
 const preloadedImageUrls = new Set<string>();
 
 function warmCriticalCmsImages(cms: SiteCmsData) {
@@ -178,7 +180,55 @@ function ensureWindowEvents() {
     void performFirestoreFetch(true);
   };
 
+  const handleStorageUpdate = (e: StorageEvent) => {
+    if (e.key !== FIRESTORE_CMS_SNAPSHOT_CACHE_KEY) return;
+    const latestCached = readCachedFirestoreSnapshot();
+    if (latestCached) {
+      warmCriticalCmsImages(latestCached.publicCms);
+      clientSnapshot = {
+        publicCms: latestCached.publicCms,
+        adminCms: latestCached.adminCms,
+        sectionMeta: latestCached.sectionMeta,
+        existingSectionCount: latestCached.existingSectionCount,
+        totalSectionCount: latestCached.totalSectionCount,
+        loading: false,
+        initializedFromServer: true,
+        loadError: null,
+      };
+      notifyListeners();
+    } else {
+      void performFirestoreFetch(true);
+    }
+  };
+
+  const handleFocusOrVisible = () => {
+    if (
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'hidden'
+    ) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastFocusRefreshAt < 15000) return;
+    lastFocusRefreshAt = now;
+    void performFirestoreFetch(true);
+  };
+
   window.addEventListener(CMS_UPDATED_EVENT, handleCustomUpdate);
+  window.addEventListener('storage', handleStorageUpdate);
+  window.addEventListener('focus', handleFocusOrVisible);
+  document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const ch = new BroadcastChannel('bimondo_cms_updates');
+      ch.addEventListener('message', () => {
+        void performFirestoreFetch(true);
+      });
+    } catch {
+      // Ignore BroadcastChannel errors
+    }
+  }
 }
 
 function subscribe(listener: StoreListener): () => void {

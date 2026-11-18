@@ -113,10 +113,19 @@ export default function ExperienceSection() {
 
   const activePinHighlights = activePin?.highlights
     ? activePin.highlights
-        .split(/[·,\n]+/)
+        .split(/[·,\n|•;]+/)
         .map((s) => s.trim())
         .filter(Boolean)
     : [];
+
+  const primaryCtaText =
+    (activePin?.ctaLabel && activePin.ctaLabel.trim()) ||
+    (expSection.primaryCtaLabel || '').trim();
+  const primaryCtaLink =
+    (activePin?.ctaHref && activePin.ctaHref.trim()) ||
+    expSection.primaryCtaHref ||
+    '/packages';
+  const secondaryCtaText = (expSection.secondaryCtaLabel || '').trim();
 
   const visibleTours = [...(cms.tours || [])]
     .filter((t) => t.visible !== false && !t.deletedAt)
@@ -187,27 +196,28 @@ export default function ExperienceSection() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <Link
-                className="pill dark"
-                href={
-                  (activePin?.ctaHref && activePin.ctaHref.trim()) ||
-                  expSection.primaryCtaHref ||
-                  '/packages'
-                }
-                prefetch={false}
-              >
-                {(activePin?.ctaLabel && activePin.ctaLabel.trim()) ||
-                  expSection.primaryCtaLabel}
-              </Link>
-              <Link
-                className="pill"
-                href={expSection.secondaryCtaHref || '/contact'}
-                prefetch={false}
-              >
-                {expSection.secondaryCtaLabel}
-              </Link>
-            </div>
+            {(primaryCtaText || secondaryCtaText) && (
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                {primaryCtaText && (
+                  <Link
+                    className="pill dark"
+                    href={primaryCtaLink}
+                    prefetch={false}
+                  >
+                    {primaryCtaText}
+                  </Link>
+                )}
+                {secondaryCtaText && (
+                  <Link
+                    className="pill"
+                    href={expSection.secondaryCtaHref || '/contact'}
+                    prefetch={false}
+                  >
+                    {secondaryCtaText}
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="experience-photo" style={{ position: 'relative' }}>

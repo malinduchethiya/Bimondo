@@ -2,6 +2,8 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocFromServer,
   getDocs,
   getDocsFromServer,
   runTransaction,
@@ -1692,6 +1694,30 @@ function parseFirestoreRestFields(
   return out;
 }
 
+async function fetchSingleCmsSectionViaRest(
+  projectId: string,
+  dbId: string,
+  apiKey: string,
+  docId: string
+): Promise<Record<string, unknown> | null> {
+  const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    projectId
+  )}/databases/${encodeURIComponent(
+    dbId
+  )}/documents/${CMS_SECTIONS_COLLECTION}/${encodeURIComponent(
+    docId
+  )}?key=${encodeURIComponent(apiKey)}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`REST GET ${docId} failed (${res.status})`);
+  }
+  const json = (await res.json()) as {
+    fields?: Record<string, unknown>;
+  };
+  return json.fields ? parseFirestoreRestFields(json.fields) : null;
+}
+
 async function fetchCmsSectionsMapViaRest(): Promise<Map<
   string,
   Record<string, unknown>
@@ -1702,31 +1728,67 @@ async function fetchCmsSectionsMapViaRest(): Promise<Map<
   const dbId = resolution.firestoreDatabaseId || '(default)';
   if (!projectId || !apiKey) return null;
 
+  const docsById = new Map<string, Record<string, unknown>>();
+
   try {
-    const url = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    const listUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
       projectId
     )}/databases/${encodeURIComponent(
       dbId
     )}/documents/${CMS_SECTIONS_COLLECTION}?pageSize=50&key=${encodeURIComponent(
       apiKey
     )}`;
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      documents?: { name?: string; fields?: Record<string, unknown> }[];
-    };
-    const docsById = new Map<string, Record<string, unknown>>();
-    for (const docItem of json.documents || []) {
-      const nameParts = (docItem.name || '').split('/');
-      const docId = nameParts[nameParts.length - 1];
-      if (docId && docItem.fields) {
-        docsById.set(docId, parseFirestoreRestFields(docItem.fields));
+    const res = await fetch(listUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const json = (await res.json()) as {
+        documents?: { name?: string; fields?: Record<string, unknown> }[];
+      };
+      for (const docItem of json.documents || []) {
+        const nameParts = (docItem.name || '').split('/');
+        const docId = nameParts[nameParts.length - 1];
+        if (docId && docItem.fields) {
+          docsById.set(docId, parseFirestoreRestFields(docItem.fields));
+        }
+      }
+      if (docsById.size >= CMS_SECTION_DEFINITIONS.length) {
+        return docsById;
       }
     }
-    return docsById;
   } catch {
-    return null;
+    // Collection LIST may be restricted or unreachable; fall back to individual GETs below
   }
+
+  // Fallback: fetch each known section document directly via GET (never requires collection LIST)
+  const missingDefs = CMS_SECTION_DEFINITIONS.filter(
+    (def) => !docsById.has(def.docId)
+  );
+  if (missingDefs.length === 0) {
+    return docsById;
+  }
+
+  let anySucceeded = docsById.size > 0;
+  const results = await Promise.allSettled(
+    missingDefs.map(async (def) => {
+      const fields = await fetchSingleCmsSectionViaRest(
+        projectId,
+        dbId,
+        apiKey,
+        def.docId
+      );
+      return { docId: def.docId, fields };
+    })
+  );
+
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      anySucceeded = true;
+      if (r.value.fields) {
+        docsById.set(r.value.docId, r.value.fields);
+      }
+    }
+  }
+
+  return anySucceeded ? docsById : null;
 }
 
 class FirestoreContentRepository implements ContentRepository {
@@ -1822,43 +1884,58 @@ class FirestoreContentRepository implements ContentRepository {
     }
 
     try {
-      const colRef = collection(db, CMS_SECTIONS_COLLECTION);
       const docsById = new Map<string, Record<string, unknown>>();
+      let loadedSections = false;
 
-      let loadedViaSdk = false;
-      try {
-        const sdkPromise = options?.forceServer
-          ? getDocsFromServer(colRef).catch(() => getDocs(colRef))
-          : getDocs(colRef).catch(() => getDocsFromServer(colRef));
-
-        const timeoutPromise = new Promise<null>((resolve) => {
-          setTimeout(() => resolve(null), 3500);
+      // Primary path: direct no-store REST reads (individual GET fallback handles restricted LIST rules)
+      const restDocs = await fetchCmsSectionsMapViaRest();
+      if (restDocs) {
+        restDocs.forEach((val, key) => {
+          docsById.set(key, val);
         });
-
-        const snap = await Promise.race([sdkPromise, timeoutPromise]);
-        if (snap) {
-          snap.forEach((docSnap) => {
-            docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
-          });
-          loadedViaSdk = true;
-        }
-      } catch {
-        loadedViaSdk = false;
+        loadedSections = true;
       }
 
-      if (!loadedViaSdk) {
-        const restDocs = await fetchCmsSectionsMapViaRest();
-        if (restDocs) {
-          restDocs.forEach((val, key) => {
-            docsById.set(key, val);
-          });
-        } else {
-          // Final SDK attempt if REST failed
-          const snap = await getDocs(colRef);
-          snap.forEach((docSnap) => {
-            docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
-          });
+      // Secondary path: Firestore Web SDK per-document GETs if REST was unavailable
+      if (!loadedSections) {
+        const timeoutPromise = new Promise<null>((resolve) => {
+          setTimeout(() => resolve(null), 4000);
+        });
+        const sdkPerDocPromise = Promise.allSettled(
+          CMS_SECTION_DEFINITIONS.map(async (def) => {
+            const ref = doc(db, CMS_SECTIONS_COLLECTION, def.docId);
+            const snap = options?.forceServer
+              ? await getDocFromServer(ref).catch(() => getDoc(ref))
+              : await getDoc(ref).catch(() => getDocFromServer(ref));
+            return { docId: def.docId, snap };
+          })
+        );
+
+        const sdkResults = await Promise.race([sdkPerDocPromise, timeoutPromise]);
+        if (sdkResults) {
+          for (const res of sdkResults) {
+            if (res.status === 'fulfilled') {
+              loadedSections = true;
+              if (res.value.snap.exists()) {
+                docsById.set(
+                  res.value.docId,
+                  res.value.snap.data() as Record<string, unknown>
+                );
+              }
+            }
+          }
         }
+      }
+
+      // Tertiary fallback: collection query if per-doc fetches failed
+      if (!loadedSections) {
+        const colRef = collection(db, CMS_SECTIONS_COLLECTION);
+        const snap = options?.forceServer
+          ? await getDocsFromServer(colRef).catch(() => getDocs(colRef))
+          : await getDocs(colRef);
+        snap.forEach((docSnap) => {
+          docsById.set(docSnap.id, docSnap.data() as Record<string, unknown>);
+        });
       }
 
       const workingCms = JSON.parse(JSON.stringify(defaults)) as SiteCmsData;
@@ -2155,6 +2232,15 @@ class FirestoreContentRepository implements ContentRepository {
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
+        if (typeof BroadcastChannel !== 'undefined') {
+          try {
+            const ch = new BroadcastChannel('bimondo_cms_updates');
+            ch.postMessage({ type: 'cms-updated', at: Date.now() });
+            ch.close();
+          } catch {
+            // Ignore BroadcastChannel errors
+          }
+        }
       }
 
       return {
@@ -2231,6 +2317,15 @@ class FirestoreContentRepository implements ContentRepository {
         });
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
+          if (typeof BroadcastChannel !== 'undefined') {
+            try {
+              const ch = new BroadcastChannel('bimondo_cms_updates');
+              ch.postMessage({ type: 'cms-updated', at: Date.now() });
+              ch.close();
+            } catch {
+              // Ignore BroadcastChannel errors
+            }
+          }
         }
         return {
           valid: true,
@@ -2845,13 +2940,12 @@ export async function inspectDestinationsCatalogMigrationDryRun(): Promise<Desti
     const { db, resolution } = getFirebaseClientServices();
     if (resolution.isConfigured && db) {
       try {
-        const colRef = collection(db, CMS_SECTIONS_COLLECTION);
-        const snap = await getDocs(colRef);
-        snap.forEach((docSnap) => {
-          if (docSnap.id === 'destinations_catalog') {
-            rawDoc = docSnap.data() as Record<string, unknown>;
-          }
-        });
+        const docSnap = await getDoc(
+          doc(db, CMS_SECTIONS_COLLECTION, 'destinations_catalog')
+        );
+        if (docSnap.exists()) {
+          rawDoc = docSnap.data() as Record<string, unknown>;
+        }
       } catch {
         // Ignore read error in dry-run fallback
       }
