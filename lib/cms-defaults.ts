@@ -7,6 +7,7 @@ import {
 } from '@/lib/tours';
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
 import { BENTO_DESTINATIONS, BentoDestination } from '@/lib/bento-destinations';
+import { SRI_LANKA_47_DESTINATIONS } from '@/lib/sri-lanka-47-destinations';
 
 export type StaggerSlideVariant =
   | 'tall-up'
@@ -76,18 +77,51 @@ export interface CmsExperienceMapPin {
   deletedBy?: string | null;
 }
 
+export type DestinationCategoryId =
+  | 'culture-heritage'
+  | 'hill-country-hiking'
+  | 'wildlife-nature'
+  | 'beaches-coast'
+  | 'adventure'
+  | 'cities-local';
+
+export interface DestinationDiningOption {
+  name: string;
+  cuisine?: string;
+  contact?: string;
+  notes?: string;
+  verified?: boolean;
+}
+
 export interface CmsDestination {
   id: string;
+  slug?: string;
+  entryNumber?: number;
   name: string;
   region: 'culture' | 'hills' | 'coast' | 'wildlife' | 'colombo';
   regionLabel: string;
+  categories?: DestinationCategoryId[];
   season: string;
   tagline: string;
   description: string;
+  overview?: string;
   highlights: string[];
+  thingsToSee?: string[];
+  thingsToDo?: string[];
+  hikingTrails?: string[];
+  seasonalActivities?: string[];
+  festivals?: string[];
+  diningOptions?: DestinationDiningOption[];
+  specialConsiderations?: string[];
+  relatedTourIds?: string[];
+  tags?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
   image: string;
   imageRef: CmsImageRef;
   staggerVariant?: StaggerSlideVariant;
+  featuredOnHome?: boolean;
+  showDiningSection?: boolean;
   visible?: boolean;
   order?: number;
   deletedAt?: string | null;
@@ -701,181 +735,8 @@ export interface SiteCmsData {
   enquiries: CmsCustomerEnquiry[];
 }
 
-export const DEFAULT_DESTINATIONS: CmsDestination[] = [
-  {
-    id: 'sigiriya-cultural-triangle',
-    name: 'Sigiriya, Pidurangala & Ancient Kingdoms',
-    region: 'culture',
-    regionLabel: 'Culture and Heritage',
-    season: 'Year-round · Dry season May – Sep',
-    tagline: 'Sigiriya, Pidurangala, Anuradhapura, Polonnaruwa & Dambulla',
-    description:
-      'Explore Sri Lanka’s Cultural Triangle with time to appreciate its history properly—climbing Sigiriya Rock Fortress and Pidurangala, and visiting the sacred cave temples of Dambulla alongside the ancient capitals of Anuradhapura and Polonnaruwa.',
-    highlights: [
-      'Sigiriya Rock Fortress & Pidurangala sunrise views',
-      'Anuradhapura & Polonnaruwa ancient capitals',
-      'Dambulla Cave Temple & Cultural Triangle heritage',
-    ],
-    image: '',
-    imageRef: createImageRef('', 'Sigiriya, Pidurangala & Ancient Kingdoms'),
-    staggerVariant: 'tall-up',
-    visible: true,
-    order: 1,
-  },
-  {
-    id: 'kandy-sacred-capital',
-    name: 'Kandy & The Temple of the Tooth',
-    region: 'culture',
-    regionLabel: 'Culture and Heritage',
-    season: 'Year-round · Best Dec – Apr',
-    tagline: 'Sacred hill capital, living traditions & gateway to the hills',
-    description:
-      'Home to the sacred Temple of the Tooth, Kandy bridges Sri Lanka’s ancient royal heritage with the cool central mountains—serving as the cultural heart of the island and the starting point of The Pekoe Trail.',
-    highlights: [
-      'Temple of the Sacred Tooth in Kandy',
-      'Respectful cultural visits & local traditions',
-      'Starting point for highland rail & trail journeys',
-    ],
-    image: '',
-    imageRef: createImageRef('', 'Kandy & The Temple of the Tooth'),
-    staggerVariant: 'compact-mid',
-    visible: true,
-    order: 2,
-  },
-  {
-    id: 'ella-hill-country',
-    name: 'Ella, Nuwara Eliya & Hill Country Trails',
-    region: 'hills',
-    regionLabel: 'Hill Country and Hiking',
-    season: 'Best Jan – May',
-    tagline: 'Nuwara Eliya, Ella, The Pekoe Trail & Horton Plains',
-    description:
-      'Discover Sri Lanka’s tea hills by scenic train and on foot—walking selected stages of The Pekoe Trail through tea estates and villages, trekking Horton Plains to World’s End, and climbing Little Adam’s Peak and Ella Rock.',
-    highlights: [
-      'Selected stages of The Pekoe Trail',
-      'Horton Plains & World’s End plateau walk',
-      'Little Adam’s Peak, Ella Rock & scenic hill train',
-    ],
-    image: '',
-    imageRef: createImageRef('', 'Ella, Nuwara Eliya & Hill Country Trails'),
-    staggerVariant: 'low-down',
-    visible: true,
-    order: 3,
-  },
-  {
-    id: 'yala-wildlife-rainforest',
-    name: 'Yala, Udawalawe, Wilpattu, Minneriya & Sinharaja',
-    region: 'wildlife',
-    regionLabel: 'Wildlife and Nature',
-    season: 'Year-round · Minneriya Gathering Jul – Oct',
-    tagline: 'National park safaris & UNESCO Sinharaja rainforest walks',
-    description:
-      'Experience Sri Lanka’s wildlife responsibly across Yala, Udawalawe, and Wilpattu National Parks, witness the seasonal elephant gathering at Minneriya, and walk with naturalists for endemic birdlife inside Sinharaja Rainforest.',
-    highlights: [
-      'Private safaris in Yala, Udawalawe & Wilpattu',
-      'Seasonal Minneriya elephant gathering',
-      'Sinharaja rainforest walks & endemic birdwatching',
-    ],
-    image: '',
-    imageRef: createImageRef(
-      '',
-      'Yala, Udawalawe, Wilpattu, Minneriya & Sinharaja'
-    ),
-    staggerVariant: 'mid-up',
-    visible: true,
-    order: 4,
-  },
-  {
-    id: 'kitulgala-horton-plains',
-    name: 'Kitulgala, Horton Plains & Highland Waterfalls',
-    region: 'hills',
-    regionLabel: 'Hill Country and Hiking',
-    season: 'Year-round · Best Dec – May',
-    tagline: 'Kelani River white-water rafting, cloud forests & waterfalls',
-    description:
-      'Adventure through the lush rainforest gorges of Kitulgala for white-water rafting on the Kelani River, and ascend into the misty cloud forests and dramatic waterfalls of Horton Plains and the central highlands.',
-    highlights: [
-      'White-water rafting on the Kelani River in Kitulgala',
-      'Highland waterfalls & cloud forest trails',
-      'Horton Plains & World’s End escarpment',
-    ],
-    image: '',
-    imageRef: createImageRef(
-      '',
-      'Kitulgala, Horton Plains & Highland Waterfalls'
-    ),
-    staggerVariant: 'tall-deep',
-    visible: true,
-    order: 5,
-  },
-  {
-    id: 'galle-sea-and-sand',
-    name: 'Galle, Unawatuna, Mirissa, Weligama, Arugam Bay, Kalpitiya & Bentota',
-    region: 'coast',
-    regionLabel: 'Sea and Sand',
-    season: 'South/West Nov – Apr · East Coast May – Oct',
-    tagline:
-      'Galle Fort heritage, seasonal surf bays, diving & lagoon adventures',
-    description:
-      'From coastal stays in Galle, Unawatuna, and Mirissa to surfing at Weligama (Nov–Apr) and Arugam Bay (May–Oct), paramotoring at Bentota, and diving or kite surfing in Kalpitiya—matched carefully to the island’s two coastal seasons.',
-    highlights: [
-      'Galle, Unawatuna & Mirissa coastal escapes',
-      'Surfing at Weligama (Nov–Apr) & Arugam Bay (May–Oct)',
-      'Kalpitiya Bar Reef diving, kite surfing & Bentota paramotoring',
-    ],
-    image: '',
-    imageRef: createImageRef(
-      '',
-      'Galle, Unawatuna, Mirissa, Weligama, Arugam Bay, Kalpitiya & Bentota'
-    ),
-    staggerVariant: 'mid-up',
-    visible: true,
-    order: 6,
-  },
-  {
-    id: 'minneriya-wilpattu-parks',
-    name: 'Minneriya Gathering & Wilpattu Wilderness',
-    region: 'wildlife',
-    regionLabel: 'Wildlife and Nature',
-    season: 'Minneriya Jul – Oct · Wilpattu Year-round',
-    tagline: 'Ancient tank elephant gatherings & northwest forest villus',
-    description:
-      'Witness one of Asia’s greatest wildlife spectacles as wild elephant herds gather along the shores of Minneriya Tank, or track elusive leopards and sloth bears across the quiet natural lakes (villus) of Wilpattu.',
-    highlights: [
-      'Seasonal elephant gathering at Minneriya',
-      'Uncrowded game drives in Wilpattu National Park',
-      'Private 4x4 jeeps with experienced naturalists',
-    ],
-    image: '',
-    imageRef: createImageRef('', 'Minneriya Gathering & Wilpattu Wilderness'),
-    staggerVariant: 'low-down',
-    visible: true,
-    order: 7,
-  },
-  {
-    id: 'colombo-battaramulla',
-    name: 'Colombo, Battaramulla, Thalangama Wetland, Kotte, Kelaniya & Negombo',
-    region: 'colombo',
-    regionLabel: 'Colombo Area & Home Base',
-    season: 'Year-round · Ideal on arrival or departure',
-    tagline: 'Our home base in Battaramulla, urban wetlands & historic capitals',
-    description:
-      'Based in Thalangama South, Battaramulla—where quiet wetland birdlife meets Sri Lanka’s capital—we offer half-day and full-day experiences across Thalangama Lake, Colombo, the 15th-century Kingdom of Kotte, Kelaniya Raja Maha Vihara, and Negombo Lagoon.',
-    highlights: [
-      'Thalangama Wetland Birdwalk & Kotte Heritage Walk',
-      'Colombo City Highlights & Colombo Food Trail',
-      'Kelaniya Temple Visit & Negombo Lagoon Day',
-    ],
-    image: '',
-    imageRef: createImageRef(
-      '',
-      'Colombo, Battaramulla, Thalangama Wetland, Kotte, Kelaniya & Negombo'
-    ),
-    staggerVariant: 'compact-mid',
-    visible: true,
-    order: 8,
-  },
-];
+export const DEFAULT_DESTINATIONS: CmsDestination[] = SRI_LANKA_47_DESTINATIONS;
+
 
 export const DEFAULT_GALLERY: CmsGalleryPhoto[] = [];
 

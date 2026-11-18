@@ -50,6 +50,7 @@ import AdminMediaLibrary, {
   SelectedMediaLibraryAsset,
 } from '@/components/admin/AdminMediaLibrary';
 import AdminDiscoverMapPinEditor from '@/components/admin/AdminDiscoverMapPinEditor';
+import AdminDestinationsCatalogSyncBar from '@/components/admin/AdminDestinationsCatalogSyncBar';
 
 type WorkspaceMode = 'editor' | 'enquiries' | 'media' | 'trash';
 
@@ -1611,6 +1612,20 @@ export default function AdminPanelPage() {
                   draft={draft}
                   currentAdminUid={user?.uid || 'admin'}
                   onMutateDraft={applyDraftMutation}
+                />
+              )}
+
+              {/* 47-Destination Guide Sync & Non-Destructive Image Protection Bar when editing dest-regions */}
+              {activeSection.id === 'dest-regions' && (
+                <AdminDestinationsCatalogSyncBar
+                  draft={draft}
+                  onMutateDraft={applyDraftMutation}
+                  onFeedback={(msg) =>
+                    setFeedback({
+                      type: 'info',
+                      message: msg,
+                    })
+                  }
                 />
               )}
 

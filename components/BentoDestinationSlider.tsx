@@ -1,7 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { CmsBentoSlideItem } from '@/lib/cms-defaults';
+import {
+  findDestinationBySlugOrId,
+  resolveDestinationSlug,
+  SRI_LANKA_47_DESTINATIONS,
+} from '@/lib/sri-lanka-47-destinations';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import CmsImage from '@/components/CmsImage';
 
@@ -138,6 +144,23 @@ export default function BentoDestinationSlider() {
           <div className="bento-sr-tile bento-sr-narrative">
             <h3 className="bento-sr-narrative-title">{dest.headline}</h3>
             <p className="bento-sr-narrative-body">{dest.description}</p>
+            {(() => {
+              const matched =
+                findDestinationBySlugOrId(cms.destinations, dest.name) ||
+                findDestinationBySlugOrId(SRI_LANKA_47_DESTINATIONS, dest.name);
+              const targetHref = matched
+                ? `/destinations/${resolveDestinationSlug(matched)}`
+                : '/destinations';
+              return (
+                <Link
+                  href={targetHref}
+                  prefetch={false}
+                  className="inline-block mt-3 font-mono text-[11px] uppercase tracking-[0.16em] underline underline-offset-4 opacity-90 hover:opacity-100"
+                >
+                  Read {dest.name} Guide →
+                </Link>
+              );
+            })()}
           </div>
 
           {/* 3. Middle-Center-Left Pathway Image Card (Col 2, Rows 7-10) */}

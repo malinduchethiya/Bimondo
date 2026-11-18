@@ -13,11 +13,19 @@ import {
 import {
   BookingSubmissionMethod,
   CmsCustomerEnquiry,
+  CmsDestination,
   CmsImageRef,
   createImageRef,
+  DestinationCategoryId,
+  DestinationDiningOption,
   getDefaultCmsData,
   SiteCmsData,
 } from '@/lib/cms-defaults';
+import {
+  normalizeDestinationKey,
+  resolveDestinationSlug,
+  SRI_LANKA_47_DESTINATIONS,
+} from '@/lib/sri-lanka-47-destinations';
 import {
   getFirebaseClientServices,
   handleFirestoreError,
@@ -470,29 +478,13 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
   merged.general.tripadvisorReviewsText =
     merged.pages.home.hero.tripadvisorReviewsText;
 
-  // Sync Destinations
-  merged.destinations = (
+  // Sync Destinations (Safe, non-destructive merge of existing records with the 47-destination catalog)
+  merged.destinations = mergeDestinationsPreservingExisting(
     Array.isArray(merged.destinations)
       ? merged.destinations
-      : defaults.destinations
-  ).map((d, idx) => {
-    const imageRef = normalizeImageRef(
-      d.imageRef,
-      d.image ?? '',
-      d.name ?? `Destination ${idx + 1}`
-    );
-    return {
-      ...d,
-      id: d.id || `dest-${idx + 1}`,
-      image: imageRef.url,
-      imageRef,
-      highlights: Array.isArray(d.highlights) ? d.highlights : [],
-      visible: d.visible !== false,
-      order: typeof d.order === 'number' ? d.order : idx + 1,
-      deletedAt: d.deletedAt || null,
-      deletedBy: d.deletedBy || null,
-    };
-  });
+      : defaults.destinations,
+    SRI_LANKA_47_DESTINATIONS
+  );
 
   // Sync Colombo Day Experiences
   merged.colomboExperiences = (
@@ -2485,6 +2477,460 @@ class FirestoreContentRepository implements ContentRepository {
       window.dispatchEvent(new CustomEvent(CMS_UPDATED_EVENT));
     }
   }
+}
+
+function sanitizeStringArray(val: unknown, fallback: string[] = []): string[] {
+  if (!Array.isArray(val)) return fallback;
+  return val
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+}
+
+function sanitizeDiningArray(
+  val: unknown,
+  fallback: DestinationDiningOption[] = []
+): DestinationDiningOption[] {
+  if (!Array.isArray(val)) return fallback;
+  const out: DestinationDiningOption[] = [];
+  for (const item of val) {
+    if (!isPlainObject(item)) continue;
+    const name = typeof item.name === 'string' ? item.name.trim() : '';
+    if (!name) continue;
+    out.push({
+      name,
+      cuisine: typeof item.cuisine === 'string' ? item.cuisine.trim() : '',
+      contact: typeof item.contact === 'string' ? item.contact.trim() : '',
+      notes: typeof item.notes === 'string' ? item.notes.trim() : '',
+      verified: Boolean(item.verified),
+    });
+  }
+  return out;
+}
+
+const VALID_DESTINATION_CATEGORIES: DestinationCategoryId[] = [
+  'culture-heritage',
+  'hill-country-hiking',
+  'wildlife-nature',
+  'beaches-coast',
+  'adventure',
+  'cities-local',
+];
+
+function sanitizeCategoryArray(
+  val: unknown,
+  fallback: DestinationCategoryId[] = [],
+  regionFallback?: CmsDestination['region']
+): DestinationCategoryId[] {
+  if (Array.isArray(val)) {
+    const filtered = val.filter(
+      (c): c is DestinationCategoryId =>
+        typeof c === 'string' &&
+        VALID_DESTINATION_CATEGORIES.includes(c as DestinationCategoryId)
+    );
+    if (filtered.length > 0) return Array.from(new Set(filtered));
+  }
+  if (fallback.length > 0) return fallback;
+  switch (regionFallback) {
+    case 'culture':
+      return ['culture-heritage'];
+    case 'hills':
+      return ['hill-country-hiking'];
+    case 'wildlife':
+      return ['wildlife-nature'];
+    case 'coast':
+      return ['beaches-coast'];
+    case 'colombo':
+      return ['cities-local'];
+    default:
+      return ['culture-heritage'];
+  }
+}
+
+/**
+ * Matches an existing CMS destination record to its corresponding entry in the
+ * 47-destination guide catalog by ID, slug, or normalized name.
+ */
+export function matchCatalogDestination(
+  candidate: Partial<CmsDestination>,
+  catalog: CmsDestination[] = SRI_LANKA_47_DESTINATIONS
+): CmsDestination | undefined {
+  const rawId = typeof candidate.id === 'string' ? candidate.id.trim() : '';
+  const rawSlug =
+    typeof candidate.slug === 'string' ? candidate.slug.trim() : '';
+  const rawName =
+    typeof candidate.name === 'string' ? candidate.name.trim() : '';
+
+  if (rawId) {
+    const exactById = catalog.find((c) => c.id === rawId);
+    if (exactById) return exactById;
+  }
+
+  const normSlug = normalizeDestinationKey(rawSlug || rawId);
+  if (normSlug) {
+    const bySlug = catalog.find(
+      (c) =>
+        normalizeDestinationKey(c.slug) === normSlug ||
+        normalizeDestinationKey(c.id) === normSlug
+    );
+    if (bySlug) return bySlug;
+  }
+
+  const normName = normalizeDestinationKey(rawName);
+  if (normName) {
+    const byName = catalog.find(
+      (c) => normalizeDestinationKey(c.name) === normName
+    );
+    if (byName) return byName;
+  }
+
+  return undefined;
+}
+
+const ORIGINAL_EIGHT_IDS = new Set([
+  'sigiriya-cultural-triangle',
+  'kandy-sacred-capital',
+  'ella-hill-country',
+  'yala-wildlife-rainforest',
+  'kitulgala-horton-plains',
+  'galle-sea-and-sand',
+  'minneriya-wilpattu-parks',
+  'colombo-battaramulla',
+]);
+
+/**
+ * Safely and non-destructively merges existing CMS destinations with the 47-destination catalog:
+ * - Preserves 100% of existing `image` and `imageRef` (never overwrites or clears uploaded images)
+ * - Preserves existing `id`, `visible`, `order`, `deletedAt`, `deletedBy`, and admin-edited copy
+ * - Backfills missing guide fields (`slug`, `entryNumber`, `categories`, `overview`, `thingsToSee`, etc.)
+ * - Appends any missing destinations from the 47-destination catalog without duplicating records
+ */
+export function mergeDestinationsPreservingExisting(
+  existingList: Partial<CmsDestination>[],
+  catalog: CmsDestination[] = SRI_LANKA_47_DESTINATIONS
+): CmsDestination[] {
+  const matchedCatalogSlugs = new Set<string>();
+  const usedIds = new Set<string>();
+  const result: CmsDestination[] = [];
+  let maxOrder = 0;
+
+  for (let idx = 0; idx < existingList.length; idx++) {
+    const raw = existingList[idx];
+    if (!raw || typeof raw !== 'object') continue;
+
+    const matchedCat = matchCatalogDestination(raw, catalog);
+    if (matchedCat) {
+      matchedCatalogSlugs.add(
+        matchedCat.slug || normalizeDestinationKey(matchedCat.id)
+      );
+    }
+
+    const stableId =
+      (typeof raw.id === 'string' && raw.id.trim()) ||
+      matchedCat?.id ||
+      `dest-${idx + 1}`;
+    if (usedIds.has(stableId)) continue;
+    usedIds.add(stableId);
+
+    // Strictly preserve existing imageRef & image URL (never overwrite with catalog empty defaults)
+    const imageRef = normalizeImageRef(
+      raw.imageRef,
+      typeof raw.image === 'string' ? raw.image : '',
+      (typeof raw.name === 'string' && raw.name.trim()) ||
+        matchedCat?.name ||
+        `Destination ${idx + 1}`
+    );
+
+    const resolvedOrder =
+      typeof raw.order === 'number' && Number.isFinite(raw.order)
+        ? raw.order
+        : matchedCat?.order ?? idx + 1;
+    if (resolvedOrder > maxOrder) {
+      maxOrder = resolvedOrder;
+    }
+
+    const resolvedRegion: CmsDestination['region'] =
+      raw.region === 'culture' ||
+      raw.region === 'hills' ||
+      raw.region === 'coast' ||
+      raw.region === 'wildlife' ||
+      raw.region === 'colombo'
+        ? raw.region
+        : matchedCat?.region || 'culture';
+
+    const resolvedSlug =
+      (typeof raw.slug === 'string' && raw.slug.trim()
+        ? normalizeDestinationKey(raw.slug)
+        : '') ||
+      matchedCat?.slug ||
+      resolveDestinationSlug({
+        id: stableId,
+        slug: raw.slug,
+        name: raw.name || matchedCat?.name || stableId,
+      });
+
+    const isDefaultFeatured =
+      raw.featuredOnHome !== undefined
+        ? Boolean(raw.featuredOnHome)
+        : matchedCat?.featuredOnHome !== undefined
+          ? Boolean(matchedCat.featuredOnHome)
+          : ORIGINAL_EIGHT_IDS.has(stableId);
+
+    const mergedItem: CmsDestination = {
+      id: stableId,
+      slug: resolvedSlug,
+      entryNumber:
+        typeof raw.entryNumber === 'number'
+          ? raw.entryNumber
+          : matchedCat?.entryNumber,
+      name:
+        typeof raw.name === 'string' && raw.name.trim()
+          ? raw.name.trim()
+          : matchedCat?.name || `Destination ${idx + 1}`,
+      region: resolvedRegion,
+      regionLabel:
+        typeof raw.regionLabel === 'string' && raw.regionLabel.trim()
+          ? raw.regionLabel.trim()
+          : matchedCat?.regionLabel || 'Sri Lanka',
+      categories: sanitizeCategoryArray(
+        raw.categories,
+        matchedCat?.categories || [],
+        resolvedRegion
+      ),
+      season:
+        typeof raw.season === 'string' && raw.season.trim()
+          ? raw.season.trim()
+          : matchedCat?.season || 'Year-round',
+      tagline:
+        typeof raw.tagline === 'string' && raw.tagline.trim()
+          ? raw.tagline.trim()
+          : matchedCat?.tagline || '',
+      description:
+        typeof raw.description === 'string' && raw.description.trim()
+          ? raw.description.trim()
+          : matchedCat?.description || '',
+      overview:
+        typeof raw.overview === 'string' && raw.overview.trim()
+          ? raw.overview.trim()
+          : matchedCat?.overview ||
+            (typeof raw.description === 'string' ? raw.description.trim() : ''),
+      highlights:
+        Array.isArray(raw.highlights) && raw.highlights.length > 0
+          ? sanitizeStringArray(raw.highlights)
+          : matchedCat?.highlights || [],
+      thingsToSee:
+        Array.isArray(raw.thingsToSee) && raw.thingsToSee.length > 0
+          ? sanitizeStringArray(raw.thingsToSee)
+          : matchedCat?.thingsToSee || [],
+      thingsToDo:
+        Array.isArray(raw.thingsToDo) && raw.thingsToDo.length > 0
+          ? sanitizeStringArray(raw.thingsToDo)
+          : matchedCat?.thingsToDo || [],
+      hikingTrails:
+        Array.isArray(raw.hikingTrails)
+          ? sanitizeStringArray(raw.hikingTrails)
+          : matchedCat?.hikingTrails || [],
+      seasonalActivities:
+        Array.isArray(raw.seasonalActivities) &&
+        raw.seasonalActivities.length > 0
+          ? sanitizeStringArray(raw.seasonalActivities)
+          : matchedCat?.seasonalActivities || [],
+      festivals:
+        Array.isArray(raw.festivals)
+          ? sanitizeStringArray(raw.festivals)
+          : matchedCat?.festivals || [],
+      diningOptions:
+        Array.isArray(raw.diningOptions)
+          ? sanitizeDiningArray(raw.diningOptions)
+          : matchedCat?.diningOptions || [],
+      specialConsiderations:
+        Array.isArray(raw.specialConsiderations) &&
+        raw.specialConsiderations.length > 0
+          ? sanitizeStringArray(raw.specialConsiderations)
+          : matchedCat?.specialConsiderations || [],
+      relatedTourIds:
+        Array.isArray(raw.relatedTourIds) && raw.relatedTourIds.length > 0
+          ? sanitizeStringArray(raw.relatedTourIds)
+          : matchedCat?.relatedTourIds || [],
+      tags:
+        Array.isArray(raw.tags) && raw.tags.length > 0
+          ? sanitizeStringArray(raw.tags)
+          : matchedCat?.tags || [],
+      seoTitle:
+        typeof raw.seoTitle === 'string' && raw.seoTitle.trim()
+          ? raw.seoTitle.trim()
+          : matchedCat?.seoTitle || '',
+      seoDescription:
+        typeof raw.seoDescription === 'string' && raw.seoDescription.trim()
+          ? raw.seoDescription.trim()
+          : matchedCat?.seoDescription || '',
+      image: imageRef.url,
+      imageRef,
+      staggerVariant:
+        raw.staggerVariant || matchedCat?.staggerVariant || 'mid-up',
+      featuredOnHome: isDefaultFeatured,
+      showDiningSection:
+        raw.showDiningSection !== undefined
+          ? Boolean(raw.showDiningSection)
+          : true,
+      visible: raw.visible !== false,
+      order: resolvedOrder,
+      deletedAt: raw.deletedAt || null,
+      deletedBy: raw.deletedBy || null,
+    };
+
+    result.push(mergedItem);
+  }
+
+  // Append any missing destinations from the 47-destination catalog without overwriting existing items
+  for (const cat of catalog) {
+    const catSlugKey = cat.slug || normalizeDestinationKey(cat.id);
+    if (matchedCatalogSlugs.has(catSlugKey) || usedIds.has(cat.id)) {
+      continue;
+    }
+    usedIds.add(cat.id);
+    matchedCatalogSlugs.add(catSlugKey);
+    maxOrder += 1;
+
+    result.push({
+      ...JSON.parse(JSON.stringify(cat)),
+      image: '',
+      imageRef: createImageRef('', cat.name, null),
+      featuredOnHome: Boolean(cat.featuredOnHome),
+      showDiningSection: true,
+      visible: true,
+      order: maxOrder,
+      deletedAt: null,
+      deletedBy: null,
+    });
+  }
+
+  return result;
+}
+
+export interface DestinationMigrationDryRunReport {
+  checkedAt: string;
+  firestoreHasDestinationsDoc: boolean;
+  rawFirestoreCount: number;
+  preservedExistingRecords: {
+    id: string;
+    slug: string;
+    name: string;
+    hasAssignedImage: boolean;
+    imageUrl: string;
+    imageKey: string | null;
+  }[];
+  newlyAppendedRecords: {
+    id: string;
+    slug: string;
+    entryNumber?: number;
+    name: string;
+    regionLabel: string;
+  }[];
+  totalAfterMerge: number;
+  rawBackupPayload: Record<string, unknown> | null;
+}
+
+/**
+ * Performs a non-destructive dry-run inspection against the live Firestore
+ * `cms_sections/destinations_catalog` document (or current snapshot) without writing anything.
+ */
+export async function inspectDestinationsCatalogMigrationDryRun(): Promise<DestinationMigrationDryRunReport> {
+  const checkedAt = new Date().toISOString();
+  let rawDoc: Record<string, unknown> | null = null;
+
+  const restMap = await fetchCmsSectionsMapViaRest();
+  if (restMap && restMap.has('destinations_catalog')) {
+    rawDoc = restMap.get('destinations_catalog') || null;
+  } else {
+    const { db, resolution } = getFirebaseClientServices();
+    if (resolution.isConfigured && db) {
+      try {
+        const colRef = collection(db, CMS_SECTIONS_COLLECTION);
+        const snap = await getDocs(colRef);
+        snap.forEach((docSnap) => {
+          if (docSnap.id === 'destinations_catalog') {
+            rawDoc = docSnap.data() as Record<string, unknown>;
+          }
+        });
+      } catch {
+        // Ignore read error in dry-run fallback
+      }
+    }
+  }
+
+  const rawPayload =
+    rawDoc && isPlainObject(rawDoc.payload)
+      ? (rawDoc.payload as Record<string, unknown>)
+      : null;
+  const rawDestinations = Array.isArray(rawPayload?.destinations)
+    ? (rawPayload!.destinations as Partial<CmsDestination>[])
+    : [];
+
+  const matchedSlugs = new Set<string>();
+  const preservedExistingRecords: DestinationMigrationDryRunReport['preservedExistingRecords'] =
+    [];
+
+  for (const raw of rawDestinations) {
+    if (!raw || typeof raw !== 'object') continue;
+    const matchedCat = matchCatalogDestination(raw, SRI_LANKA_47_DESTINATIONS);
+    if (matchedCat) {
+      matchedSlugs.add(
+        matchedCat.slug || normalizeDestinationKey(matchedCat.id)
+      );
+    }
+    const imgRef = normalizeImageRef(
+      raw.imageRef,
+      typeof raw.image === 'string' ? raw.image : '',
+      raw.name || ''
+    );
+    preservedExistingRecords.push({
+      id: String(raw.id || matchedCat?.id || ''),
+      slug:
+        String(raw.slug || matchedCat?.slug || '') ||
+        resolveDestinationSlug({
+          id: String(raw.id || ''),
+          slug: raw.slug,
+          name: String(raw.name || ''),
+        }),
+      name: String(raw.name || matchedCat?.name || ''),
+      hasAssignedImage: Boolean(imgRef.url.trim()),
+      imageUrl: imgRef.url,
+      imageKey: imgRef.key,
+    });
+  }
+
+  const newlyAppendedRecords: DestinationMigrationDryRunReport['newlyAppendedRecords'] =
+    [];
+  for (const cat of SRI_LANKA_47_DESTINATIONS) {
+    const slugKey = cat.slug || normalizeDestinationKey(cat.id);
+    const alreadyExists =
+      matchedSlugs.has(slugKey) ||
+      preservedExistingRecords.some((p) => p.id === cat.id);
+    if (!alreadyExists) {
+      newlyAppendedRecords.push({
+        id: cat.id,
+        slug: cat.slug || cat.id,
+        entryNumber: cat.entryNumber,
+        name: cat.name,
+        regionLabel: cat.regionLabel,
+      });
+    }
+  }
+
+  const mergedPreview = mergeDestinationsPreservingExisting(
+    rawDestinations,
+    SRI_LANKA_47_DESTINATIONS
+  );
+
+  return {
+    checkedAt,
+    firestoreHasDestinationsDoc: Boolean(rawDoc),
+    rawFirestoreCount: rawDestinations.length,
+    preservedExistingRecords,
+    newlyAppendedRecords,
+    totalAfterMerge: mergedPreview.length,
+    rawBackupPayload: rawPayload,
+  };
 }
 
 export const contentRepository: ContentRepository =

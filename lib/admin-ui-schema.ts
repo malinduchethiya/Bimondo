@@ -11,8 +11,11 @@ import {
   CmsStayItem,
   CmsTourItem,
   createImageRef,
+  DestinationCategoryId,
+  DestinationDiningOption,
   SiteCmsData,
 } from '@/lib/cms-defaults';
+import { resolveDestinationSlug } from '@/lib/sri-lanka-47-destinations';
 
 export type AdminFieldType = 'text' | 'textarea' | 'image';
 
@@ -2834,27 +2837,42 @@ export function buildAdminPagesFromCms(
         {
           id: 'dest-regions',
           code: 'SEC 02',
-          title: `Regional Destinations (${sortedDestinations.length})`,
+          title: `Sri Lanka Destination Guides (${sortedDestinations.length})`,
           description:
-            'Destination cards shown on /destinations and in the Home Places slider. Supports add, remove, and reorder.',
-          addRepeatableLabel: 'Add Destination Card',
+            'Complete 47-destination Sri Lanka discovery catalog shown on /destinations, individual /destinations/[slug] guide pages, and the Home Places slider. Existing uploaded images are strictly preserved.',
+          addRepeatableLabel: 'Add Destination Guide',
           onAddRepeatable: (prev) => {
             const next = cloneCms(prev);
             const nextOrder = (next.destinations?.length || 0) + 1;
+            const newId = `dest-${Date.now()}`;
             const newDest: CmsDestination = {
-              id: `dest-${Date.now()}`,
-              name: `New Sri Lanka Region ${nextOrder}`,
+              id: newId,
+              slug: `new-sri-lanka-destination-${nextOrder}`,
+              name: `New Sri Lanka Destination ${nextOrder}`,
               region: 'culture',
-              regionLabel: 'Culture and Heritage',
+              regionLabel: 'Ancient Heritage & Culture',
+              categories: ['culture-heritage'],
               season: 'Year-round',
               tagline: 'Private guided discovery across Sri Lanka',
               description:
                 'Explore authentic regional highlights with private transport and a licensed local guide.',
+              overview:
+                'Comprehensive travel guide overview for this Sri Lankan destination.',
               highlights: ['Private guided visits', 'Tailor-made pacing'],
+              thingsToSee: ['Key landmark or heritage attraction'],
+              thingsToDo: ['Privately guided regional excursion'],
+              hikingTrails: [],
+              seasonalActivities: [],
+              festivals: [],
+              diningOptions: [],
+              specialConsiderations: [],
+              relatedTourIds: [],
+              featuredOnHome: false,
+              showDiningSection: true,
               image: '',
               imageRef: createImageRef(
                 '',
-                `New Sri Lanka Region ${nextOrder}`
+                `New Sri Lanka Destination ${nextOrder}`
               ),
               staggerVariant: 'mid-up',
               visible: true,
@@ -2866,7 +2884,7 @@ export function buildAdminPagesFromCms(
           subsections: sortedDestinations.map((dest, idx) => ({
             id: `dest-item-${dest.id}`,
             code: `2.${idx + 1}`,
-            title: `${dest.name}`,
+            title: `${dest.name} (/destinations/${resolveDestinationSlug(dest)})`,
             repeatableItemId: dest.id,
             visible: dest.visible !== false,
             canToggleVisible: true,
@@ -2924,6 +2942,26 @@ export function buildAdminPagesFromCms(
                 },
               },
               {
+                id: `dest-slug-${dest.id}`,
+                label: 'URL Slug (/destinations/[slug])',
+                type: 'text' as const,
+                value: resolveDestinationSlug(dest),
+                helperText:
+                  'Lowercase URL slug for the individual destination page (e.g. sigiriya, yala-national-park).',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const cleanSlug = val
+                    .toLowerCase()
+                    .trim()
+                    .replace(/[^a-z0-9-]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, slug: cleanSlug || d.slug } : d
+                  );
+                  return next;
+                },
+              },
+              {
                 id: `dest-region-label-${dest.id}`,
                 label: 'Region Category Label',
                 type: 'text' as const,
@@ -2932,6 +2970,48 @@ export function buildAdminPagesFromCms(
                   const next = cloneCms(prev);
                   next.destinations = next.destinations.map((d) =>
                     d.id === dest.id ? { ...d, regionLabel: val } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-categories-${dest.id}`,
+                label:
+                  'Filter Categories (comma-separated: culture-heritage, hill-country-hiking, wildlife-nature, beaches-coast, adventure, cities-local)',
+                type: 'text' as const,
+                value: (dest.categories || []).join(', '),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const allowed = new Set<DestinationCategoryId>([
+                    'culture-heritage',
+                    'hill-country-hiking',
+                    'wildlife-nature',
+                    'beaches-coast',
+                    'adventure',
+                    'cities-local',
+                  ]);
+                  const parsed = val
+                    .split(',')
+                    .map((s) => s.trim() as DestinationCategoryId)
+                    .filter((s) => allowed.has(s));
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, categories: parsed } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-featured-home-${dest.id}`,
+                label: 'Featured in Home Places Slider (yes / no)',
+                type: 'text' as const,
+                value: dest.featuredOnHome ? 'yes' : 'no',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const isYes = ['yes', 'true', '1'].includes(
+                    val.trim().toLowerCase()
+                  );
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, featuredOnHome: isYes } : d
                   );
                   return next;
                 },
@@ -2964,7 +3044,7 @@ export function buildAdminPagesFromCms(
               },
               {
                 id: `dest-desc-${dest.id}`,
-                label: 'Description',
+                label: 'Card Summary Description',
                 type: 'textarea' as const,
                 value: dest.description,
                 applyText: (prev: SiteCmsData, val: string) => {
@@ -2976,8 +3056,21 @@ export function buildAdminPagesFromCms(
                 },
               },
               {
+                id: `dest-overview-${dest.id}`,
+                label: 'Destination Guide Overview (Full Page Introduction)',
+                type: 'textarea' as const,
+                value: dest.overview || dest.description || '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, overview: val } : d
+                  );
+                  return next;
+                },
+              },
+              {
                 id: `dest-highlights-${dest.id}`,
-                label: 'Documented Highlights (one per line)',
+                label: 'Card Highlights (one per line)',
                 type: 'textarea' as const,
                 value: (dest.highlights || []).join('\n'),
                 applyText: (prev: SiteCmsData, val: string) => {
@@ -2993,8 +3086,208 @@ export function buildAdminPagesFromCms(
                 },
               },
               {
+                id: `dest-things-to-see-${dest.id}`,
+                label:
+                  'Things to See (one per line, optional "Title — Description" format)',
+                type: 'textarea' as const,
+                value: (dest.thingsToSee || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, thingsToSee: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-things-to-do-${dest.id}`,
+                label:
+                  'Things to Do & Experiences (one per line, optional "Title — Description" format)',
+                type: 'textarea' as const,
+                value: (dest.thingsToDo || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, thingsToDo: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-hiking-${dest.id}`,
+                label: 'Hiking Trails & Walks (one per line, leave blank if none)',
+                type: 'textarea' as const,
+                value: (dest.hikingTrails || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, hikingTrails: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-seasonal-act-${dest.id}`,
+                label: 'Seasonal Activities & Timing Notes (one per line)',
+                type: 'textarea' as const,
+                value: (dest.seasonalActivities || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, seasonalActivities: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-festivals-${dest.id}`,
+                label: 'Local Festivals & Cultural Events (one per line)',
+                type: 'textarea' as const,
+                value: (dest.festivals || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, festivals: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-dining-${dest.id}`,
+                label:
+                  'Dining Suggestions (one per line: Restaurant Name | Cuisine | Contact/Location | Notes)',
+                type: 'textarea' as const,
+                value: (dest.diningOptions || [])
+                  .map((item) =>
+                    [
+                      item.name,
+                      item.cuisine || '',
+                      item.contact || '',
+                      item.notes || '',
+                    ].join(' | ')
+                  )
+                  .join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const parsed: DestinationDiningOption[] = val
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((line) => {
+                      const parts = line.split('|').map((p) => p.trim());
+                      return {
+                        name: parts[0] || 'Local Restaurant',
+                        cuisine: parts[1] || undefined,
+                        contact: parts[2] || undefined,
+                        notes: parts[3] || undefined,
+                      };
+                    });
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, diningOptions: parsed } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-show-dining-${dest.id}`,
+                label: 'Show Dining Section on Destination Page (yes / no)',
+                type: 'text' as const,
+                value: dest.showDiningSection === false ? 'no' : 'yes',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const isNo = ['no', 'false', '0'].includes(
+                    val.trim().toLowerCase()
+                  );
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, showDiningSection: !isNo } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-considerations-${dest.id}`,
+                label:
+                  'Special Visitor Considerations & Safety Tips (one per line)',
+                type: 'textarea' as const,
+                value: (dest.specialConsiderations || []).join('\n'),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, specialConsiderations: lines } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-related-tours-${dest.id}`,
+                label: 'Related Tour Package IDs (comma-separated)',
+                type: 'text' as const,
+                value: (dest.relatedTourIds || []).join(', '),
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const ids = val
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, relatedTourIds: ids } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-seo-title-${dest.id}`,
+                label: 'SEO Meta Title',
+                type: 'text' as const,
+                value: dest.seoTitle || '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, seoTitle: val } : d
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `dest-seo-desc-${dest.id}`,
+                label: 'SEO Meta Description',
+                type: 'textarea' as const,
+                value: dest.seoDescription || '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.destinations = next.destinations.map((d) =>
+                    d.id === dest.id ? { ...d, seoDescription: val } : d
+                  );
+                  return next;
+                },
+              },
+              {
                 id: `dest-img-${dest.id}`,
-                label: 'Destination Image',
+                label: 'Destination Image (Optional — Leave Empty if None Assigned)',
                 type: 'image' as const,
                 value: dest.imageRef?.url || dest.image || '',
                 altText: dest.imageRef?.alt || dest.name,

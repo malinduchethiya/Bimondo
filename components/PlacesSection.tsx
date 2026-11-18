@@ -9,10 +9,12 @@ import {
   createImageRef,
   StaggerSlideVariant,
 } from '@/lib/cms-defaults';
+import { resolveDestinationSlug } from '@/lib/sri-lanka-47-destinations';
 import CmsImage from '@/components/CmsImage';
 
 interface StaggeredPlaceSlide {
   id: string;
+  slug: string;
   name: string;
   subtitle: string;
   image: string;
@@ -37,14 +39,25 @@ export default function PlacesSection() {
   const { cms } = useSiteCms();
   const placesSection = cms.pages.home.places;
 
-  const visibleDestinations = Array.isArray(cms.destinations)
+  const allVisibleDestinations = Array.isArray(cms.destinations)
     ? [...cms.destinations]
         .filter((d) => d.visible !== false)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     : [];
 
+  const featuredOrWithImages = allVisibleDestinations.filter(
+    (d) =>
+      d.featuredOnHome === true ||
+      Boolean((d.imageRef?.url || d.image || '').trim())
+  );
+  const visibleDestinations =
+    featuredOrWithImages.length > 0
+      ? featuredOrWithImages.slice(0, 12)
+      : allVisibleDestinations.slice(0, 8);
+
   const slides: StaggeredPlaceSlide[] = visibleDestinations.map((dest, idx) => ({
     id: dest.id,
+    slug: resolveDestinationSlug(dest),
     name: dest.name.split(',')[0].trim(),
     subtitle: dest.regionLabel,
     image: dest.imageRef?.url || dest.image || '',
@@ -240,8 +253,10 @@ export default function PlacesSection() {
             }}
           >
             {slides.map((slide) => (
-              <div
+              <Link
                 key={slide.id}
+                href={`/destinations/${slide.slug}`}
+                prefetch={false}
                 className={`place staggered-place-card variant-${slide.variant}`}
               >
                 <CmsImage
@@ -256,7 +271,7 @@ export default function PlacesSection() {
                   {slide.name}
                   <small>{slide.subtitle}</small>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

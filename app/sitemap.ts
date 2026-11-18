@@ -1,4 +1,8 @@
 import type { MetadataRoute } from 'next';
+import {
+  SRI_LANKA_47_DESTINATIONS,
+  resolveDestinationSlug,
+} from '@/lib/sri-lanka-47-destinations';
 
 export const dynamic = 'force-static';
 
@@ -14,7 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = resolveSiteBaseUrl();
   const lastModified = new Date();
 
-  return [
+  const staticRoutes: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/`,
       lastModified,
@@ -64,4 +68,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
   ];
+
+  const destinationRoutes: MetadataRoute.Sitemap = SRI_LANKA_47_DESTINATIONS.map(
+    (dest) => ({
+      url: `${baseUrl}/destinations/${resolveDestinationSlug(dest)}`,
+      lastModified,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    })
+  );
+
+  return [...staticRoutes, ...destinationRoutes];
 }

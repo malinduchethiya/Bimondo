@@ -28,69 +28,65 @@ uniform float uRelief;
 out vec3 vNormal;
 out float vElevation;
 out float vShade;
-void main(){
- float elevation=max(0.0,aElevation);
- float y=mix(0.055+elevation*0.00061*uRelief,-0.21,aBottom);
- gl_Position=uVP*vec4(aXZ.x,y,aXZ.y,1.0);
- vNormal=normalize(vec3(aNormal.x*uRelief,aNormal.y,aNormal.z*uRelief));
- vElevation=elevation;
- vShade=aShade;
-}`;
+ void main(){
+  float elevation=max(0.0,aElevation);
+  float y=mix(0.025+elevation*0.00054*uRelief,-0.085,aBottom);
+  gl_Position=uVP*vec4(aXZ.x,y,aXZ.y,1.0);
+  vNormal=normalize(vec3(aNormal.x*uRelief,aNormal.y,aNormal.z*uRelief));
+  vElevation=elevation;
+  vShade=aShade;
+ }`;
 
-const FRAG = `#version 300 es
-precision highp float;
-in vec3 vNormal;
-in float vElevation;
-in float vShade;
-uniform int uMode;
-uniform int uSide;
-out vec4 fragColor;
-vec3 palette(float h){
- if(h<160.0)return mix(vec3(.14,.39,.29),vec3(.31,.52,.36),smoothstep(0.0,160.0,h));
- if(h<650.0)return mix(vec3(.31,.52,.36),vec3(.61,.69,.45),smoothstep(160.0,650.0,h));
- if(h<1200.0)return mix(vec3(.61,.69,.45),vec3(.74,.65,.43),smoothstep(650.0,1200.0,h));
- if(h<1900.0)return mix(vec3(.74,.65,.43),vec3(.65,.46,.34),smoothstep(1200.0,1900.0,h));
- return mix(vec3(.65,.46,.34),vec3(.93,.86,.72),smoothstep(1900.0,2600.0,h));
-}
-void main(){
- vec3 norm=normalize(vNormal);
- vec3 light=normalize(vec3(-.5,.95,.8));
- float diffuse=max(dot(norm,light),.02);
- vec3 color;
- if(uSide==1){
-   color=vec3(.13,.29,.24)*(0.72+0.3*diffuse);
- } else if(uMode==2){
-   float steepness=1.0-clamp(norm.y,0.0,1.0);
-   float s=smoothstep(.015,.44,steepness);
-   color=mix(vec3(.24,.47,.40),vec3(.85,.54,.34),s);
-   color*=.79+.26*diffuse;
- } else {
-   color=palette(vElevation);
-   if(uMode==1){
-     float contour=abs(fract(vElevation/250.0)-0.5)*2.0;
-     float line=smoothstep(.91,.98,contour);
-     color=mix(color,color*.87,line*.34);
-   }
-   if(uMode==0){
-     float shine=mix(.76,1.12,clamp(vShade,0.0,1.0));
-     color*=shine;
-   }
-   color*=.72+.45*diffuse;
-   color=mix(color,vec3(.93,.95,.87),.035);
+ const FRAG = `#version 300 es
+ precision highp float;
+ in vec3 vNormal;
+ in float vElevation;
+ in float vShade;
+ uniform int uMode;
+ uniform int uSide;
+ out vec4 fragColor;
+ vec3 palette(float h){
+  if(h<160.0)return mix(vec3(.18,.38,.20),vec3(.27,.45,.23),smoothstep(0.0,160.0,h));
+  if(h<650.0)return mix(vec3(.27,.45,.23),vec3(.48,.56,.29),smoothstep(160.0,650.0,h));
+  if(h<1200.0)return mix(vec3(.48,.56,.29),vec3(.67,.59,.31),smoothstep(650.0,1200.0,h));
+  if(h<1900.0)return mix(vec3(.67,.59,.31),vec3(.55,.39,.27),smoothstep(1200.0,1900.0,h));
+  return mix(vec3(.65,.46,.34),vec3(.93,.86,.72),smoothstep(1900.0,2600.0,h));
  }
- fragColor=vec4(pow(clamp(color,0.0,1.0),vec3(.92)),1.0);
-}`;
+ void main(){
+  vec3 norm=normalize(vNormal);
+  vec3 light=normalize(vec3(-.55,1.45,.75));
+  float diffuse=max(dot(norm,light),.02);
+  vec3 color;
+  if(uSide==1){
+    color=vec3(.13,.29,.24)*(0.72+0.3*diffuse);
+  } else if(uMode==2){
+    float steepness=1.0-clamp(norm.y,0.0,1.0);
+    float s=smoothstep(.015,.44,steepness);
+    color=mix(vec3(.24,.47,.40),vec3(.85,.54,.34),s);
+    color*=.79+.26*diffuse;
+  } else {
+    color=palette(vElevation);
+    if(uMode==1){
+      float contour=abs(fract(vElevation/250.0)-0.5)*2.0;
+      float line=smoothstep(.91,.98,contour);
+      color=mix(color,color*.87,line*.34);
+    }
+    if(uMode==0){
+      float shine=mix(.88,1.08,clamp(vShade,0.0,1.0));
+      color*=shine;
+    }
+    color*=.79+.31*diffuse;
+    color=mix(color,vec3(.93,.95,.87),.035);
+  }
+  fragColor=vec4(pow(clamp(color,0.0,1.0),vec3(.92)),1.0);
+ }`;
 
-const W = 230;
-const H = 416;
-const SX = 4.3;
-const SZ = 7.8;
-const LON0 = 79.49;
-const LON1 = 82.07;
-const LAT0 = 9.91;
-const LAT1 = 5.83;
-const TOTAL = W * H;
-const RELIEF = 1.6;
+ const W = 230;
+ const H = 416;
+ const SX = 4.3;
+ const SZ = 7.8;
+ const TOTAL = W * H;
+ const RELIEF = 0.86;
 
 function index(x: number, y: number) {
   return y * W + x;
@@ -195,18 +191,6 @@ function project(
   };
 }
 
-function merc(lon: number, lat: number) {
-  const n = 2 ** 8;
-  return {
-    x: ((lon + 180) / 360) * n,
-    y: ((1 - Math.asinh(Math.tan((lat * Math.PI) / 180)) / Math.PI) / 2) * n,
-  };
-}
-
-function terrariumPixel(data: Uint8ClampedArray, k: number) {
-  return data[k] * 256 + data[k + 1] + data[k + 2] / 256 - 32768;
-}
-
 export default function SriLanka3DTerrainMap({
   pins,
   activePinId,
@@ -250,6 +234,7 @@ export default function SriLanka3DTerrainMap({
       alpha: true,
       antialias: true,
       premultipliedAlpha: false,
+      powerPreference: 'high-performance',
     });
     if (!gl) {
       return;
@@ -302,8 +287,8 @@ export default function SriLanka3DTerrainMap({
     let topMesh: GlMesh | null = null;
     let sideMesh: GlMesh | null = null;
 
-    let yaw = 0.39;
-    let pitch = 0.86;
+    let yaw = 0.28;
+    let pitch = 0.98;
     let distance = 13.4;
     let target: [number, number, number] = [0, 0.33, 0];
     let targetYaw = yaw;
@@ -338,7 +323,7 @@ export default function SriLanka3DTerrainMap({
       const elev = isLand[id] ? Math.max(0, alt[id]) : 0;
       const wx = (u - 0.5) * SX;
       const wz = (v - 0.5) * SZ;
-      const wy = 0.055 + elev * 0.00061 * RELIEF;
+      const wy = 0.025 + elev * 0.00054 * RELIEF;
       return [wx, wy, wz];
     }
 
@@ -368,8 +353,8 @@ export default function SriLanka3DTerrainMap({
 
       if (Math.abs(dir[1]) < 1e-4) return null;
 
-      const tTop = Math.max(0.1, (2.85 - eye[1]) / dir[1]);
-      const tBase = Math.max(tTop + 0.05, (0.055 - eye[1]) / dir[1]);
+      const tTop = Math.max(0.1, (1.4 - eye[1]) / dir[1]);
+      const tBase = Math.max(tTop + 0.05, (0.025 - eye[1]) / dir[1]);
       const steps = 90;
       let hitU: number | null = null;
       let hitV: number | null = null;
@@ -386,7 +371,7 @@ export default function SriLanka3DTerrainMap({
           const yi = Math.min(H - 1, Math.max(0, Math.round(v * (H - 1))));
           const id = yi * W + xi;
           if (isLand[id]) {
-            const ty = 0.055 + Math.max(0, alt[id]) * 0.00061 * RELIEF;
+            const ty = 0.025 + Math.max(0, alt[id]) * 0.00054 * RELIEF;
             if (ry <= ty) {
               hitU = u;
               hitV = v;
@@ -419,9 +404,9 @@ export default function SriLanka3DTerrainMap({
           const R = alt[index(Math.min(x + 1, W - 1), y)];
           const T = alt[index(x, Math.max(y - 1, 0))];
           const B = alt[index(x, Math.min(y + 1, H - 1))];
-          const nx = (-(R - L) * 0.00061) / (2 * dx);
+          const nx = (-(R - L) * 0.00054) / (2 * dx);
           const ny = 1;
-          const nz = (-(B - T) * 0.00061) / (2 * dz);
+          const nz = (-(B - T) * 0.00054) / (2 * dz);
           const len = Math.hypot(nx, ny, nz) || 1;
           normals[i * 3] = nx / len;
           normals[i * 3 + 1] = ny / len;
@@ -558,67 +543,6 @@ export default function SriLanka3DTerrainMap({
       sideMesh = makeBuffers(wp, wh, ws, wn, wb, null);
     }
 
-    async function loadDem() {
-      try {
-        const min = merc(LON0, LAT0);
-        const max = merc(LON1, LAT1);
-        const tiles = new Map<string, Uint8ClampedArray>();
-        const jobs: Promise<void>[] = [];
-        for (let x = Math.floor(min.x); x <= Math.floor(max.x); x++) {
-          for (let y = Math.floor(min.y); y <= Math.floor(max.y); y++) {
-            jobs.push(
-              (async () => {
-                const url = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/8/${x}/${y}.png`;
-                const res = await fetch(url);
-                if (!res.ok) throw new Error('Elevation tile unavailable');
-                const img = await createImageBitmap(await res.blob());
-                const c = document.createElement('canvas');
-                c.width = 256;
-                c.height = 256;
-                const ct = c.getContext('2d', { willReadFrequently: true })!;
-                ct.drawImage(img, 0, 0);
-                tiles.set(
-                  `${x}/${y}`,
-                  ct.getImageData(0, 0, 256, 256).data
-                );
-                img.close?.();
-              })()
-            );
-          }
-        }
-        await Promise.all(jobs);
-        if (disposed) return;
-        let valid = 0;
-        for (let y = 0; y < H; y++) {
-          for (let x = 0; x < W; x++) {
-            const i = index(x, y);
-            if (!isLand[i]) continue;
-            const u = x / (W - 1);
-            const v = y / (H - 1);
-            const lon = LON0 + u * (LON1 - LON0);
-            const lat = LAT0 + v * (LAT1 - LAT0);
-            const xy = merc(lon, lat);
-            const tx = Math.floor(xy.x);
-            const ty = Math.floor(xy.y);
-            const pixels = tiles.get(`${tx}/${ty}`);
-            if (!pixels) continue;
-            const px = Math.min(255, Math.max(0, Math.floor((xy.x - tx) * 256)));
-            const py = Math.min(255, Math.max(0, Math.floor((xy.y - ty) * 256)));
-            const h = terrariumPixel(pixels, (py * 256 + px) * 4);
-            if (Number.isFinite(h)) {
-              alt[i] = Math.max(0, Math.min(2800, h));
-              valid++;
-            }
-          }
-        }
-        if (valid >= 10000 && !disposed) {
-          rebuild();
-        }
-      } catch {
-        // Fallback to embedded terrain data silently
-      }
-    }
-
     const img = new Image();
     img.onload = () => {
       if (disposed) return;
@@ -640,7 +564,6 @@ export default function SriLanka3DTerrainMap({
         }
       }
       rebuild();
-      loadDem();
     };
     img.src = EMBEDDED_TERRAIN;
 
@@ -798,8 +721,8 @@ export default function SriLanka3DTerrainMap({
     };
 
     const onDblClick = () => {
-      targetYaw = 0.39;
-      targetPitch = 0.86;
+      targetYaw = 0.28;
+      targetPitch = 0.98;
       targetDist = defaultZoom();
       target = [0, 0.33, 0];
     };
