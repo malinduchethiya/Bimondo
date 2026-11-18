@@ -181,6 +181,7 @@ export function getDefaultFolderForSection(sectionId: string): string {
     case 'stays-collection':
     case 'stays-banner':
       return 'pages/stays';
+    case 'gallery-grid':
     case 'gallery-photos':
     case 'gallery-banner':
       return 'gallery/featured';

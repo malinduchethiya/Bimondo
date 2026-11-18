@@ -51,6 +51,7 @@ import AdminMediaLibrary, {
 } from '@/components/admin/AdminMediaLibrary';
 import AdminDiscoverMapPinEditor from '@/components/admin/AdminDiscoverMapPinEditor';
 import AdminDestinationsCatalogSyncBar from '@/components/admin/AdminDestinationsCatalogSyncBar';
+import AdminGalleryStudio from '@/components/admin/AdminGalleryStudio';
 
 type WorkspaceMode = 'editor' | 'enquiries' | 'media' | 'trash';
 
@@ -138,10 +139,17 @@ export default function AdminPanelPage() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [isReloading, setIsReloading] = useState<boolean>(false);
-  const [mediaPickerModalState, setMediaPickerModalState] = useState<{
-    field: AdminFieldItem;
-    preferredFolder: string;
-  } | null>(null);
+  const [mediaPickerModalState, setMediaPickerModalState] = useState<
+    | {
+        field: AdminFieldItem;
+        preferredFolder: string;
+      }
+    | {
+        onSelectCustom: (asset: SelectedMediaLibraryAsset) => void;
+        preferredFolder: string;
+      }
+    | null
+  >(null);
 
   const isAnyUploadInProgress = Object.keys(uploadingFieldIds).length > 0;
 
@@ -1629,6 +1637,27 @@ export default function AdminPanelPage() {
                 />
               )}
 
+              {/* Streamlined Category Upload Studio when editing gallery-grid */}
+              {activeSection.id === 'gallery-grid' && (
+                <AdminGalleryStudio
+                  draft={draft}
+                  currentAdminUid={currentAdminUid}
+                  isSaving={isSaving}
+                  isAnyUploadInProgress={isAnyUploadInProgress}
+                  getAdminIdToken={getAdminIdToken}
+                  onMutateDraft={applyDraftMutation}
+                  onOpenMediaLibrary={(preferredFolder, onPicked) =>
+                    setMediaPickerModalState({
+                      preferredFolder,
+                      onSelectCustom: (asset) => onPicked(asset),
+                    })
+                  }
+                  onUploadStart={handleUploadStart}
+                  onUploadEnd={handleUploadEnd}
+                  onNotify={(type, message) => setFeedback({ type, message })}
+                />
+              )}
+
               {/* Direct Booking Requests Banner when editing Contact & Multi-Channel Booking (#contact) */}
               {(activeSection.id === 'home-contact' ||
                 activePage.id === 'contact-page') && (
@@ -1656,7 +1685,8 @@ export default function AdminPanelPage() {
               )}
 
               {/* Subsections List */}
-              {filteredSubsections.length === 0 ? (
+              {activeSection.id !== 'gallery-grid' &&
+                (filteredSubsections.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-md p-8 text-center text-xs text-slate-500">
                   No fields match your search in this section.
                 </div>
@@ -1899,7 +1929,7 @@ export default function AdminPanelPage() {
                     );
                   })}
                 </div>
-              )}
+              ))}
             </div>
           )}
         </main>
@@ -1924,12 +1954,17 @@ export default function AdminPanelPage() {
               totalSectionCount={totalSectionCount}
               firestoreLoadError={loadError}
               getAdminIdToken={getAdminIdToken}
-              onSelectMedia={(asset) =>
+              onSelectMedia={(asset) => {
+                if ('onSelectCustom' in mediaPickerModalState) {
+                  mediaPickerModalState.onSelectCustom(asset);
+                  setMediaPickerModalState(null);
+                  return;
+                }
                 handleFieldSelectFromMediaLibrary(
                   mediaPickerModalState.field,
                   asset
-                )
-              }
+                );
+              }}
               onClose={() => setMediaPickerModalState(null)}
             />
           </div>

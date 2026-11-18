@@ -1,11 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { X } from 'lucide-react';
 import PageBanner from '@/components/PageBanner';
 import CmsImage from '@/components/CmsImage';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import { CmsGalleryPhoto } from '@/lib/cms-defaults';
+
+const GALLERY_CATEGORY_LIST = [
+  { id: 'culture', label: 'Culture & Heritage' },
+  { id: 'highlands', label: 'Hill Country & Hiking' },
+  { id: 'wildlife', label: 'Wildlife & Nature' },
+  { id: 'coast', label: 'Sea & Sand' },
+] as const;
 
 export default function GalleryPage() {
   const { cms } = useSiteCms();
@@ -16,22 +24,40 @@ export default function GalleryPage() {
     null
   );
 
-  const photos: CmsGalleryPhoto[] = (cms.gallery || [])
-    .filter((p) => p.visible !== false)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const photos = useMemo(
+    () =>
+      (cms.gallery || [])
+        .filter(
+          (p) =>
+            p.visible !== false &&
+            !p.deletedAt &&
+            Boolean((p.imageRef?.url || p.image || '').trim())
+        )
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [cms.gallery]
+  );
 
-  const categories = [
-    { id: 'all', label: 'All Regions' },
-    { id: 'culture', label: 'Culture & Heritage' },
-    { id: 'highlands', label: 'Hill Country & Hiking' },
-    { id: 'wildlife', label: 'Wildlife & Nature' },
-    { id: 'coast', label: 'Sea & Sand' },
-  ];
+  const categorySections = useMemo(() => {
+    const visibleCategories =
+      activeCategory === 'all'
+        ? GALLERY_CATEGORY_LIST
+        : GALLERY_CATEGORY_LIST.filter((c) => c.id === activeCategory);
 
-  const filtered =
-    activeCategory === 'all'
-      ? photos
-      : photos.filter((p) => p.category === activeCategory);
+    return visibleCategories
+      .map((cat) => ({
+        ...cat,
+        items: photos.filter((p) => {
+          const normalizedCat =
+            p.category === 'highlands' ||
+            p.category === 'wildlife' ||
+            p.category === 'coast'
+              ? p.category
+              : 'culture';
+          return normalizedCat === cat.id;
+        }),
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [photos, activeCategory]);
 
   return (
     <main>
@@ -56,9 +82,16 @@ export default function GalleryPage() {
           <p>{pageContent.introSection.description}</p>
         </div>
 
-        {/* Filter Pills */}
+        {/* Minimal Category Filter */}
         <div className="filter" style={{ marginBottom: '36px' }}>
-          {categories.map((c) => (
+          <button
+            type="button"
+            className={activeCategory === 'all' ? 'active' : ''}
+            onClick={() => setActiveCategory('all')}
+          >
+            All Categories
+          </button>
+          {GALLERY_CATEGORY_LIST.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -70,40 +103,48 @@ export default function GalleryPage() {
           ))}
         </div>
 
-        {/* Gallery Grid */}
-        <div className="gallery-grid">
-          {filtered.map((photo, idx) => (
-            <div
-              key={photo.id}
-              className="gallery-item"
-              onClick={() => setSelectedPhoto(photo)}
-            >
-              <CmsImage
-                imageRef={photo.imageRef}
-                src={photo.imageRef?.url || photo.image}
-                alt={photo.imageRef?.alt || photo.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 33vw"
-                priority={idx < 3}
-                loading={idx < 6 ? 'eager' : 'lazy'}
-                className="object-cover"
-              />
-              <div className="gallery-overlay">
-                <span className="gallery-loc">{photo.location}</span>
-                <h3 className="serif gallery-title">{photo.title}</h3>
-                <span
-                  style={{
-                    fontSize: '11px',
-                    color: '#e5f8fc',
-                    marginTop: '4px',
-                  }}
-                >
-                  Click to view full photo ↗
-                </span>
+        {/* Direct 4-Column Category Showcase */}
+        {categorySections.length === 0 ? (
+          <p style={{ color: 'var(--muted)', fontSize: '14px' }}>
+            No photos available in this category yet.
+          </p>
+        ) : (
+          <div className="gallerydesign-categories">
+            {categorySections.map((categorySection) => (
+              <div key={categorySection.id} className="gallerydesign-section">
+                <h3 className="serif gallerydesign-heading">
+                  {categorySection.label}
+                </h3>
+                <div className="gallerydesign">
+                  {categorySection.items.map((photo, idx) => (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      className="gallerydesign-item"
+                      onClick={() => setSelectedPhoto(photo)}
+                      aria-label={photo.title || categorySection.label}
+                    >
+                      <CmsImage
+                        imageRef={photo.imageRef}
+                        src={photo.imageRef?.url || photo.image}
+                        alt={
+                          photo.imageRef?.alt ||
+                          photo.title ||
+                          categorySection.label
+                        }
+                        fill
+                        sizes="(max-width: 639px) 50vw, (max-width: 959px) 33vw, 25vw"
+                        priority={idx < 4}
+                        loading={idx < 8 ? 'eager' : 'lazy'}
+                        className="object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Custom Tailor-Made CTA Box */}
         <div className="dest-custom-cta-box" style={{ marginTop: '55px' }}>
@@ -131,7 +172,7 @@ export default function GalleryPage() {
         </div>
       </section>
 
-      {/* Lightbox Modal */}
+      {/* Clean Lightbox Modal */}
       {selectedPhoto && (
         <div
           className="modal-overlay"
@@ -141,97 +182,90 @@ export default function GalleryPage() {
         >
           <div
             className="modal-card"
-            style={{ maxWidth: '850px', padding: '0', overflow: 'hidden' }}
+            style={{ maxWidth: '900px', padding: '0', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
                 position: 'relative',
-                height: 'clamp(220px, 42vh, 420px)',
+                height: 'clamp(280px, 65vh, 620px)',
                 width: '100%',
+                background: '#0b2230',
               }}
             >
               <CmsImage
                 imageRef={selectedPhoto.imageRef}
                 src={selectedPhoto.imageRef?.url || selectedPhoto.image}
-                alt={selectedPhoto.imageRef?.alt || selectedPhoto.title}
+                alt={
+                  selectedPhoto.imageRef?.alt ||
+                  selectedPhoto.title ||
+                  selectedPhoto.categoryLabel ||
+                  'Sri Lanka gallery photo'
+                }
                 fill
-                sizes="(max-width: 768px) 100vw, 850px"
+                sizes="(max-width: 768px) 100vw, 900px"
                 priority
                 loading="eager"
-                className="object-cover"
+                className="object-contain"
               />
               <button
                 type="button"
                 className="modal-close-btn"
+                aria-label="Close photo"
                 style={{
                   color: '#ffffff',
-                  background: 'rgba(0,0,0,0.5)',
+                  background: 'rgba(0,0,0,0.55)',
                   borderRadius: '50%',
                   width: '36px',
                   height: '36px',
                   display: 'grid',
                   placeItems: 'center',
-                  top: '16px',
-                  right: '16px',
+                  top: '14px',
+                  right: '14px',
                 }}
                 onClick={() => setSelectedPhoto(null)}
               >
-                ×
+                <X size={18} />
               </button>
             </div>
-            <div
-              style={{
-                padding: 'clamp(18px, 4vw, 28px) clamp(16px, 4vw, 32px)',
-              }}
-            >
-              <span className="eyebrow" style={{ color: 'var(--terracotta)' }}>
-                {selectedPhoto.categoryLabel} · {selectedPhoto.location}
-              </span>
-              <h2
-                className="serif"
-                style={{
-                  fontSize: 'clamp(24px, 6vw, 32px)',
-                  margin: '8px 0 12px',
-                }}
-              >
-                {selectedPhoto.title}
-              </h2>
-              <p
-                style={{
-                  lineHeight: 1.75,
-                  color: '#536f7e',
-                  margin: 0,
-                  fontSize: '14px',
-                }}
-              >
-                {selectedPhoto.description}
-              </p>
+            {(selectedPhoto.title?.trim() || selectedPhoto.categoryLabel) && (
               <div
                 style={{
+                  padding: '14px 20px',
                   display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
                   flexWrap: 'wrap',
-                  gap: '10px',
-                  marginTop: '20px',
                 }}
               >
-                <Link
-                  href="/contact"
-                  prefetch={false}
-                  className="pill dark"
-                  onClick={() => setSelectedPhoto(null)}
-                >
-                  PLAN A TRIP TO THIS REGION ↗
-                </Link>
+                <div>
+                  {selectedPhoto.categoryLabel && (
+                    <span
+                      className="eyebrow"
+                      style={{ color: 'var(--terracotta)', display: 'block' }}
+                    >
+                      {selectedPhoto.categoryLabel}
+                    </span>
+                  )}
+                  {selectedPhoto.title?.trim() && (
+                    <span
+                      className="serif"
+                      style={{ fontSize: '20px', color: 'var(--ink)' }}
+                    >
+                      {selectedPhoto.title}
+                    </span>
+                  )}
+                </div>
                 <button
                   type="button"
                   className="pill"
                   onClick={() => setSelectedPhoto(null)}
                 >
-                  CLOSE
+                  Close
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

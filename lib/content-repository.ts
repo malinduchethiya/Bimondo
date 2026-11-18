@@ -612,9 +612,21 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
   });
 
   // Sync Gallery
+  const galleryCategoryLabelMap: Record<string, string> = {
+    culture: 'Culture & Heritage',
+    highlands: 'Hill Country & Hiking',
+    wildlife: 'Wildlife & Nature',
+    coast: 'Sea & Sand',
+  };
   merged.gallery = (
     Array.isArray(merged.gallery) ? merged.gallery : defaults.gallery
   ).map((g, idx) => {
+    const category =
+      g.category === 'highlands' ||
+      g.category === 'wildlife' ||
+      g.category === 'coast'
+        ? g.category
+        : 'culture';
     const imageRef = normalizeImageRef(
       g.imageRef,
       g.image ?? '',
@@ -623,6 +635,8 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
     return {
       ...g,
       id: g.id || `gallery-${idx + 1}`,
+      category,
+      categoryLabel: galleryCategoryLabelMap[category] || 'Culture & Heritage',
       image: imageRef.url,
       imageRef,
       visible: g.visible !== false,

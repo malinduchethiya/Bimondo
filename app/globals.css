@@ -1787,6 +1787,52 @@ footer {
   margin: 4px 0 0;
 }
 
+.gallerydesign-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+
+.gallerydesign-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gallerydesign-heading {
+  margin: 0;
+  font-size: clamp(22px, 2.4vw, 30px);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.gallerydesign {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gallerydesign-item {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e8f1f5;
+  cursor: pointer;
+}
+
+.gallerydesign-item img {
+  transition: transform 0.35s ease;
+}
+
+.gallerydesign-item:hover img {
+  transform: scale(1.03);
+}
+
 .dest-custom-cta-box {
   margin-top: 36px;
   background: linear-gradient(135deg, #0d3b4f 0%, #17647a 100%);
@@ -2996,6 +3042,11 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
     gap: 18px;
   }
 
+  .gallerydesign {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
   .contact form {
     grid-template-columns: 1fr 1fr;
     padding: 26px 22px;
@@ -3565,6 +3616,11 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
     gap: 22px;
   }
 
+  .gallerydesign {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+
   .story {
     gap: 7%;
   }
@@ -3761,6 +3817,11 @@ main:nth-of-type(1) > div:nth-of-type(1) > div#horizontal-scroll-wrap:nth-of-typ
   .thoughts-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 24px;
+  }
+
+  .gallerydesign {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
   }
 
   .flyover-panel {
