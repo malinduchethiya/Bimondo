@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { normalizeRoutePath } from '@/components/InstantRouteManager';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import { trackWhatsAppClick } from '@/lib/analytics';
 
 export default function Footer() {
   const { cms } = useSiteCms();
@@ -17,9 +18,25 @@ export default function Footer() {
   const footer = cms.pages.shared.footer;
   const year = new Date().getFullYear();
 
-  const visibleExploreLinks = [...(footer.exploreLinks || [])]
+  const rawExploreLinks = [...(footer.exploreLinks || [])]
     .filter((link) => link.visible !== false)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const hasGuidesLink = rawExploreLinks.some(
+    (link) => normalizeRoutePath(link.href) === '/guides'
+  );
+  const visibleExploreLinks = hasGuidesLink
+    ? rawExploreLinks
+    : [
+        ...rawExploreLinks,
+        {
+          id: 'footer-explore-guides',
+          label: 'Travel Guides',
+          href: '/guides',
+          visible: true,
+          order: rawExploreLinks.length + 1,
+        },
+      ];
 
   const visibleBookingsLinks = [...(footer.bookingsLinks || [])]
     .filter((link) => link.visible !== false)
@@ -64,6 +81,7 @@ export default function Footer() {
                 href={footer.whatsappUrl}
                 rel="noopener noreferrer"
                 target="_blank"
+                onClick={() => trackWhatsAppClick('footer')}
               >
                 {footer.whatsappDisplay}
               </a>

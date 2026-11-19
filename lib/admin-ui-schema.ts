@@ -16,6 +16,12 @@ import {
   SiteCmsData,
 } from '@/lib/cms-defaults';
 import { resolveDestinationSlug } from '@/lib/sri-lanka-47-destinations';
+import { resolveTourSlug } from '@/lib/tour-helpers';
+import {
+  CmsTravelGuide,
+  TRAVEL_GUIDE_CATEGORIES,
+  TravelGuideCategoryId,
+} from '@/lib/travel-guides';
 
 export type AdminFieldType = 'text' | 'textarea' | 'image';
 
@@ -174,6 +180,9 @@ export function buildAdminPagesFromCms(
     .filter((item) => !item.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const sortedExperiencePins = [...(cms.pages.home.experience.mapPins || [])]
+    .filter((item) => !item.deletedAt)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const sortedTravelGuides = [...(cms.travelGuides || [])]
     .filter((item) => !item.deletedAt)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -3836,6 +3845,130 @@ export function buildAdminPagesFromCms(
                 },
               },
               {
+                id: `tour-slug-${tour.id}`,
+                label: 'URL Slug (/packages/[slug])',
+                type: 'text' as const,
+                value: tour.slug || resolveTourSlug(tour),
+                helperText:
+                  'Lowercase URL slug used for the dedicated tour package page.',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const clean = val
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, slug: clean || undefined } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-overview-${tour.id}`,
+                label: 'Extended Overview (Optional)',
+                type: 'textarea' as const,
+                value: tour.overview || '',
+                helperText:
+                  'Optional detailed overview shown on the dedicated tour page. Leave blank to display the standard description.',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, overview: val } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-itinerary-${tour.id}`,
+                label: 'Itinerary Outline (Optional, one day per line)',
+                type: 'textarea' as const,
+                value: Array.isArray(tour.itinerary)
+                  ? tour.itinerary.join('\n')
+                  : '',
+                helperText:
+                  'Optional day-by-day route notes (one entry per line). Only shown when populated.',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, itinerary: lines } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-included-${tour.id}`,
+                label: "What's Included (Optional, one item per line)",
+                type: 'textarea' as const,
+                value: Array.isArray(tour.included)
+                  ? tour.included.join('\n')
+                  : '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, included: lines } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-excluded-${tour.id}`,
+                label: 'Not Included (Optional, one item per line)',
+                type: 'textarea' as const,
+                value: Array.isArray(tour.excluded)
+                  ? tour.excluded.join('\n')
+                  : '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const lines = val
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, excluded: lines } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-seo-title-${tour.id}`,
+                label: 'SEO Title Override (Optional)',
+                type: 'text' as const,
+                value: tour.seoTitle || '',
+                helperText:
+                  'Optional custom search title for /packages/[slug]. Leave blank for automatic SEO title.',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, seoTitle: val } : t
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `tour-seo-desc-${tour.id}`,
+                label: 'SEO Meta Description Override (Optional)',
+                type: 'textarea' as const,
+                value: tour.seoDescription || '',
+                helperText:
+                  'Optional search meta description (140-160 characters). Leave blank for automatic description.',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.tours = next.tours.map((t) =>
+                    t.id === tour.id ? { ...t, seoDescription: val } : t
+                  );
+                  return next;
+                },
+              },
+              {
                 id: `tour-img-${tour.id}`,
                 label: 'Tour Card Image',
                 type: 'image' as const,
@@ -5283,6 +5416,314 @@ export function buildAdminPagesFromCms(
               ],
             },
           ],
+        },
+      ],
+    },
+
+    // =========================================================================
+    // 10. TRAVEL GUIDES (/guides & /guides/[slug])
+    // =========================================================================
+    {
+      id: 'travel-guides-page',
+      title: 'Travel Guides',
+      routePath: '/guides',
+      description:
+        'Manage practical Sri Lanka travel guides, seasonal planners, itinerary templates, SEO metadata, internal links, and optional cover photos.',
+      sections: [
+        {
+          id: 'travel-guides-list',
+          code: 'SEC 01',
+          title: `Sri Lanka Travel Guides (${sortedTravelGuides.length} Articles)`,
+          description:
+            'Edit guide headlines, URL slugs, summaries, SEO metadata, linked destinations/tours, and optional R2 cover images.',
+          addRepeatableLabel: 'Add Travel Guide',
+          onAddRepeatable: (prev) => {
+            const next = cloneCms(prev);
+            const nextOrder = (next.travelGuides?.length || 0) + 1;
+            const slug = `sri-lanka-travel-guide-${Date.now()}`;
+            const today = new Date().toISOString().slice(0, 10);
+            const newGuide: CmsTravelGuide = {
+              id: `guide-${Date.now()}`,
+              slug,
+              title: `New Sri Lanka Travel Guide ${nextOrder}`,
+              eyebrow: 'Travel Planning',
+              category: 'planning',
+              categoryLabel: 'Trip Planning & Tips',
+              readingTime: '5 min read',
+              publishedAt: today,
+              updatedAt: today,
+              summary:
+                'Practical planning guide for private travellers exploring Sri Lanka.',
+              intro:
+                'Add verified route planning notes, seasonal timing guidance, and regional highlights here.',
+              sections: [
+                {
+                  id: 'planning-overview',
+                  heading: 'Planning Overview',
+                  paragraphs: [
+                    'Add practical planning guidance for travellers considering this route or topic.',
+                  ],
+                  bullets: [],
+                },
+              ],
+              relatedDestinationSlugs: ['sigiriya', 'kandy', 'ella'],
+              relatedTourIds: ['tour-3', 'tour-1'],
+              seoTitle: '',
+              seoDescription: '',
+              imageRef: createImageRef('', `New Sri Lanka Travel Guide ${nextOrder}`),
+              visible: true,
+              order: nextOrder,
+            };
+            next.travelGuides = [...(next.travelGuides || []), newGuide];
+            return next;
+          },
+          subsections: sortedTravelGuides.map((guide, idx) => ({
+            id: `travel-guide-${guide.id}`,
+            code: `1.${idx + 1}`,
+            title: `${guide.title} (${guide.categoryLabel || guide.category})`,
+            repeatableItemId: guide.id,
+            visible: guide.visible !== false,
+            canToggleVisible: true,
+            onToggleVisible: (prev: SiteCmsData) => {
+              const next = cloneCms(prev);
+              next.travelGuides = (next.travelGuides || []).map((g) =>
+                g.id === guide.id ? { ...g, visible: g.visible === false } : g
+              );
+              return next;
+            },
+            canMoveUp: idx > 0,
+            canMoveDown: idx < sortedTravelGuides.length - 1,
+            canRemove: sortedTravelGuides.length > 1,
+            onMoveUp: (prev: SiteCmsData) => {
+              const next = cloneCms(prev);
+              next.travelGuides = moveArrayItem(
+                sortedTravelGuides,
+                idx,
+                'up',
+                next.travelGuides
+              );
+              return next;
+            },
+            onMoveDown: (prev: SiteCmsData) => {
+              const next = cloneCms(prev);
+              next.travelGuides = moveArrayItem(
+                sortedTravelGuides,
+                idx,
+                'down',
+                next.travelGuides
+              );
+              return next;
+            },
+            onRemove: (prev: SiteCmsData) => {
+              const next = cloneCms(prev);
+              next.travelGuides = softDeleteItemById(
+                next.travelGuides || [],
+                guide.id,
+                currentAdminUid
+              );
+              return next;
+            },
+            fields: [
+              {
+                id: `guide-title-${guide.id}`,
+                label: 'Guide Title',
+                type: 'text' as const,
+                value: guide.title,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, title: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-slug-${guide.id}`,
+                label: 'URL Slug (/guides/[slug])',
+                type: 'text' as const,
+                value: guide.slug,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const clean = val
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]+/g, '-')
+                    .replace(/^-+|-+$/g, '');
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, slug: clean || g.slug } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-eyebrow-${guide.id}`,
+                label: 'Eyebrow Label',
+                type: 'text' as const,
+                value: guide.eyebrow,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, eyebrow: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-category-${guide.id}`,
+                label: 'Category ID (planning, itineraries, comparisons, regions)',
+                type: 'text' as const,
+                value: guide.category,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const allowed: TravelGuideCategoryId[] = [
+                    'planning',
+                    'itineraries',
+                    'comparisons',
+                    'regions',
+                  ];
+                  const matched = allowed.find(
+                    (c) => c === val.trim().toLowerCase()
+                  );
+                  const matchedLabel = TRAVEL_GUIDE_CATEGORIES.find(
+                    (c) => c.id === matched
+                  )?.label;
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id
+                      ? {
+                          ...g,
+                          category: matched || g.category,
+                          categoryLabel: matchedLabel || g.categoryLabel,
+                        }
+                      : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-reading-${guide.id}`,
+                label: 'Reading Time Label',
+                type: 'text' as const,
+                value: guide.readingTime,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, readingTime: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-summary-${guide.id}`,
+                label: 'Card Summary',
+                type: 'textarea' as const,
+                value: guide.summary,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, summary: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-intro-${guide.id}`,
+                label: 'Article Intro Paragraph',
+                type: 'textarea' as const,
+                value: guide.intro,
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, intro: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-related-dests-${guide.id}`,
+                label: 'Linked Destination Slugs (comma-separated)',
+                type: 'text' as const,
+                value: (guide.relatedDestinationSlugs || []).join(', '),
+                helperText: 'Example: sigiriya, kandy, ella, yala-national-park',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const slugs = val
+                    .split(',')
+                    .map((s) => s.trim().toLowerCase())
+                    .filter(Boolean);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id
+                      ? { ...g, relatedDestinationSlugs: slugs }
+                      : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-related-tours-${guide.id}`,
+                label: 'Linked Tour IDs (comma-separated)',
+                type: 'text' as const,
+                value: (guide.relatedTourIds || []).join(', '),
+                helperText: 'Example: tour-3, tour-1, tour-11',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  const ids = val
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, relatedTourIds: ids } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-seo-title-${guide.id}`,
+                label: 'SEO Title Override (Optional)',
+                type: 'text' as const,
+                value: guide.seoTitle || '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, seoTitle: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-seo-desc-${guide.id}`,
+                label: 'SEO Meta Description Override (Optional)',
+                type: 'textarea' as const,
+                value: guide.seoDescription || '',
+                applyText: (prev: SiteCmsData, val: string) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) =>
+                    g.id === guide.id ? { ...g, seoDescription: val } : g
+                  );
+                  return next;
+                },
+              },
+              {
+                id: `guide-img-${guide.id}`,
+                label: 'Guide Cover Image (Optional)',
+                type: 'image' as const,
+                value: guide.imageRef?.url || '',
+                altText: guide.imageRef?.alt || guide.title,
+                objectKey: guide.imageRef?.key ?? null,
+                applyImage: (
+                  prev: SiteCmsData,
+                  updates: AdminImageFieldUpdates
+                ) => {
+                  const next = cloneCms(prev);
+                  next.travelGuides = (next.travelGuides || []).map((g) => {
+                    if (g.id !== guide.id) return g;
+                    const ref = updateImageRef(g.imageRef, updates, g.title);
+                    return { ...g, imageRef: ref };
+                  });
+                  return next;
+                },
+              },
+            ],
+          })),
         },
       ],
     },

@@ -131,6 +131,7 @@ export interface TrashItemEntry {
     | 'gallery'
     | 'reviews'
     | 'faqs'
+    | 'travelGuides'
     | 'experienceMapPins';
   id: string;
   title: string;
@@ -679,6 +680,37 @@ export function normalizeCmsData(raw: unknown): SiteCmsData {
     deletedBy: f.deletedBy || null,
   }));
 
+  // Sync Travel Guides (non-destructive merge preserving any admin-edited guides)
+  const rawGuides = Array.isArray(merged.travelGuides) && merged.travelGuides.length > 0
+    ? merged.travelGuides
+    : defaults.travelGuides;
+  merged.travelGuides = rawGuides.map((g, idx) => {
+    const imageRef = normalizeImageRef(
+      g.imageRef,
+      '',
+      g.title ?? `Travel Guide ${idx + 1}`
+    );
+    return {
+      ...g,
+      id: g.id || `guide-${idx + 1}`,
+      slug: (g.slug || g.id || `guide-${idx + 1}`)
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, ''),
+      sections: Array.isArray(g.sections) ? g.sections : [],
+      relatedDestinationSlugs: Array.isArray(g.relatedDestinationSlugs)
+        ? g.relatedDestinationSlugs
+        : [],
+      relatedTourIds: Array.isArray(g.relatedTourIds) ? g.relatedTourIds : [],
+      imageRef,
+      visible: g.visible !== false,
+      order: typeof g.order === 'number' ? g.order : idx + 1,
+      deletedAt: g.deletedAt || null,
+      deletedBy: g.deletedBy || null,
+    };
+  });
+
   // Sync Customer Booking Enquiries
   const rawEnquiries = Array.isArray(merged.enquiries)
     ? merged.enquiries
@@ -879,6 +911,7 @@ export function filterCmsForPublic(cms: SiteCmsData): SiteCmsData {
   cloned.gallery = (cloned.gallery || []).filter((item) => !item.deletedAt);
   cloned.reviews = (cloned.reviews || []).filter((item) => !item.deletedAt);
   cloned.faqs = (cloned.faqs || []).filter((item) => !item.deletedAt);
+  cloned.travelGuides = (cloned.travelGuides || []).filter((item) => !item.deletedAt);
   // Never expose private customer booking enquiries in publicCms
   cloned.enquiries = [];
 
@@ -1117,6 +1150,20 @@ export function listSoftDeletedItems(cms: SiteCmsData): TrashItemEntry[] {
     }
   }
 
+  for (const guide of cms.travelGuides || []) {
+    if (guide.deletedAt) {
+      entries.push({
+        kind: 'item',
+        collectionKey: 'travelGuides',
+        id: guide.id,
+        title: guide.title,
+        locationLabel: 'Travel Guides Page · Guide Article',
+        deletedAt: guide.deletedAt,
+        deletedBy: guide.deletedBy ?? null,
+      });
+    }
+  }
+
   return entries.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
 }
 
@@ -1193,6 +1240,11 @@ export function restoreSoftDeletedEntry(
     case 'faqs':
       next.faqs = next.faqs.map((f) =>
         f.id === entry.id ? { ...f, deletedAt: null, deletedBy: null } : f
+      );
+      break;
+    case 'travelGuides':
+      next.travelGuides = (next.travelGuides || []).map((g) =>
+        g.id === entry.id ? { ...g, deletedAt: null, deletedBy: null } : g
       );
       break;
   }
@@ -1393,14 +1445,21 @@ export const CMS_SECTION_DEFINITIONS: CmsSectionDefinition[] = [
   {
     docId: 'destinations_page',
     pageId: 'destinations',
-    title: 'Destinations Page Copy & Headings',
-    extractPayload: (cms) => ({ destinationsPage: cms.pages.destinationsPage }),
+    title: 'Destinations Page Copy, Headings & Travel Guides',
+    extractPayload: (cms) => ({
+      destinationsPage: cms.pages.destinationsPage,
+      travelGuides: cms.travelGuides,
+    }),
     applyPayload: (target, payload) => {
       if (isPlainObject(payload.destinationsPage)) {
         target.pages.destinationsPage = deepMergeObjects(
           target.pages.destinationsPage,
           payload.destinationsPage
         );
+      }
+      if (Array.isArray(payload.travelGuides) && payload.travelGuides.length > 0) {
+        target.travelGuides =
+          payload.travelGuides as SiteCmsData['travelGuides'];
       }
     },
   },
@@ -1633,18 +1692,25 @@ export function writeCachedFirestoreSnapshot(
   snapshot: LoadedFirestoreContentSnapshot
 ): void {
   if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(
-      FIRESTORE_CMS_SNAPSHOT_CACHE_KEY,
-      JSON.stringify({
-        adminCms: snapshot.adminCms,
-        sectionMeta: snapshot.sectionMeta,
-        existingSectionCount: snapshot.existingSectionCount,
-        totalSectionCount: snapshot.totalSectionCount,
-      })
-    );
-  } catch {
-    // Ignore storage quota or access errors
+  const persist = () => {
+    try {
+      window.localStorage.setItem(
+        FIRESTORE_CMS_SNAPSHOT_CACHE_KEY,
+        JSON.stringify({
+          adminCms: snapshot.adminCms,
+          sectionMeta: snapshot.sectionMeta,
+          existingSectionCount: snapshot.existingSectionCount,
+          totalSectionCount: snapshot.totalSectionCount,
+        })
+      );
+    } catch {
+      // Ignore storage quota or access errors
+    }
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(persist, { timeout: 1000 });
+  } else {
+    window.setTimeout(persist, 0);
   }
 }
 

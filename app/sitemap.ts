@@ -3,80 +3,102 @@ import {
   SRI_LANKA_47_DESTINATIONS,
   resolveDestinationSlug,
 } from '@/lib/sri-lanka-47-destinations';
+import { TOURS } from '@/lib/tours';
+import { resolveTourSlug } from '@/lib/tour-helpers';
+import { DEFAULT_TRAVEL_GUIDES } from '@/lib/travel-guides';
+import { SITE_URL } from '@/lib/seo';
 
 export const dynamic = 'force-static';
 
-function resolveSiteBaseUrl(): string {
-  const raw =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.APP_URL ||
-    'https://www.bimondotours.com';
-  return raw.trim().replace(/\/+$/, '');
-}
-
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = resolveSiteBaseUrl();
-  const lastModified = new Date();
+  const now = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: `${baseUrl}/`,
-      lastModified,
+      url: SITE_URL,
+      lastModified: now,
       changeFrequency: 'weekly',
       priority: 1.0,
     },
     {
-      url: `${baseUrl}/destinations`,
-      lastModified,
+      url: `${SITE_URL}/destinations`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.95,
+    },
+    {
+      url: `${SITE_URL}/packages`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.95,
+    },
+    {
+      url: `${SITE_URL}/guides`,
+      lastModified: now,
       changeFrequency: 'weekly',
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/packages`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/stays`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.85,
-    },
-    {
-      url: `${baseUrl}/gallery`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/our-story`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/contact`,
-      lastModified,
+      url: `${SITE_URL}/stays`,
+      lastModified: now,
       changeFrequency: 'monthly',
       priority: 0.85,
     },
     {
-      url: `${baseUrl}/booking`,
-      lastModified,
-      changeFrequency: 'weekly',
+      url: `${SITE_URL}/gallery`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${SITE_URL}/our-story`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    },
+    {
+      url: `${SITE_URL}/contact`,
+      lastModified: now,
+      changeFrequency: 'monthly',
       priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}/booking`,
+      lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.85,
     },
   ];
 
-  const destinationRoutes: MetadataRoute.Sitemap = SRI_LANKA_47_DESTINATIONS.map(
-    (dest) => ({
-      url: `${baseUrl}/destinations/${resolveDestinationSlug(dest)}`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    })
-  );
+  const destinationRoutes: MetadataRoute.Sitemap = SRI_LANKA_47_DESTINATIONS.filter(
+    (d) => d.visible !== false
+  ).map((dest) => ({
+    url: `${SITE_URL}/destinations/${resolveDestinationSlug(dest)}`,
+    lastModified: now,
+    changeFrequency: 'monthly',
+    priority: dest.featuredOnHome ? 0.9 : 0.85,
+  }));
 
-  return [...staticRoutes, ...destinationRoutes];
+  const packageRoutes: MetadataRoute.Sitemap = TOURS.map((tour) => ({
+    url: `${SITE_URL}/packages/${resolveTourSlug(tour)}`,
+    lastModified: now,
+    changeFrequency: 'monthly',
+    priority: 0.9,
+  }));
+
+  const guideRoutes: MetadataRoute.Sitemap = DEFAULT_TRAVEL_GUIDES.filter(
+    (g) => g.visible !== false
+  ).map((guide) => ({
+    url: `${SITE_URL}/guides/${guide.slug}`,
+    lastModified: new Date(guide.updatedAt || guide.publishedAt),
+    changeFrequency: 'monthly',
+    priority: 0.85,
+  }));
+
+  return [
+    ...staticRoutes,
+    ...destinationRoutes,
+    ...packageRoutes,
+    ...guideRoutes,
+  ];
 }

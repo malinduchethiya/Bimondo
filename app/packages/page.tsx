@@ -9,6 +9,11 @@ import { CmsColomboExperienceItem, CmsTourItem } from '@/lib/cms-defaults';
 import TourModal from '@/components/TourModal';
 import BookingPanel from '@/components/booking/BookingPanel';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import { resolveTourSlug } from '@/lib/tour-helpers';
+import {
+  trackBookingButtonClick,
+  trackWhatsAppClick,
+} from '@/lib/analytics';
 
 export default function PackagesPage() {
   const { cms } = useSiteCms();
@@ -126,6 +131,7 @@ export default function PackagesPage() {
             {filtered.map((tour, idx) => {
               const isSelected = resolvedBookingTour?.id === tour.id;
               const cmsTour = tour as CmsTourItem;
+              const tourHref = `/packages/${resolveTourSlug(cmsTour)}`;
               return (
                 <article
                   key={tour.id}
@@ -133,7 +139,12 @@ export default function PackagesPage() {
                     isSelected ? 'is-active-booking-card' : ''
                   }`}
                 >
-                  <div className="package-img-wrap">
+                  <Link
+                    href={tourHref}
+                    prefetch={false}
+                    className="package-img-wrap"
+                    style={{ display: 'block', textDecoration: 'none' }}
+                  >
                     <CmsImage
                       imageRef={cmsTour.imageRef}
                       src={cmsTour.imageRef?.url || tour.image}
@@ -149,7 +160,7 @@ export default function PackagesPage() {
                         ? tour.durationLabel.toUpperCase()
                         : `${tour.days} DAYS · PRIVATE TOUR`}
                     </span>
-                  </div>
+                  </Link>
                   <div className="package-card-body">
                     <span
                       className="eyebrow"
@@ -160,7 +171,15 @@ export default function PackagesPage() {
                     >
                       {tour.categoryLabel}
                     </span>
-                    <h3 className="serif">{tour.name}</h3>
+                    <h3 className="serif">
+                      <Link
+                        href={tourHref}
+                        prefetch={false}
+                        style={{ color: 'inherit', textDecoration: 'none' }}
+                      >
+                        {tour.name}
+                      </Link>
+                    </h3>
                     <p className="package-route">
                       <strong>Route:</strong>{' '}
                       {Array.isArray(tour.route)
@@ -184,23 +203,26 @@ export default function PackagesPage() {
                       className="package-footer"
                       style={{ gap: '8px', flexWrap: 'wrap' }}
                     >
-                      <button
-                        type="button"
+                      <Link
+                        href={tourHref}
+                        prefetch={false}
                         className="pill"
                         style={{ padding: '9px 14px', fontSize: '10.5px' }}
-                        onClick={() => {
-                          setActiveBookingTour(tour);
-                          setModalTab('itinerary');
-                          setSelectedTour(tour);
-                        }}
                       >
-                        {pageContent.introSection.routeDetailsButtonLabel}
-                      </button>
+                        {pageContent.introSection.routeDetailsButtonLabel ||
+                          'VIEW FULL ITINERARY →'}
+                      </Link>
                       <button
                         type="button"
                         className="pill dark"
                         style={{ padding: '9px 16px', fontSize: '10.5px' }}
                         onClick={() => {
+                          trackBookingButtonClick({
+                            source: 'packages_card',
+                            itemType: 'tour',
+                            itemId: tour.id,
+                            itemName: tour.name,
+                          });
                           setActiveBookingTour(tour);
                           setModalTab('booking');
                           setSelectedTour(tour);
@@ -422,7 +444,15 @@ export default function PackagesPage() {
                       type="button"
                       className="pill dark"
                       style={{ padding: '9px 14px', fontSize: '10.5px' }}
-                      onClick={() => setActiveDayExpBooking(exp)}
+                      onClick={() => {
+                        trackBookingButtonClick({
+                          source: 'packages_colombo_day_exp',
+                          itemType: 'experience',
+                          itemId: exp.id,
+                          itemName: exp.name,
+                        });
+                        setActiveDayExpBooking(exp);
+                      }}
                     >
                       {pageContent.colomboSection.bookButtonLabel}
                     </button>
@@ -434,6 +464,9 @@ export default function PackagesPage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() =>
+                        trackWhatsAppClick('packages_colombo_day_exp', exp.name)
+                      }
                     >
                       {pageContent.colomboSection.whatsappButtonLabel}
                     </a>

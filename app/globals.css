@@ -1017,7 +1017,10 @@ header.site-header .desktop-nav-cta:focus {
 
 .discover-map-pin {
   position: absolute;
-  transform: translate(-50%, -100%);
+  left: 0;
+  top: 0;
+  transform: translate3d(var(--pin-x, 0px), var(--pin-y, 0px), 0)
+    translate(-50%, -100%);
   z-index: 5;
   display: inline-flex;
   align-items: center;
@@ -1026,16 +1029,14 @@ header.site-header .desktop-nav-cta:focus {
   background: transparent;
   border: 0;
   cursor: pointer;
-  transition: transform 0.18s ease, filter 0.18s ease;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.32));
 }
 
 .discover-map-pin:hover,
 .discover-map-pin:focus-visible,
 .discover-map-pin.is-active {
   z-index: 20;
-  transform: translate(-50%, -100%) scale(1.38);
-  filter: drop-shadow(0 5px 10px rgba(185, 28, 28, 0.48));
+  transform: translate3d(var(--pin-x, 0px), var(--pin-y, 0px), 0)
+    translate(-50%, -100%) scale(1.35);
   outline: none;
 }
 
@@ -1355,7 +1356,7 @@ header.site-header .desktop-nav-cta:focus {
   border: 0;
   background: #c7dce5;
   padding: 0;
-  transition: all 0.2s ease;
+  transition: width 0.2s ease, background-color 0.2s ease;
 }
 
 .review-dot.active {
@@ -1401,7 +1402,7 @@ header.site-header .desktop-nav-cta:focus {
   border: 1px solid rgba(21, 91, 114, 0.22);
   background: #ffffff;
   color: var(--ink);
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .minimal-faq-pill.active {
@@ -5601,4 +5602,40 @@ section#contact form#enquiry {
     display: none;
   }
 }
+
+.places-staggered-section,
+.sliding-cards-section,
+.planning-faq-wrapper,
+.contact,
+.site-footer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 620px;
+}
+
+/* ==========================================================================
+   ACCESSIBILITY: KEYBOARD FOCUS & REDUCED MOTION PREFERENCES
+   ========================================================================== */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-gold, #c9a25e);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
 

@@ -12,6 +12,10 @@ import {
   LiveAvailabilityResponse,
   SupportedCurrency,
 } from '@/lib/booking-types';
+import {
+  trackBookingButtonClick,
+  trackBookingFormStart,
+} from '@/lib/analytics';
 
 interface BookingPanelProps {
   itemId: string;
@@ -180,11 +184,22 @@ export default function BookingPanel({
   ]);
 
   const handleProceedToReview = () => {
+    trackBookingFormStart({
+      formLocation: 'booking_panel_review',
+      itemType,
+      itemId,
+    });
     setStep('review');
   };
 
   const handleProceedToProviderCheckout = () => {
     if (submittingCheckout) return;
+    trackBookingButtonClick({
+      source: `booking_panel_${activeProvider}_checkout`,
+      itemType,
+      itemId,
+      itemName,
+    });
     setSubmittingCheckout(true);
     setStep('checkout');
     setTimeout(() => {

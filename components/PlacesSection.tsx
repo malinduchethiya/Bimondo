@@ -75,7 +75,6 @@ export default function PlacesSection() {
   const maxOffsetRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
   const isVisibleRef = useRef<boolean>(false);
-  const isScrollingRef = useRef<boolean>(false);
   const [stepIndex, setStepIndex] = useState<number>(0);
 
   useEffect(() => {
@@ -108,13 +107,9 @@ export default function PlacesSection() {
   useEffect(() => {
     if (totalSlides <= 1) return;
 
-    let scrollTimer: number | null = null;
+    let lastScrollAt = 0;
     const onScroll = () => {
-      isScrollingRef.current = true;
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        isScrollingRef.current = false;
-      }, 220);
+      lastScrollAt = Date.now();
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -134,7 +129,7 @@ export default function PlacesSection() {
       if (
         isVisibleRef.current &&
         !isHoveredRef.current &&
-        !isScrollingRef.current &&
+        Date.now() - lastScrollAt > 250 &&
         !document.hidden
       ) {
         setStepIndex((prev) => {
@@ -154,7 +149,6 @@ export default function PlacesSection() {
     return () => {
       observer.disconnect();
       window.removeEventListener('scroll', onScroll);
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
       window.clearInterval(interval);
     };
   }, [totalSlides]);

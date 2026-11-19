@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowUpRight,
+  BookOpen,
   Calendar,
   Compass,
   Footprints,
@@ -25,6 +26,11 @@ import {
   findDestinationBySlugOrId,
   resolveDestinationSlug,
 } from '@/lib/sri-lanka-47-destinations';
+import { resolveTourSlug } from '@/lib/tour-helpers';
+import {
+  trackBookingButtonClick,
+  trackDestinationView,
+} from '@/lib/analytics';
 
 interface DestinationDetailClientProps {
   slug: string;
@@ -107,12 +113,41 @@ export default function DestinationDetailClient({ slug }: DestinationDetailClien
       .slice(0, 4);
   }, [cms.destinations, destination]);
 
+  const relatedGuides = useMemo(() => {
+    if (!destination) return [];
+    const destSlug = resolveDestinationSlug(destination);
+    return (cms.travelGuides || [])
+      .filter(
+        (g) =>
+          g.visible !== false &&
+          !g.deletedAt &&
+          (g.relatedDestinationSlugs || []).includes(destSlug)
+      )
+      .slice(0, 3);
+  }, [cms.travelGuides, destination]);
+
+  useEffect(() => {
+    if (!destination) return;
+    trackDestinationView(
+      resolveDestinationSlug(destination),
+      destination.name,
+      destination.regionLabel || destination.region
+    );
+  }, [destination]);
+
   const openEnquiryForDestination = (tourTitle?: string) => {
+    const resolvedName =
+      tourTitle ||
+      `Private Sri Lanka Journey — Including ${destination?.name || 'Destination'}`;
+    trackBookingButtonClick({
+      source: 'destination_detail',
+      itemType: tourTitle ? 'tour' : 'destination',
+      itemId: destination?.id || slug,
+      itemName: resolvedName,
+    });
     setBookingItem({
       id: destination?.id || slug,
-      name:
-        tourTitle ||
-        `Private Sri Lanka Journey — Including ${destination?.name || 'Destination'}`,
+      name: resolvedName,
     });
   };
 
@@ -1041,7 +1076,14 @@ export default function DestinationDetailClient({ slug }: DestinationDetailClien
                         <span>{tour.categoryLabel}</span>
                       </div>
                       <h4 className="serif" style={{ fontSize: '18px', margin: '0 0 4px' }}>
-                        {tour.name}
+                        <Link
+                          href={`/packages/${resolveTourSlug(tour)}`}
+                          prefetch={false}
+                          style={{ color: 'inherit', textDecoration: 'none' }}
+                          className="hover:underline"
+                        >
+                          {tour.name}
+                        </Link>
                       </h4>
                       <p
                         style={{
@@ -1084,19 +1126,21 @@ export default function DestinationDetailClient({ slug }: DestinationDetailClien
                             letterSpacing: '0.1em',
                             textTransform: 'uppercase',
                             color: 'var(--green)',
+                            cursor: 'pointer',
                           }}
                         >
                           Enquire This Route →
                         </button>
                         <Link
-                          href="/packages"
+                          href={`/packages/${resolveTourSlug(tour)}`}
+                          prefetch={false}
                           style={{
                             fontSize: '11px',
                             fontWeight: 600,
-                            color: 'var(--muted)',
+                            color: 'var(--terracotta)',
                           }}
                         >
-                          View Packages
+                          View Package →
                         </Link>
                       </div>
                     </div>
@@ -1109,6 +1153,58 @@ export default function DestinationDetailClient({ slug }: DestinationDetailClien
                 </p>
               )}
             </div>
+
+            {/* Related Sri Lanka Travel Guides */}
+            {relatedGuides.length > 0 && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid rgba(21, 91, 114, 0.14)',
+                  borderRadius: '14px',
+                  padding: '22px',
+                }}
+              >
+                <span
+                  className="eyebrow"
+                  style={{ color: 'var(--terracotta)', display: 'block', marginBottom: '4px' }}
+                >
+                  PLANNING GUIDES
+                </span>
+                <h3 className="serif" style={{ fontSize: '21px', margin: '0 0 12px' }}>
+                  Travel Guides Mentioning {destination.name}
+                </h3>
+                <div className="space-y-2.5">
+                  {relatedGuides.map((g) => (
+                    <Link
+                      key={g.id}
+                      href={`/guides/${g.slug}`}
+                      prefetch={false}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '10px',
+                        border: '1px solid #e1eef3',
+                        borderRadius: '10px',
+                        background: 'var(--paper)',
+                        padding: '12px 14px',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                      }}
+                    >
+                      <BookOpen className="w-4 h-4 text-[#328eae] shrink-0 mt-1" />
+                      <div>
+                        <div className="serif" style={{ fontSize: '16.5px', lineHeight: 1.3 }}>
+                          {g.title}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '3px' }}>
+                          {g.categoryLabel} · {g.readingTime}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Nearby & Same-Category Destinations */}
             {nearbyOrCategoryPeers.length > 0 && (

@@ -6,6 +6,7 @@ import {
   findDestinationBySlugOrId,
   resolveDestinationSlug,
 } from '@/lib/sri-lanka-47-destinations';
+import { buildDestinationJsonLd, buildPageMetadata } from '@/lib/seo';
 
 export async function generateStaticParams() {
   return SRI_LANKA_47_DESTINATIONS.map((dest) => ({
@@ -22,11 +23,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const dest = findDestinationBySlugOrId(SRI_LANKA_47_DESTINATIONS, slug);
 
   if (!dest) {
-    return {
+    return buildPageMetadata({
       title: 'Sri Lanka Destination Guide | Bimondo Travels',
       description:
         'Explore curated Sri Lanka destination guides, cultural heritage landmarks, wildlife reserves, hill country trails, and coastal retreats with Bimondo Travels.',
-    };
+      path: `/destinations/${slug}`,
+      type: 'article',
+    });
   }
 
   const canonicalSlug = resolveDestinationSlug(dest);
@@ -38,72 +41,22 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     dest.overview ||
     dest.description ||
     `Plan your visit to ${dest.name}, Sri Lanka with Bimondo Travels.`;
+  const imageUrl = (dest.imageRef?.url || dest.image || '').trim();
 
-  return {
+  return buildPageMetadata({
     title,
     description,
-    alternates: {
-      canonical: `/destinations/${canonicalSlug}`,
-    },
-    openGraph: {
-      title,
-      description,
-      url: `/destinations/${canonicalSlug}`,
-      type: 'article',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-    },
-  };
+    path: `/destinations/${canonicalSlug}`,
+    type: 'article',
+    image: imageUrl || undefined,
+  });
 }
 
 export default async function DestinationDetailPage({ params }: PageProps) {
   const { slug } = await params;
   const dest = findDestinationBySlugOrId(SRI_LANKA_47_DESTINATIONS, slug);
 
-  const jsonLd = dest
-    ? {
-        '@context': 'https://schema.org',
-        '@graph': [
-          {
-            '@type': 'TouristDestination',
-            name: dest.name,
-            description: dest.overview || dest.description,
-            url: `https://bimondotravels.com/destinations/${resolveDestinationSlug(dest)}`,
-            touristType: dest.categories || [],
-            containsPlace: (dest.thingsToSee || dest.highlights || []).slice(0, 8).map((item) => ({
-              '@type': 'TouristAttraction',
-              name: item.split(' — ')[0],
-            })),
-          },
-          {
-            '@type': 'BreadcrumbList',
-            itemListElement: [
-              {
-                '@type': 'ListItem',
-                position: 1,
-                name: 'Home',
-                item: 'https://bimondotravels.com/',
-              },
-              {
-                '@type': 'ListItem',
-                position: 2,
-                name: 'Destinations',
-                item: 'https://bimondotravels.com/destinations',
-              },
-              {
-                '@type': 'ListItem',
-                position: 3,
-                name: dest.name,
-                item: `https://bimondotravels.com/destinations/${resolveDestinationSlug(dest)}`,
-              },
-            ],
-          },
-        ],
-      }
-    : null;
+  const jsonLd = dest ? buildDestinationJsonLd(dest) : null;
 
   return (
     <>
@@ -117,3 +70,4 @@ export default async function DestinationDetailPage({ params }: PageProps) {
     </>
   );
 }
+

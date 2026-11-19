@@ -5,6 +5,7 @@ import PageBanner from '@/components/PageBanner';
 import ContactSection from '@/components/ContactSection';
 import FaqSection from '@/components/FaqSection';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import { trackWhatsAppClick } from '@/lib/analytics';
 
 export default function ContactPage() {
   const { cms } = useSiteCms();
@@ -60,6 +61,7 @@ export default function ContactPage() {
                     href="https://wa.me/94762232054"
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackWhatsAppClick('contact_page_details')}
                     style={{
                       fontSize: '12px',
                       color: 'var(--terracotta)',

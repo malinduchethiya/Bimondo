@@ -8,6 +8,11 @@ import {
 import { ACCOMMODATIONS, AccommodationItem } from '@/lib/booking-types';
 import { BENTO_DESTINATIONS, BentoDestination } from '@/lib/bento-destinations';
 import { SRI_LANKA_47_DESTINATIONS } from '@/lib/sri-lanka-47-destinations';
+import {
+  DEFAULT_TRAVEL_GUIDES,
+  type CmsTravelGuide,
+} from '@/lib/travel-guides';
+export type { CmsTravelGuide, TravelGuideSection, TravelGuideCategoryId } from '@/lib/travel-guides';
 
 export type StaggerSlideVariant =
   | 'tall-up'
@@ -170,7 +175,22 @@ export interface CmsFaqItem {
   deletedBy?: string | null;
 }
 
+export interface CmsTourFaqItem {
+  q: string;
+  a: string;
+}
+
 export interface CmsTourItem extends Tour {
+  slug?: string;
+  overview?: string;
+  itinerary?: string[];
+  included?: string[];
+  excluded?: string[];
+  activities?: string[];
+  faq?: CmsTourFaqItem[];
+  relatedDestinationSlugs?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
   imageRef: CmsImageRef;
   visible?: boolean;
   order?: number;
@@ -732,6 +752,7 @@ export interface SiteCmsData {
   gallery: CmsGalleryPhoto[];
   reviews: CmsReviewItem[];
   faqs: CmsFaqItem[];
+  travelGuides: CmsTravelGuide[];
   enquiries: CmsCustomerEnquiry[];
 }
 
@@ -1987,6 +2008,17 @@ export function getDefaultCmsData(): SiteCmsData {
     gallery: DEFAULT_GALLERY,
     reviews: DEFAULT_REVIEWS,
     faqs: DEFAULT_FAQS,
+    travelGuides: DEFAULT_TRAVEL_GUIDES.map((g) => ({
+      ...g,
+      sections: g.sections.map((sec) => ({
+        ...sec,
+        paragraphs: [...sec.paragraphs],
+        bullets: sec.bullets ? [...sec.bullets] : undefined,
+      })),
+      relatedDestinationSlugs: [...g.relatedDestinationSlugs],
+      relatedTourIds: [...g.relatedTourIds],
+      imageRef: createImageRef(g.imageRef?.url || '', g.imageRef?.alt || g.title, g.imageRef?.key ?? null),
+    })),
     enquiries: DEFAULT_ENQUIRIES,
   };
 }

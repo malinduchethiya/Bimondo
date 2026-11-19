@@ -115,7 +115,6 @@ export default function ValuesSection() {
   const maxOffsetRef = useRef<number>(0);
   const isHoveredRef = useRef<boolean>(false);
   const isVisibleRef = useRef<boolean>(false);
-  const isScrollingRef = useRef<boolean>(false);
   const [activeDot, setActiveDot] = useState<number>(0);
 
   useEffect(() => {
@@ -147,13 +146,9 @@ export default function ValuesSection() {
   useEffect(() => {
     if (totalCards <= 1) return;
 
-    let scrollTimer: number | null = null;
+    let lastScrollAt = 0;
     const onScroll = () => {
-      isScrollingRef.current = true;
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        isScrollingRef.current = false;
-      }, 220);
+      lastScrollAt = Date.now();
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -173,7 +168,7 @@ export default function ValuesSection() {
       if (
         isVisibleRef.current &&
         !isHoveredRef.current &&
-        !isScrollingRef.current &&
+        Date.now() - lastScrollAt > 250 &&
         !document.hidden &&
         window.innerWidth > 767
       ) {
@@ -194,7 +189,6 @@ export default function ValuesSection() {
     return () => {
       observer.disconnect();
       window.removeEventListener('scroll', onScroll);
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
       window.clearInterval(interval);
     };
   }, [totalCards]);

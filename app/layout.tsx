@@ -6,15 +6,35 @@ import FloatingWhatsApp from '@/components/FloatingWhatsApp';
 import MomentumScroll from '@/components/MomentumScroll';
 import SiteGsapAnimations from '@/components/SiteGsapAnimations';
 import InstantRouteManager from '@/components/InstantRouteManager';
+import AnalyticsProvider from '@/components/AnalyticsProvider';
+import {
+  SITE_URL,
+  SITE_NAME,
+  buildRootGraphJsonLd,
+} from '@/lib/seo';
 
 export const viewport: Viewport = {
   themeColor: '#eaf3f6',
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
   description:
-    'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
+    'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, wildlife, hill country, adventure, and coastal destinations.',
+  alternates: {
+    canonical: SITE_URL,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   icons: {
     icon: [{ url: '/favicon.jpg?v=2', type: 'image/jpeg' }],
     shortcut: ['/favicon.jpg?v=2'],
@@ -23,39 +43,23 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
     description:
-      'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
+      'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, wildlife, hill country, adventure, and coastal destinations.',
+    url: SITE_URL,
     type: 'website',
-    siteName: 'Bimondo Travels',
-    images: [{ url: '/favicon.jpg?v=2' }],
+    siteName: SITE_NAME,
+    locale: 'en_US',
+    images: [{ url: '/favicon.jpg?v=2', alt: 'Bimondo Travels Sri Lanka' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Bimondo Travels | Private Sri Lanka Tours & Tailor-Made Journeys',
     description:
-      'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, nature, wildlife and the coast.',
+      'Bimondo Travels creates private, tailor-made Sri Lankan journeys through heritage, wildlife, hill country, adventure, and coastal destinations.',
     images: ['/favicon.jpg?v=2'],
   },
 };
 
-const travelAgencyJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'TravelAgency',
-  name: 'Bimondo Travels',
-  alternateName: 'Bimondo Tours',
-  url: 'https://www.bimondotours.com',
-  logo: 'https://www.bimondotours.com/bimondo-logo.png',
-  image: 'https://www.bimondotours.com/favicon.jpg',
-  description:
-    'Destination Management Company & Tailor-Made Tour Operator in Battaramulla, Sri Lanka creating private, tailor-made Sri Lankan journeys.',
-  telephone: '+94762232054',
-  email: 'tours@bimondo.com',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: 'No. 596/1, Thalangama South',
-    addressLocality: 'Battaramulla',
-    addressCountry: 'LK',
-  },
-};
+const rootJsonLd = buildRootGraphJsonLd();
 
 export default function RootLayout({
   children,
@@ -93,11 +97,12 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(travelAgencyJsonLd),
+            __html: JSON.stringify(rootJsonLd),
           }}
         />
       </head>
       <body suppressHydrationWarning>
+        <AnalyticsProvider />
         <MomentumScroll />
         <SiteGsapAnimations />
         <Header />
@@ -108,3 +113,4 @@ export default function RootLayout({
     </html>
   );
 }
+

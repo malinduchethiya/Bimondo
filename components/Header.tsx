@@ -16,22 +16,33 @@ export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
-  const [clientTarget, setClientTarget] = useState<string | null>(null);
+  const [clientNav, setClientNav] = useState<{
+    basePath: string;
+    target: string;
+  } | null>(null);
   const lastScrollYRef = useRef(0);
   const pathname = usePathname();
 
-  const activePathname = normalizeRoutePath(clientTarget ?? pathname);
+  const effectiveTarget =
+    clientNav && clientNav.basePath === pathname ? clientNav.target : null;
+  const activePathname = normalizeRoutePath(effectiveTarget ?? pathname);
 
   useEffect(() => {
     const onCustomNavigate = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       if (customEvent.detail) {
-        setClientTarget(normalizeRoutePath(customEvent.detail));
+        setClientNav({
+          basePath: pathname,
+          target: normalizeRoutePath(customEvent.detail),
+        });
       }
     };
 
     const onPopState = () => {
-      setClientTarget(normalizeRoutePath(window.location.pathname));
+      setClientNav({
+        basePath: pathname,
+        target: normalizeRoutePath(window.location.pathname),
+      });
     };
 
     window.addEventListener('bimondo:navigate', onCustomNavigate);
@@ -40,7 +51,7 @@ export default function Header() {
       window.removeEventListener('bimondo:navigate', onCustomNavigate);
       window.removeEventListener('popstate', onPopState);
     };
-  }, []);
+  }, [pathname]);
 
   const isScrolledRef = useRef(false);
   const isHiddenRef = useRef(false);
@@ -127,7 +138,10 @@ export default function Header() {
     e.preventDefault();
     setIsOpen(false);
     setIsHidden(false);
-    setClientTarget(normalizeRoutePath(targetPath));
+    setClientNav({
+      basePath: pathname,
+      target: normalizeRoutePath(targetPath),
+    });
     navigateToRoute(targetPath);
   };
 

@@ -7,6 +7,7 @@ import HomePage from '@/app/page';
 
 const DestinationsPage = dynamic(() => import('@/app/destinations/page'));
 const PackagesPage = dynamic(() => import('@/app/packages/page'));
+const GuidesPage = dynamic(() => import('@/app/guides/page'));
 const StaysPage = dynamic(() => import('@/app/stays/page'));
 const GalleryPage = dynamic(() => import('@/app/gallery/page'));
 const OurStoryPage = dynamic(() => import('@/app/our-story/page'));
@@ -20,6 +21,7 @@ const VALID_PATHS = new Set([
   '/',
   '/destinations',
   '/packages',
+  '/guides',
   '/stays',
   '/gallery',
   '/our-story',
@@ -50,6 +52,7 @@ export function navigateToRoute(targetHref: string) {
 
   const nextPathname = normalizeRoutePath(targetUrl.pathname);
   if (!VALID_PATHS.has(nextPathname)) {
+    window.location.assign(`${nextPathname}${targetUrl.search}${targetUrl.hash}`);
     return;
   }
 
@@ -81,18 +84,29 @@ export default function InstantRouteManager({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [clientPath, setClientPath] = useState<string | null>(null);
+  const [clientNav, setClientNav] = useState<{
+    basePath: string;
+    target: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const onCustomNavigate = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       if (customEvent.detail) {
-        setClientPath(normalizeRoutePath(customEvent.detail));
+        const normalized = normalizeRoutePath(customEvent.detail);
+        setClientNav({
+          basePath: pathname,
+          target: VALID_PATHS.has(normalized) ? normalized : null,
+        });
       }
     };
 
     const onPopState = () => {
-      setClientPath(normalizeRoutePath(window.location.pathname));
+      const next = normalizeRoutePath(window.location.pathname);
+      setClientNav({
+        basePath: pathname,
+        target: VALID_PATHS.has(next) ? next : null,
+      });
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     };
 
@@ -153,6 +167,10 @@ export default function InstantRouteManager({
         e.preventDefault();
         e.stopPropagation();
         navigateToRoute(rawHref);
+      } else {
+        // Navigating to a dynamic route (e.g. /destinations/sigiriya, /packages/ceylon-grand-circuit, /guides/...)
+        // Clear clientNav so Next.js router renders the real dynamic page seamlessly.
+        setClientNav(null);
       }
     };
 
@@ -165,8 +183,10 @@ export default function InstantRouteManager({
       window.removeEventListener('popstate', onPopState);
       document.removeEventListener('click', onDocumentClick, true);
     };
-  }, []);
+  }, [pathname]);
 
+  const clientPath =
+    clientNav && clientNav.basePath === pathname ? clientNav.target : null;
   const activeRoute = normalizeRoutePath(clientPath ?? pathname);
 
   switch (activeRoute) {
@@ -176,6 +196,8 @@ export default function InstantRouteManager({
       return <DestinationsPage key="route-destinations" />;
     case '/packages':
       return <PackagesPage key="route-packages" />;
+    case '/guides':
+      return <GuidesPage key="route-guides" />;
     case '/stays':
       return <StaysPage key="route-stays" />;
     case '/gallery':
@@ -192,3 +214,4 @@ export default function InstantRouteManager({
       return <>{children}</>;
   }
 }
+

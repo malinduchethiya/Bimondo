@@ -56,10 +56,10 @@ export default function CmsImage({
     );
   }
 
-  const resolvedLoading = loading ?? 'eager';
+  const resolvedLoading = loading ?? (priority ? 'eager' : 'lazy');
   const resolvedDecoding = decoding ?? 'async';
   const resolvedFetchPriority =
-    fetchPriority ?? (priority ? 'high' : 'low');
+    fetchPriority ?? (priority ? 'high' : 'auto');
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -71,12 +71,6 @@ export default function CmsImage({
       decoding={resolvedDecoding}
       fetchPriority={resolvedFetchPriority}
       referrerPolicy="no-referrer"
-      onLoad={(e) => {
-        const target = e.currentTarget;
-        if (typeof target.decode === 'function') {
-          target.decode().catch(() => {});
-        }
-      }}
       onError={() => setFailedUrl(rawUrl)}
       className={`${
         fill ? 'absolute inset-0 w-full h-full' : 'w-full h-full'

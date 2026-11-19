@@ -127,6 +127,33 @@ function notifyListeners() {
   listeners.forEach((fn) => fn());
 }
 
+function buildMetaSignature(
+  meta: Record<CmsSectionDocId, CmsSectionMetadata>,
+  existingCount: number,
+  updatedAt: string,
+  enquiriesCount: number
+): string {
+  const parts: string[] = [
+    String(existingCount),
+    updatedAt || '',
+    String(enquiriesCount),
+  ];
+  for (const def of CMS_SECTION_DEFINITIONS) {
+    const m = meta[def.docId];
+    parts.push(`${m?.revision ?? 0}:${m?.updatedAt ?? ''}`);
+  }
+  return parts.join('|');
+}
+
+let lastSnapshotSignature = initialCached
+  ? buildMetaSignature(
+      initialCached.sectionMeta,
+      initialCached.existingSectionCount,
+      initialCached.adminCms.updatedAt,
+      initialCached.adminCms.enquiries?.length || 0
+    )
+  : '';
+
 async function performFirestoreFetch(forceServer = false): Promise<SiteCmsData> {
   if (inflightLoadPromise && !forceServer) {
     return inflightLoadPromise;
@@ -146,6 +173,23 @@ async function performFirestoreFetch(forceServer = false): Promise<SiteCmsData> 
         forceServer,
       });
       warmCriticalCmsImages(result.publicCms);
+      const nextSig = buildMetaSignature(
+        result.sectionMeta,
+        result.existingSectionCount,
+        result.adminCms.updatedAt,
+        result.adminCms.enquiries?.length || 0
+      );
+
+      if (
+        clientSnapshot.initializedFromServer &&
+        !clientSnapshot.loading &&
+        nextSig === lastSnapshotSignature &&
+        result.error === clientSnapshot.loadError
+      ) {
+        return clientSnapshot.adminCms;
+      }
+
+      lastSnapshotSignature = nextSig;
       clientSnapshot = {
         publicCms: result.publicCms,
         adminCms: result.adminCms,
@@ -169,7 +213,13 @@ async function performFirestoreFetch(forceServer = false): Promise<SiteCmsData> 
 if (typeof window !== 'undefined' && !hasTriggeredInitialLoad) {
   hasTriggeredInitialLoad = true;
   contentRepository.clearLegacyLocalStorage();
-  void performFirestoreFetch(false);
+  if (initialCached) {
+    window.setTimeout(() => {
+      void performFirestoreFetch(false);
+    }, 150);
+  } else {
+    void performFirestoreFetch(false);
+  }
 }
 
 function ensureWindowEvents() {
@@ -185,6 +235,12 @@ function ensureWindowEvents() {
     const latestCached = readCachedFirestoreSnapshot();
     if (latestCached) {
       warmCriticalCmsImages(latestCached.publicCms);
+      lastSnapshotSignature = buildMetaSignature(
+        latestCached.sectionMeta,
+        latestCached.existingSectionCount,
+        latestCached.adminCms.updatedAt,
+        latestCached.adminCms.enquiries?.length || 0
+      );
       clientSnapshot = {
         publicCms: latestCached.publicCms,
         adminCms: latestCached.adminCms,
@@ -209,7 +265,7 @@ function ensureWindowEvents() {
       return;
     }
     const now = Date.now();
-    if (now - lastFocusRefreshAt < 15000) return;
+    if (now - lastFocusRefreshAt < 60000) return;
     lastFocusRefreshAt = now;
     void performFirestoreFetch(true);
   };

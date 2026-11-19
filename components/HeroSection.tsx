@@ -50,30 +50,28 @@ export default function HeroSection() {
   useEffect(() => {
     if (visibleSlides.length <= 1) return;
 
-    let isScrolling = false;
-    let scrollTimer: number | null = null;
+    let lastScrollAt = 0;
     const onScroll = () => {
-      isScrolling = true;
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        isScrolling = false;
-      }, 200);
+      lastScrollAt = Date.now();
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
 
     const timer = window.setInterval(() => {
-      if (isVisibleRef.current && !document.hidden && !isScrolling) {
+      if (
+        isVisibleRef.current &&
+        !document.hidden &&
+        Date.now() - lastScrollAt > 250
+      ) {
         setActiveSlide((prev) => (prev + 1) % visibleSlides.length);
       }
     }, HERO_SLIDESHOW_INTERVAL_MS);
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      if (scrollTimer !== null) window.clearTimeout(scrollTimer);
       window.clearInterval(timer);
     };
-  }, [visibleSlides.length, safeActiveIndex]);
+  }, [visibleSlides.length]);
 
   if (hero.visible === false) {
     return null;

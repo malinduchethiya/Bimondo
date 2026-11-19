@@ -8,6 +8,7 @@ import {
   normalizeRoutePath,
 } from '@/components/InstantRouteManager';
 import { useSiteCms } from '@/hooks/useSiteCms';
+import { trackBookingButtonClick } from '@/lib/analytics';
 
 export default function FloatingWhatsApp() {
   const { cms } = useSiteCms();
@@ -22,6 +23,11 @@ export default function FloatingWhatsApp() {
 
   const handleBookingClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
+    trackBookingButtonClick({
+      source: 'floating_booking_cta',
+      itemType: 'general',
+      itemName: targetLabel,
+    });
     navigateToRoute(targetHref);
   };
 

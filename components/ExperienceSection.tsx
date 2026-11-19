@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import CmsImage from '@/components/CmsImage';
 import SriLanka3DTerrainMap from '@/components/SriLanka3DTerrainMap';
+import { resolveTourSlug } from '@/lib/tour-helpers';
 
 const DEFAULT_COMPETITIVE_ADVANTAGES = [
   {
@@ -92,19 +93,28 @@ const FEATURED_TOUR_IDS = [
   'family-island-discovery',
 ];
 
-export default function ExperienceSection() {
-  const { cms } = useSiteCms();
-  const expSection = cms.pages.home.experience;
+type ExperienceSectionCms = ReturnType<
+  typeof useSiteCms
+>['cms']['pages']['home']['experience'];
+
+const DiscoverMapStage = React.memo(function DiscoverMapStage({
+  expSection,
+}: {
+  expSection: ExperienceSectionCms;
+}) {
   const [activePinId, setActivePinId] = React.useState<string | null>(null);
 
-  if (expSection.visible === false) {
-    return null;
-  }
+  const visibleMapPins = React.useMemo(
+    () =>
+      [...(expSection.mapPins || [])]
+        .filter((pin) => pin.visible !== false && !pin.deletedAt)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [expSection.mapPins]
+  );
 
-  const experiences = expSection.items || [];
-  const visibleMapPins = [...(expSection.mapPins || [])]
-    .filter((pin) => pin.visible !== false && !pin.deletedAt)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const handleSelectPin = React.useCallback((pinId: string) => {
+    setActivePinId((prev) => (prev === pinId ? prev : pinId));
+  }, []);
 
   const activePin =
     (activePinId
@@ -126,6 +136,98 @@ export default function ExperienceSection() {
     expSection.primaryCtaHref ||
     '/packages';
   const secondaryCtaText = (expSection.secondaryCtaLabel || '').trim();
+
+  return (
+    <div className="experience-grid">
+      <div aria-live="polite">
+        <div className="eyebrow">
+          {activePin
+            ? activePin.regionEyebrow || expSection.eyebrow
+            : expSection.eyebrow}
+        </div>
+
+        {activePin ? (
+          <h2 className="serif">
+            {activePin.heading || activePin.label}
+            {activePin.headingItalic ? (
+              <>
+                {' '}
+                <em>{activePin.headingItalic}</em>
+              </>
+            ) : null}
+          </h2>
+        ) : (
+          <h2 className="serif">
+            {expSection.headingLine1}
+            <br />
+            {expSection.headingLine2Prefix}{' '}
+            <em>{expSection.headingItalic}</em>
+            <br />
+            {expSection.headingLine3}
+          </h2>
+        )}
+
+        <p>
+          {activePin
+            ? activePin.description || expSection.description
+            : expSection.description}
+        </p>
+
+        {activePin && activePinHighlights.length > 0 && (
+          <div className="discover-pin-highlights">
+            {activePinHighlights.map((item, idx) => (
+              <span key={idx} className="discover-pin-highlight-item">
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {(primaryCtaText || secondaryCtaText) && (
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {primaryCtaText && (
+              <Link
+                className="pill dark"
+                href={primaryCtaLink}
+                prefetch={false}
+              >
+                {primaryCtaText}
+              </Link>
+            )}
+            {secondaryCtaText && (
+              <Link
+                className="pill"
+                href={expSection.secondaryCtaHref || '/contact'}
+                prefetch={false}
+              >
+                {secondaryCtaText}
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="experience-photo" style={{ position: 'relative' }}>
+        <SriLanka3DTerrainMap
+          pins={visibleMapPins}
+          activePinId={activePin?.id ?? null}
+          onSelectPin={handleSelectPin}
+          enableHoverSelect
+        />
+      </div>
+    </div>
+  );
+});
+
+export default function ExperienceSection() {
+  const { cms } = useSiteCms();
+  const expSection = cms.pages.home.experience;
+
+  if (expSection.visible === false) {
+    return null;
+  }
+
+  const experiences = expSection.items || [];
 
   const visibleTours = [...(cms.tours || [])]
     .filter((t) => t.visible !== false && !t.deletedAt)
@@ -151,84 +253,7 @@ export default function ExperienceSection() {
   return (
     <section className="section experience" id="discover">
       <div className="wrap">
-        <div className="experience-grid">
-          <div aria-live="polite">
-            <div className="eyebrow">
-              {activePin
-                ? activePin.regionEyebrow || expSection.eyebrow
-                : expSection.eyebrow}
-            </div>
-
-            {activePin ? (
-              <h2 className="serif">
-                {activePin.heading || activePin.label}
-                {activePin.headingItalic ? (
-                  <>
-                    {' '}
-                    <em>{activePin.headingItalic}</em>
-                  </>
-                ) : null}
-              </h2>
-            ) : (
-              <h2 className="serif">
-                {expSection.headingLine1}
-                <br />
-                {expSection.headingLine2Prefix}{' '}
-                <em>{expSection.headingItalic}</em>
-                <br />
-                {expSection.headingLine3}
-              </h2>
-            )}
-
-            <p>
-              {activePin
-                ? activePin.description || expSection.description
-                : expSection.description}
-            </p>
-
-            {activePin && activePinHighlights.length > 0 && (
-              <div className="discover-pin-highlights">
-                {activePinHighlights.map((item, idx) => (
-                  <span key={idx} className="discover-pin-highlight-item">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {(primaryCtaText || secondaryCtaText) && (
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                {primaryCtaText && (
-                  <Link
-                    className="pill dark"
-                    href={primaryCtaLink}
-                    prefetch={false}
-                  >
-                    {primaryCtaText}
-                  </Link>
-                )}
-                {secondaryCtaText && (
-                  <Link
-                    className="pill"
-                    href={expSection.secondaryCtaHref || '/contact'}
-                    prefetch={false}
-                  >
-                    {secondaryCtaText}
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="experience-photo" style={{ position: 'relative' }}>
-            <SriLanka3DTerrainMap
-              pins={visibleMapPins}
-              activePinId={activePin?.id ?? null}
-              onSelectPin={(pinId) => setActivePinId(pinId)}
-              enableHoverSelect
-            />
-          </div>
-        </div>
+        <DiscoverMapStage expSection={expSection} />
 
         <div className="experiences">
           {experiences.map((exp) => (
@@ -350,7 +375,13 @@ export default function ExperienceSection() {
                         lineHeight: 1.2,
                       }}
                     >
-                      {tour.name}
+                      <Link
+                        href={`/packages/${resolveTourSlug(tour)}`}
+                        prefetch={false}
+                        style={{ color: 'inherit', textDecoration: 'none' }}
+                      >
+                        {tour.name}
+                      </Link>
                     </h4>
                     <p
                       style={{
@@ -374,7 +405,7 @@ export default function ExperienceSection() {
                     </p>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <Link
-                        href="/packages"
+                        href={`/packages/${resolveTourSlug(tour)}`}
                         prefetch={false}
                         className="pill"
                         style={{

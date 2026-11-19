@@ -13,6 +13,7 @@ import {
   DESTINATION_CATEGORY_FILTERS,
   resolveDestinationSlug,
 } from '@/lib/sri-lanka-47-destinations';
+import { trackBookingButtonClick } from '@/lib/analytics';
 
 const ADVENTURE_ACTIVITIES = [
   {
@@ -268,6 +269,9 @@ export default function DestinationsPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setSearchQuery('');
+                }}
                 placeholder="Search destinations, attractions, surfing, elephants, waterfalls, regions..."
                 aria-label="Search Sri Lanka destinations"
                 style={{
@@ -278,7 +282,6 @@ export default function DestinationsPage() {
                   border: '1px solid #b9d3dd',
                   borderRadius: '999px',
                   color: 'var(--ink)',
-                  outline: 'none',
                 }}
               />
               {searchQuery && (
@@ -348,7 +351,12 @@ export default function DestinationsPage() {
           </div>
 
           {/* Category Filter Tabs */}
-          <div className="filter" style={{ marginBottom: '12px' }}>
+          <div
+            className="filter"
+            role="group"
+            aria-label="Filter destinations by category or region"
+            style={{ marginBottom: '12px' }}
+          >
             {DESTINATION_CATEGORY_FILTERS.map((cat) => {
               const count = categoryCounts[cat.id] ?? 0;
               const isActive = activeCategory === cat.id;
@@ -356,6 +364,7 @@ export default function DestinationsPage() {
                 <button
                   key={cat.id}
                   type="button"
+                  aria-pressed={isActive}
                   className={isActive ? 'active' : ''}
                   onClick={() => setActiveCategory(cat.id)}
                 >
@@ -363,6 +372,18 @@ export default function DestinationsPage() {
                 </button>
               );
             })}
+            {(activeCategory !== 'all' || searchQuery.trim().length > 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory('all');
+                  setSearchQuery('');
+                }}
+                style={{ borderStyle: 'dashed' }}
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
 
           {/* Active Filter Context Line */}
@@ -380,10 +401,24 @@ export default function DestinationsPage() {
             }}
           >
             <span>{activeCategoryMeta.description}</span>
-            <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
-              Showing {filteredDestinations.length} of{' '}
-              {visibleDestinations.length} destinations
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <Link
+                href="/guides"
+                prefetch={false}
+                style={{
+                  color: 'var(--green)',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                }}
+              >
+                Sri Lanka Travel Guides →
+              </Link>
+              <span aria-live="polite" style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                Showing {filteredDestinations.length} of{' '}
+                {visibleDestinations.length} destinations
+              </span>
+            </div>
           </div>
         </div>
 
@@ -584,12 +619,18 @@ export default function DestinationsPage() {
                       <button
                         type="button"
                         className="pill"
-                        onClick={() =>
+                        onClick={() => {
+                          trackBookingButtonClick({
+                            source: 'destinations_directory_card',
+                            itemType: 'destination',
+                            itemId: dest.id,
+                            itemName: dest.name,
+                          });
                           setBookingModalItem({
                             id: dest.id,
                             name: `${dest.name} — Private Regional Discovery`,
-                          })
-                        }
+                          });
+                        }}
                       >
                         {pageCopy.regionalSection.bookButtonLabel ||
                           'PLAN THIS DESTINATION ↗'}

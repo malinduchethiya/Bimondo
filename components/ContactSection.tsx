@@ -1,11 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSiteCms } from '@/hooks/useSiteCms';
 import {
   BookingSubmissionMethod,
   CmsCustomerEnquiry,
 } from '@/lib/cms-defaults';
+import {
+  trackBookingEnquirySubmit,
+  trackBookingFormStart,
+  trackContactFormSubmit,
+  trackWhatsAppClick,
+} from '@/lib/analytics';
 
 export default function ContactSection() {
   const { cms, submitCustomerEnquiry } = useSiteCms();
@@ -37,6 +43,7 @@ export default function ContactSection() {
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const formStartedRef = useRef(false);
   const [lastBooking, setLastBooking] = useState<{
     record: CmsCustomerEnquiry | null;
     waUrl: string;
@@ -44,15 +51,53 @@ export default function ContactSection() {
     methodLabel: string;
   } | null>(null);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const destParam = sp.get('destination');
+    const pkgParam = sp.get('package');
+    if (!destParam && !pkgParam) return;
+
+    const rafId = window.requestAnimationFrame(() => {
+      if (destParam) {
+        setFormData((prev) => ({
+          ...prev,
+          message:
+            prev.message ||
+            `Interested in including ${destParam} in my private Sri Lanka itinerary.`,
+        }));
+      } else if (pkgParam) {
+        setFormData((prev) => ({
+          ...prev,
+          message:
+            prev.message ||
+            `Enquiring about the ${pkgParam} private tour package.`,
+        }));
+      }
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
+
   if (contactSection.visible === false) {
     return null;
   }
+
+  const markFormStarted = () => {
+    if (formStartedRef.current) return;
+    formStartedRef.current = true;
+    trackBookingFormStart({
+      formLocation: 'contact_enquiry_form',
+      itemType: 'enquiry',
+    });
+  };
 
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
+    markFormStarted();
     const { id, value } = e.target;
     const key = id === 'tripStyle' ? 'style' : id;
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -126,6 +171,16 @@ export default function ContactSection() {
       mailSubject
     )}&body=${encodeURIComponent(summaryLines)}`;
 
+    trackBookingEnquirySubmit({
+      method: formData.bookingMethod,
+      selectedPackage: formData.selectedPackage,
+      duration: formData.duration,
+    });
+    trackContactFormSubmit({
+      method: formData.bookingMethod,
+      selectedPackage: formData.selectedPackage,
+    });
+
     setLastBooking({
       record: savedRecord,
       waUrl,
@@ -176,6 +231,7 @@ export default function ContactSection() {
                 ).replace(/\D/g, '')}`}
                 rel="noopener noreferrer"
                 target="_blank"
+                onClick={() => trackWhatsAppClick('contact_section_info')}
                 style={{
                   color: '#a5eff4',
                   textDecoration: 'underline',
@@ -485,6 +541,9 @@ export default function ContactSection() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="pill dark"
+                    onClick={() =>
+                      trackWhatsAppClick('contact_confirmation_primary', formData.selectedPackage)
+                    }
                   >
                     CONTINUE ON WHATSAPP ↗
                   </a>
@@ -499,6 +558,9 @@ export default function ContactSection() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="pill"
+                  onClick={() =>
+                    trackWhatsAppClick('contact_confirmation_copy', formData.selectedPackage)
+                  }
                 >
                   WHATSAPP COPY ↗
                 </a>
